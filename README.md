@@ -18,10 +18,20 @@ Account passwords are managed by Supabase Auth and are never stored in the profi
 	values ('AUTH_USER_UUID', 'admin', 'Portal Administrator', 'admin@example.com', 'My spreadsheets', 'admin', 'active');
 	```
 
-5. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `index.html` through `window.ERTHPORTAL_SUPABASE_URL` and `window.ERTHPORTAL_SUPABASE_ANON_KEY` before its module script. The anon/publishable key is public and safe to include with RLS enabled; never use the service-role key.
+5. Paste your live values into the page config in `index.html` using the global variables `window.ERTHPORTAL_SUPABASE_URL`, `window.ERTHPORTAL_SUPABASE_ANON_KEY`, and `window.ERTHPORTAL_GOOGLE_CLIENT_ID` before the app script runs. The anon/publishable key is public and safe to include with RLS enabled; never use the service-role key. You can also define them before `index.html` loads in a hosted environment if you prefer to keep the values outside the source file.
 6. Publish the updated frontend and `supabase` folder to GitHub Pages.
 
 Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives a temporary password and must replace it at next sign-in.
+
+## Deployment config checklist
+
+- Supabase project URL: `https://<project-ref>.supabase.co`
+- Supabase anon key: from `Project Settings → API`
+- Google OAuth client ID: from `Google Cloud Console → APIs & Services → Credentials`
+- Authorized JavaScript origin: `https://ceris-system.github.io`
+- OAuth redirect/user flow remains within the same app and uses the Google sign-in flow inside the portal
+
+Use the exact same values for all users because the portal authenticates through the shared GitHub Pages app while each user still connects to their own personal spreadsheet after sign-in.
 
 ## Google Sheets Setup
 

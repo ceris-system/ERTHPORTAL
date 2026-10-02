@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#eaf8f8">
   <title>ERTH PORTAL | Operations Dashboard</title>
+  <script>
+    window.ERTHPORTAL_SUPABASE_URL = window.ERTHPORTAL_SUPABASE_URL || 'https://YOUR_PROJECT_REF.supabase.co';
+    window.ERTHPORTAL_SUPABASE_ANON_KEY = window.ERTHPORTAL_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+    window.ERTHPORTAL_GOOGLE_CLIENT_ID = window.ERTHPORTAL_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -544,8 +549,8 @@
     const topbarAvatar = document.querySelector('#topbar-avatar');
     const GOOGLE_OAUTH_CLIENT_ID = window.ERTHPORTAL_GOOGLE_CLIENT_ID || '230478655927-ec1pbf2ocbidhsd0his09j92rcqrmae8.apps.googleusercontent.com';
     const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
-    const SUPABASE_URL = (window.ERTHPORTAL_SUPABASE_URL || 'https://YOUR_PROJECT_REF.supabase.co').replace(/\/$/, '');
-    const SUPABASE_ANON_KEY = window.ERTHPORTAL_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
+    const SUPABASE_URL = (window.ERTHPORTAL_SUPABASE_URL || 'https://bxnkbqgzwrbyzfqinadb.supabase.co').replace(/\/$/, '');
+    const SUPABASE_ANON_KEY = window.ERTHPORTAL_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4bmticWd6d3JieXpmcWluYWRiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5Njg3MjYsImV4cCI6MjEwNjU0NDcyNn0.Hf7RBdKYzg3zOzo5KRpDeJn_OxGs5PAzOYeD9JbiRzg';
     let googleAccessToken = '';
     let signedInEmail = '';
     let plantillaSpreadsheetId = '';
