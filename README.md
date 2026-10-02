@@ -1,15 +1,20 @@
 # ERTHPORTAL
 
-## Private Plantilla connection
+## GitHub Pages and Google Sheets
 
-Plantilla reads and updates use Google Apps Script so each signed-in Google account stores its own spreadsheet URL and accesses that spreadsheet with its own Google permissions. Do not publish employee spreadsheets to the web.
+The GitHub Pages site is the frontend. It connects directly to the Google Sheets API using Google OAuth; no Apps Script project or server-side secret is needed. Each person signs in with their Google account and connects their own spreadsheet. Never publish employee data or put a client secret in this repository.
 
-1. Create a Google Apps Script project at [script.google.com](https://script.google.com/).
-2. Replace the project `Code.gs` contents with this repository's `Code.gs`.
-3. Add an HTML file named `index` and put this repository's `index.html` contents in it.
-4. Deploy as a web app. Set **Execute as** to **User accessing the web app** and restrict **Who has access** to the authorized Google Workspace users or accounts who should use the portal. Do not allow anonymous access.
-5. Each user opens the deployed web app, signs in to Google, signs in to the portal preview, opens **PLANTILLA**, chooses **Connect my sheet**, and enters their own spreadsheet URL. The spreadsheet must contain a tab named `PLANTILLA`, and the user's Google account must have edit access to it.
+### Google Cloud setup
 
-The connector reads rows 9 onward and uses VCODE in column B as the unique record key. Updates change only Rate (H), Separation Date (AG), and Status (AH); other cells and formulas in those rows are left untouched. The portal displays dates as `SEPTEMBER 26, 2026`.
+1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
+2. Enable the **Google Sheets API** for the project.
+3. Configure the Google Auth Platform consent screen for the people who will use the portal. During testing, add each tester as a test user. Google may require OAuth verification before general external use because the Sheets permission is sensitive.
+4. Create an OAuth client ID with application type **Web application**. Add `https://ceris-system.github.io` as an authorized JavaScript origin.
+5. Set the OAuth **client ID** in `GOOGLE_OAUTH_CLIENT_ID` near the top of the page's JavaScript, or define `window.ERTHPORTAL_GOOGLE_CLIENT_ID` before the module script runs. The client ID is public configuration; never add a client secret to the page.
+6. Publish the updated `index.html` to the GitHub Pages source branch. The live site is `https://ceris-system.github.io/ERTHPORTAL/`.
 
-The portal's username/password form is still a local preview and is not authentication. Google sign-in and the Apps Script deployment restrictions control access to each user's spreadsheet. Live spreadsheet access cannot be tested from the local file preview.
+Each user opens the site, chooses **Continue with Google**, opens **PLANTILLA**, and connects their spreadsheet URL. The sheet must contain a tab named `PLANTILLA`, and that Google account needs edit permission. The sheet URL is stored in that browser, scoped by the signed-in Google email; the OAuth access token stays in memory and is not stored in local storage.
+
+The portal reads rows 9 onward and uses VCODE in column B as the unique row key. It displays dates in uppercase, for example `SEPTEMBER 26, 2026`. Updates write only Rate (H), Separation Date (AG), and Status (AH). The signed-in user's Google permissions protect their sheet.
+
+This GitHub version uses Google sign-in instead of the preview username/password form. Account access and revocation are controlled by Google; this page does not implement a separate username/password or ACTIVE/INACTIVE/DEFAULT account directory.

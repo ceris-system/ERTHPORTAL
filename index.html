@@ -344,16 +344,12 @@
       </section>
       <section class="login-card" aria-labelledby="login-title">
         <h2 id="login-title">Welcome back</h2>
-        <p class="sub">Sign in to open your assigned client portal.</p>
+        <p class="sub">Sign in with Google to access the spreadsheets shared with your account.</p>
         <form id="login-form">
-          <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" placeholder="Enter your username" required></div>
-          <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
-          <div class="login-options"><label class="remember"><input type="checkbox" name="remember"> Remember me</label><button class="text-button" id="forgot-button" type="button">Forgot password?</button></div>
-          <button class="primary-button" type="submit">Sign in <span aria-hidden="true">&nbsp;→</span></button>
+          <button class="primary-button" id="google-login-button" type="submit">Continue with Google</button>
         </form>
         <p id="login-error" class="login-error hidden" role="alert"></p>
-        <p class="login-note">Your account opens its assigned client.</p>
-        <div class="demo-note">Preview only: use <strong>admin</strong> or a username in the demo roster. Passwords are not checked.</div>
+        <p class="login-note">Your Google account controls access to your private spreadsheet.</p>
       </section>
     </main>
 
@@ -536,6 +532,11 @@
     const openDashboardUrl = document.querySelector('#open-dashboard-url');
     const profileAvatar = document.querySelector('#profile-avatar');
     const topbarAvatar = document.querySelector('#topbar-avatar');
+    const GOOGLE_OAUTH_CLIENT_ID = window.ERTHPORTAL_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com';
+    const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
+    let googleAccessToken = '';
+    let signedInEmail = '';
+    let plantillaSpreadsheetId = '';
 
     function readJSON(key, fallback) {
       try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
@@ -560,6 +561,100 @@
       const saved = getClientLinks(client)[name];
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
+    }
+    function loadGoogleIdentity() {
+      if (window.google?.accounts?.oauth2) return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = () => window.google?.accounts?.oauth2 ? resolve() : reject(new Error('Google sign-in could not be initialized.'));
+        script.onerror = () => reject(new Error('Google sign-in could not be loaded.'));
+        document.head.append(script);
+      });
+    }
+    function requestGoogleAccessToken() {
+      return new Promise((resolve, reject) => {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_OAUTH_CLIENT_ID,
+          scope: GOOGLE_SHEETS_SCOPE,
+          callback: response => response.error ? reject(new Error(response.error_description || 'Google authorization was not completed.')) : resolve(response.access_token),
+          error_callback: error => reject(new Error(error.message || 'Google authorization failed.'))
+        });
+        tokenClient.requestAccessToken({ prompt: '' });
+      });
+    }
+    async function sheetsApiRequest(path, options = {}) {
+      if (!googleAccessToken) throw new Error('Sign in with Google to access your sheet.');
+      const response = await fetch(`https://sheets.googleapis.com/v4/${path}`, {
+        ...options,
+        headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json', ...options.headers }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message || 'Google Sheets request failed.');
+      return result;
+    }
+    function spreadsheetIdFromUrl(value) {
+      let url;
+      try { url = new URL(value); } catch { throw new Error('Enter a valid Google Sheets URL.'); }
+      const match = url.hostname === 'docs.google.com' && url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+      if (!match) throw new Error('Enter a Google Sheets spreadsheet URL.');
+      return match[1];
+    }
+    function spreadsheetUrlStorageKey(email = signedInEmail) {
+      return `erthportal:plantilla-sheet:${email.toLowerCase()}`;
+    }
+    function sheetDate(value) {
+      if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000);
+      if (typeof value === 'string' && value.trim()) {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) return parsed;
+      }
+      return null;
+    }
+    function displaySheetDate(value) {
+      const date = sheetDate(value);
+      return date ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' }).format(date).toUpperCase() : String(value || '').trim().toUpperCase();
+    }
+    function inputSheetDate(value) {
+      const date = sheetDate(value);
+      return date ? `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}` : '';
+    }
+    function sheetDateSerial(value) {
+      if (!value) return '';
+      const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) throw new Error('Choose a valid separation date.');
+      return (Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) - Date.UTC(1899, 11, 30)) / 86400000;
+    }
+    function mapPlantillaRow(row, displayRow, rowNumber) {
+      const value = column => displayRow[column] ?? '';
+      return {
+        rowNumber,
+        vcode: String(value(1)).trim(),
+        emploc: String(value(2)).trim(),
+        memberName: String(value(35)).trim(),
+        position: String(value(6)).trim(),
+        outlet: String(value(9)).trim(),
+        hc: String(value(28)).trim(),
+        separationDate: displaySheetDate(row[32] ?? value(32)),
+        separationDateInput: inputSheetDate(row[32] ?? value(32)),
+        status: String(value(33)).trim(),
+        contactNo: String(value(20)).trim(),
+        birthday: displaySheetDate(row[21] ?? value(21)),
+        age: String(value(22)).trim(),
+        civilStatus: String(value(23)).trim(),
+        atamNo: String(value(19)).trim(),
+        coordinator: String(value(25)).trim(),
+        address: String(value(24)).trim(),
+        sssNo: String(value(16)).trim(),
+        philhealthNo: String(value(17)).trim(),
+        pagibigNo: String(value(18)).trim(),
+        rate: String(value(7)).trim(),
+        area: String(value(8)).trim(),
+        restday: String(value(10)).trim(),
+        dateHired: displaySheetDate(row[14] ?? value(14)),
+        designation: String(value(12)).trim()
+      };
     }
     function updateClientChoices(selected = '') {
       const clients = [...new Set([...getClientNames(), ...getUsers().map(user => user.client).filter(Boolean)])];
@@ -668,31 +763,45 @@
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
     function showPlantilla() {
+      plantillaSpreadsheetId = localStorage.getItem(spreadsheetUrlStorageKey()) || '';
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions"><button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
-      document.querySelector('#plantilla-connect').addEventListener('click', () => document.querySelector('#plantilla-connect-dialog').showModal());
+      document.querySelector('#plantilla-connect').addEventListener('click', () => {
+        document.querySelector('#plantilla-sheet-url').value = plantillaSpreadsheetId ? `https://docs.google.com/spreadsheets/d/${plantillaSpreadsheetId}/edit` : '';
+        document.querySelector('#plantilla-connect-dialog').showModal();
+      });
       document.querySelector('#plantilla-refresh').addEventListener('click', loadPlantillaRecords);
       document.querySelector('#plantilla-home').addEventListener('click', showHome);
       loadPlantillaRecords();
     }
-    function loadPlantillaRecords() {
+    async function loadPlantillaRecords() {
       const status = document.querySelector('#plantilla-status');
       const body = document.querySelector('#plantilla-table-body');
       if (!status || !body) return;
-      const runner = window.google?.script?.run;
-      if (!runner) {
-        status.textContent = 'This private sheet connector is available when the portal is deployed as an Apps Script web app.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Deploy the portal as an Apps Script web app, then connect your sheet.</td></tr>';
+      if (!googleAccessToken) {
+        status.textContent = 'Sign in with Google to load your private sheet.';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Google authorization is required.</td></tr>';
+        return;
+      }
+      if (!plantillaSpreadsheetId) {
+        status.textContent = 'Connect your own spreadsheet to begin.';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">No spreadsheet is connected for this Google account.</td></tr>';
         return;
       }
       status.textContent = 'Loading records...';
       body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr>';
-      runner.withSuccessHandler(records => {
-        plantillaRecords = Array.isArray(records) ? records : [];
+      try {
+        const range = encodeURIComponent('PLANTILLA!A9:AJ');
+        const [rawResult, displayResult] = await Promise.all([
+          sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+          sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+        ]);
+        const rowCount = Math.max(rawResult.values?.length || 0, displayResult.values?.length || 0);
+        plantillaRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawResult.values?.[index] || [], displayResult.values?.[index] || [], index + 9)).filter(record => record.vcode);
         renderPlantillaTable();
-      }).withFailureHandler(error => {
+      } catch (error) {
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
         body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Connect your sheet or check your Google access, then refresh.</td></tr>';
-      }).getPlantillaRecords();
+      }
     }
     function renderPlantillaTable() {
       const status = document.querySelector('#plantilla-status');
@@ -731,21 +840,41 @@
         event.preventDefault();
         const form = event.currentTarget;
         const button = form.querySelector('button[type="submit"]');
-        const runner = window.google?.script?.run;
-        if (!runner) return notify('Deploy the portal as an Apps Script web app to update this private sheet.');
         button.disabled = true;
         button.textContent = 'Updating...';
-        runner.withSuccessHandler(updatedRecord => {
-          const recordIndex = plantillaRecords.findIndex(item => item.vcode === updatedRecord.vcode);
-          if (recordIndex >= 0) plantillaRecords[recordIndex] = updatedRecord;
-          renderPlantillaTable();
-          openRecordDrawer(updatedRecord.vcode);
-          notify(`Updated VCODE ${updatedRecord.vcode}.`);
-        }).withFailureHandler(error => {
-          button.disabled = false;
-          button.textContent = 'Update record';
-          notify(error?.message || 'The record could not be updated.');
-        }).updatePlantillaRecord(form.elements.vcode.value, form.elements.rate.value, form.elements.separationDate.value, form.elements.status.value);
+        (async () => {
+          try {
+            const vcode = form.elements.vcode.value.trim();
+            const numericRate = Number(form.elements.rate.value);
+            const status = form.elements.status.value;
+            if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
+            if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
+            const vcodeRange = encodeURIComponent('PLANTILLA!B9:B');
+            const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
+            const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
+            if (!matches.length) throw new Error(`No row found for VCODE ${vcode}.`);
+            if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once; no changes were made.`);
+            const rowNumber = matches[0];
+            await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
+              method: 'POST',
+              body: JSON.stringify({
+                valueInputOption: 'RAW',
+                data: [
+                  { range: `PLANTILLA!H${rowNumber}`, values: [[numericRate]] },
+                  { range: `PLANTILLA!AG${rowNumber}`, values: [[sheetDateSerial(form.elements.separationDate.value)]] },
+                  { range: `PLANTILLA!AH${rowNumber}`, values: [[status]] }
+                ]
+              })
+            });
+            await loadPlantillaRecords();
+            openRecordDrawer(vcode);
+            notify(`Updated VCODE ${vcode}.`);
+          } catch (error) {
+            button.disabled = false;
+            button.textContent = 'Update record';
+            notify(error?.message || 'The record could not be updated.');
+          }
+        })();
       });
     }
     function closeRecordDrawer() {
@@ -848,28 +977,44 @@
     updateClientChoices(getClientNames()[0]);
     document.querySelector('#login-form').addEventListener('submit', event => {
       event.preventDefault();
-      const username = new FormData(event.currentTarget).get('username').trim().toLowerCase();
       const error = document.querySelector('#login-error');
-      if (username === 'admin') {
-        currentUser = { username: 'admin', displayName: 'Administrator', client: getClientNames()[0], photo: '', role: 'admin' };
-      } else {
-        currentUser = getUsers().find(user => user.username.toLowerCase() === username) || null;
-      }
-      if (!currentUser) {
-        error.textContent = 'Username not found in the preview roster. Sign in as admin to add a user first.';
+      const button = document.querySelector('#google-login-button');
+      if (GOOGLE_OAUTH_CLIENT_ID.startsWith('YOUR_')) {
+        error.textContent = 'Add your Google OAuth Web Client ID to this page before signing in.';
         error.classList.remove('hidden');
         return;
       }
+      button.disabled = true;
+      button.textContent = 'Connecting to Google...';
       error.classList.add('hidden');
-      if (currentUser.role === 'admin') updateClientChoices(currentUser.client || getClientNames()[0]);
-      else updateClientChoices(currentUser.client);
-      renderProfile(currentUser);
-      loginPage.classList.add('hidden');
-      dashboardPage.classList.remove('hidden');
-      showHome();
+      (async () => {
+        try {
+          await loadGoogleIdentity();
+          googleAccessToken = await requestGoogleAccessToken();
+          const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${googleAccessToken}` } });
+          const identity = await response.json();
+          if (!response.ok || !identity.email) throw new Error('Google did not return an email for this account.');
+          signedInEmail = identity.email;
+          currentUser = { username: signedInEmail, displayName: identity.name || signedInEmail, client: 'My spreadsheets', photo: identity.picture || '', role: 'user' };
+          renderProfile(currentUser);
+          loginPage.classList.add('hidden');
+          dashboardPage.classList.remove('hidden');
+          showHome();
+        } catch (loginError) {
+          googleAccessToken = '';
+          error.textContent = loginError?.message || 'Google sign-in failed.';
+          error.classList.remove('hidden');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Continue with Google';
+        }
+      })();
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
       currentUser = null;
+      googleAccessToken = '';
+      signedInEmail = '';
+      plantillaSpreadsheetId = '';
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
@@ -960,21 +1105,25 @@
       event.preventDefault();
       const form = event.currentTarget;
       const button = form.querySelector('button[type="submit"]');
-      const runner = window.google?.script?.run;
-      if (!runner) return notify('Open the deployed Apps Script portal to connect a private sheet.');
       button.disabled = true;
       button.textContent = 'Connecting...';
-      runner.withSuccessHandler(result => {
-        button.disabled = false;
-        button.textContent = 'Connect sheet';
-        document.querySelector('#plantilla-connect-dialog').close();
-        notify(`Connected to ${result.spreadsheetName}.`);
-        loadPlantillaRecords();
-      }).withFailureHandler(error => {
-        button.disabled = false;
-        button.textContent = 'Connect sheet';
-        notify(error?.message || 'Could not connect to that spreadsheet.');
-      }).saveMyPlantillaUrl(form.elements.url.value.trim());
+      (async () => {
+        try {
+          const spreadsheetId = spreadsheetIdFromUrl(form.elements.url.value.trim());
+          const metadata = await sheetsApiRequest(`spreadsheets/${spreadsheetId}?fields=properties.title,sheets.properties.title`);
+          if (!(metadata.sheets || []).some(sheet => sheet.properties?.title === 'PLANTILLA')) throw new Error('The spreadsheet must contain a tab named PLANTILLA.');
+          plantillaSpreadsheetId = spreadsheetId;
+          localStorage.setItem(spreadsheetUrlStorageKey(), spreadsheetId);
+          document.querySelector('#plantilla-connect-dialog').close();
+          notify(`Connected to ${metadata.properties?.title || 'your spreadsheet'}.`);
+          loadPlantillaRecords();
+        } catch (error) {
+          notify(error?.message || 'Could not connect to that spreadsheet.');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Connect sheet';
+        }
+      })();
     });
     document.querySelector('#add-dashboard-url').addEventListener('click', () => addDashboardUrlRow());
     openDashboardUrl.addEventListener('click', () => {
@@ -991,7 +1140,6 @@
     [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close();
     }));
-    document.querySelector('#forgot-button').addEventListener('click', () => notify('Ask your portal administrator to update your preview account.'));
   </script>
 </body>
 </html>
