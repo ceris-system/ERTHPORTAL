@@ -1,31 +1,40 @@
 # ERTHPORTAL
 
-## GitHub Pages and Google Sheets
+## Architecture
 
-The GitHub Pages site is the frontend. It connects directly to the Google Sheets API using Google OAuth; no Apps Script project or server-side secret is needed. Each person signs in with their Google account and connects their own spreadsheet. Never publish employee data or put a client secret in this repository.
+GitHub Pages hosts the frontend. Supabase Free provides username/password authentication, account profiles/status, and a protected admin Edge Function. Google Sheets remains the employee-data source. Google OAuth is used after portal login to authorize the user's assigned Google account to access Sheets.
 
-### Google Cloud setup
+Account passwords are managed by Supabase Auth and are never stored in the profiles table or GitHub. Admins create accounts and receive a one-time temporary password to share privately. New/reset accounts have `default` status and must change that password before continuing. `inactive` accounts cannot sign in.
 
-1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
-2. Enable the **Google Sheets API** for the project.
-3. Configure the Google Auth Platform consent screen for the people who will use the portal. During testing, add each tester as a test user. Google may require OAuth verification before general external use because the Sheets permission is sensitive.
-4. Create an OAuth client ID with application type **Web application**. Add `https://ceris-system.github.io` as an authorized JavaScript origin.
-5. Set the OAuth **client ID** in `GOOGLE_OAUTH_CLIENT_ID` near the top of the page's JavaScript, or define `window.ERTHPORTAL_GOOGLE_CLIENT_ID` before the module script runs. The client ID is public configuration; never add a client secret to the page.
-6. Publish the updated `index.html` to the GitHub Pages source branch. The live site is `https://ceris-system.github.io/ERTHPORTAL/`.
+## Supabase Setup
 
-Each user opens the site, chooses **Continue with Google**, opens **PLANTILLA**, and connects their spreadsheet URL. The sheet must contain a tab named `PLANTILLA`, and that Google account needs edit permission. The sheet URL is stored in that browser, scoped by the signed-in Google email; the OAuth access token stays in memory and is not stored in local storage.
+1. Create a Supabase project on the Free plan.
+2. In **SQL Editor**, run `supabase/migrations/202610020001_profiles.sql`.
+3. Deploy the protected `admin-users` Edge Function. With the Supabase CLI installed, run `supabase login`, `supabase link --project-ref YOUR_PROJECT_REF`, `supabase db push`, and `supabase functions deploy admin-users` from this repository. The function uses Supabase's server-side `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; never put the service-role key in the page or GitHub.
+4. Bootstrap the first administrator in Supabase **Authentication → Users**: create and confirm a user with email `admin@accounts.erthportal.invalid` and a strong password. Copy that Auth user's UUID. In SQL Editor, insert its profile, replacing the UUID and Google email:
 
-The portal reads rows 9 onward and uses VCODE in column B as the unique row key. It displays dates in uppercase, for example `SEPTEMBER 26, 2026`. Updates write only Rate (H), Separation Date (AG), and Status (AH). The signed-in user's Google permissions protect their sheet.
+	```sql
+	insert into public.profiles (id, username, display_name, google_email, client_name, role, status)
+	values ('AUTH_USER_UUID', 'admin', 'Portal Administrator', 'admin@example.com', 'My spreadsheets', 'admin', 'active');
+	```
 
-This GitHub version uses Google sign-in instead of the preview username/password form. Account access and revocation are controlled by Google; this page does not implement a separate username/password or ACTIVE/INACTIVE/DEFAULT account directory.
+5. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `index.html` through `window.ERTHPORTAL_SUPABASE_URL` and `window.ERTHPORTAL_SUPABASE_ANON_KEY` before its module script. The anon/publishable key is public and safe to include with RLS enabled; never use the service-role key.
+6. Publish the updated frontend and `supabase` folder to GitHub Pages.
 
-### OAuth branding and production
+Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives a temporary password and must replace it at next sign-in.
 
-In Google Auth Platform **Branding**, use these public URLs:
+## Google Sheets Setup
 
-- App homepage: `https://ceris-system.github.io/ERTHPORTAL/`
+Each profile stores the Google email authorized for that username. After portal authentication, the user must authorize that same Google account and connect their own spreadsheet URL. The sheet needs a `PLANTILLA` tab and edit access for that Google account. The OAuth access token stays in memory; the spreadsheet ID is stored in that browser, scoped by Google email.
+
+Enable the Google Sheets API in Google Cloud and create a Web OAuth client. Add `https://ceris-system.github.io` as an authorized JavaScript origin. The Client ID is public; never add a client secret. While the OAuth consent screen is in Testing, add each user's Google account as a test user. Production access to Google's sensitive Sheets scope may require verification; publishing alone does not complete verification.
+
+Branding URLs:
+
+- Homepage: `https://ceris-system.github.io/ERTHPORTAL/`
 - Privacy policy: `https://ceris-system.github.io/ERTHPORTAL/privacy.html`
 - App name: `ERTH PORTAL`
-- Support and developer contact: an email address you monitor
 
-Save the branding information, then return to **Audience** and select **Publish app** to leave Testing. Publishing allows accounts beyond the test-user list to attempt sign-in; it does not itself mean Google has verified the app. Because Sheets access is a sensitive OAuth scope, Google may still show an unverified-app warning, limit users, or require submission in **Verification Center**. Follow Google's verification prompts before general distribution. If Google requires domain ownership verification, a custom domain you control may be needed because `github.io` is shared hosting.
+The portal reads rows 9 onward and uses VCODE in column B as the unique row key. Dates display in uppercase, e.g. `SEPTEMBER 26, 2026`. Updates write only Rate (H), Separation Date (AG), and Status (AH).
+
+Supabase Free has usage limits and may pause projects after extended inactivity. Check the current plan limits before relying on it for production operations.

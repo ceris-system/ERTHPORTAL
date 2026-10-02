@@ -27,20 +27,23 @@
     <a class="back" href="./">Back to ERTH PORTAL</a>
     <h1>ERTH PORTAL Privacy Notice</h1>
     <p class="updated">Last updated: October 2, 2026</p>
-    <p>ERTH PORTAL lets users view and update a PLANTILLA Google Sheet that they choose. The portal is hosted on GitHub Pages and communicates directly between the user's browser and Google services.</p>
+    <p>ERTH PORTAL is hosted on GitHub Pages. Supabase provides portal account authentication and profile administration. Google provides spreadsheet authorization and the Sheets API.</p>
+
+    <h2>Portal account information</h2>
+    <p>Supabase stores your username, display name, assigned Google email, client name, account role, and account status. Supabase Auth processes your password and stores its protected credential representation; ERTH PORTAL does not store plaintext passwords. Administrators can create accounts and reset passwords. Temporary passwords are shown to the administrator once and must be shared privately; users must change them after sign-in.</p>
 
     <h2>Google account information</h2>
-    <p>When you sign in, the portal receives your Google email address, display name, and profile image from Google. The email address is used to keep your selected spreadsheet URL separate from other accounts using the same browser. This account information is held in the current page session and is not sent to an ERTH PORTAL server.</p>
+    <p>After portal sign-in, Google OAuth returns your email, display name, and profile image to the browser. The email must match the Google account assigned to your portal profile. The OAuth access token remains in memory for the open page and is not saved to local storage.</p>
 
     <h2>Google Sheets access</h2>
-    <p>The portal requests permission to read and write Google Sheets that your Google account can access. You choose a spreadsheet by entering its URL. The portal reads the PLANTILLA tab from row 9 onward and displays employee data in your browser. When you submit an update, it changes only Rate (column H), Separation Date (column AG), and Status (column AH) on the row matching the VCODE.</p>
-    <p>Sheet contents are fetched directly from the Google Sheets API into your browser and are not stored by an ERTH PORTAL server. Google processes the requests under Google's privacy and security practices. Only connect a sheet you are authorized to access.</p>
+    <p>The portal requests permission to read and write Google Sheets that your authorized Google account can access. You choose a spreadsheet by entering its URL. The portal reads the PLANTILLA tab from row 9 onward and displays employee data in your browser. When you submit an update, it changes only Rate (column H), Separation Date (column AG), and Status (column AH) on the row matching the VCODE.</p>
+    <p>Sheet contents are fetched directly from the Google Sheets API into your browser and are not stored by Supabase. Supabase stores account/profile information; Google processes sheet requests under Google's privacy and security practices. Only connect a sheet you are authorized to access.</p>
 
     <h2>Local browser storage</h2>
-    <p>The selected spreadsheet ID is saved in your browser's local storage under your Google email address so you do not have to reconnect on every visit. The OAuth access token is kept in memory for the open page and is not saved to local storage. Clearing this site's browser data removes the saved spreadsheet selection.</p>
+    <p>The selected spreadsheet ID is saved in your browser's local storage under your Google email address so you do not have to reconnect on every visit. The Supabase login session is held in the current page session. Clearing or closing the page ends that session; clearing this site's browser data removes the saved spreadsheet selection.</p>
 
     <h2>Third-party services</h2>
-    <p>Google provides sign-in and the Sheets API. Google Fonts and jsDelivr provide page assets. These services may receive standard connection information when your browser requests their resources. ERTH PORTAL does not use advertising or analytics trackers.</p>
+    <p>Supabase provides authentication, profile storage, and protected account-management functions. Google provides Sheets authorization and the Sheets API. Google Fonts and jsDelivr provide page assets. These services may receive standard connection information when your browser requests their resources. ERTH PORTAL does not use advertising or analytics trackers.</p>
 
     <h2>Data security and contact</h2>
     <p>Access to sheet data depends on your Google account permissions. Do not share your OAuth access token or publish employee sheets to the web. For privacy questions, contact the support email shown on the ERTH PORTAL Google consent screen.</p>

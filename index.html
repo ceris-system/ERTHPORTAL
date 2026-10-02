@@ -194,6 +194,8 @@
     .source-link { padding:15px; border:1px solid rgba(255,255,255,.94); border-radius:14px; color:#286068; background:rgba(255,255,255,.68); box-shadow:0 8px 22px rgba(37,101,112,.1); font-size:11px; font-weight:700; text-decoration:none; transition:transform .2s,background .2s; }
     .source-link:hover { transform:translateY(-2px); background:white; }
     .login-error { margin:10px 0 0; color:#b6444e; font-size:11px; }
+    .auth-feedback { min-height:18px; margin:12px 0 0; color:#587780; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+    .account-state { display:inline-block; padding:4px 7px; border-radius:6px; background:#e5f4f0; color:#247c72; font-size:9px; font-weight:700; text-transform:uppercase; }
     .url-list { display:grid; gap:8px; }
     .url-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:7px; }
     .url-row input { min-width:0; }
@@ -342,14 +344,33 @@
         <p class="intro-copy">Your HR operations, organized in one place. Sign in to review vacancies, plantilla records, approvals, and workforce movement.</p>
         <div class="intro-foot"><div class="avatar-stack" aria-hidden="true"><span>HR</span><span>01</span><span>+</span></div><span>One client portal for your HR team</span></div>
       </section>
-      <section class="login-card" aria-labelledby="login-title">
+      <section id="login-card" class="login-card" aria-labelledby="login-title">
         <h2 id="login-title">Welcome back</h2>
-        <p class="sub">Sign in with Google to access the spreadsheets shared with your account.</p>
+        <p class="sub">Sign in to your ERTH PORTAL account.</p>
         <form id="login-form">
-          <button class="primary-button" id="google-login-button" type="submit">Continue with Google</button>
+          <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
+          <div class="field"><label for="login-password">Password</label><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"></div>
+          <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
+          <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
         <p id="login-error" class="login-error hidden" role="alert"></p>
-        <p class="login-note">Your Google account controls access to your private spreadsheet.</p>
+        <p class="login-note">Your administrator creates your account and provides your first password.</p>
+      </section>
+      <section id="password-update-panel" class="login-card hidden" aria-labelledby="password-update-title">
+        <h2 id="password-update-title">Update your password</h2>
+        <p class="sub">A temporary password was detected. Choose a new password to continue.</p>
+        <form id="password-update-form">
+          <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+          <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+          <button id="password-update-submit" class="primary-button" type="submit">Update password</button>
+        </form>
+        <p id="password-update-error" class="login-error hidden" role="alert"></p>
+      </section>
+      <section id="sheets-auth-panel" class="login-card hidden" aria-labelledby="sheets-auth-title">
+        <h2 id="sheets-auth-title">Authorize your spreadsheet</h2>
+        <p class="sub">Continue with the Google account assigned to your portal username.</p>
+        <button id="authorize-sheets-button" class="primary-button" type="button">Continue with Google</button>
+        <p id="sheets-auth-error" class="login-error hidden" role="alert"></p>
       </section>
     </main>
 
@@ -369,7 +390,7 @@
       <section class="main">
         <header class="topbar">
           <div class="topbar-left"><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><span id="topbar-date"></span></div></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">Client 01</span><select id="client-select" class="client-select hidden" aria-label="Preview client"></select><button id="manage-users" class="utility-button hidden" type="button">Users</button><div class="topbar-profile"><div id="topbar-avatar" class="topbar-avatar">ER</div><span id="topbar-name">Preview</span></div></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-users" class="utility-button hidden" type="button">Users</button><div class="topbar-profile"><div id="topbar-avatar" class="topbar-avatar">ER</div><span id="topbar-name">Preview</span></div></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
@@ -410,23 +431,20 @@
   <dialog id="users-dialog" class="liquid-dialog" aria-labelledby="users-dialog-title">
     <section class="dialog-panel user-panel">
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
-      <span class="dialog-kicker">ADMIN PREVIEW</span>
-      <h2 id="users-dialog-title">User access</h2>
-      <p class="dialog-copy">Map each username to its client and optional photo. These demo records stay in this browser.</p>
+      <span class="dialog-kicker">ADMINISTRATION</span>
+      <h2 id="users-dialog-title">Portal accounts</h2>
+      <p class="dialog-copy">Create username and password accounts. New accounts start with a temporary password and must change it after sign-in.</p>
       <form id="user-form" class="user-form">
-        <label class="dialog-label" for="new-username">Username</label><input id="new-username" required maxlength="50" placeholder="e.g. j.santos">
-        <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" required maxlength="80" placeholder="e.g. Jamie Santos">
-        <label class="dialog-label" for="new-user-client">Assigned client</label><input id="new-user-client" list="client-options" required maxlength="80" placeholder="Type the client name"><datalist id="client-options"></datalist>
-        <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role"><option value="user">Client user</option><option value="admin">Administrator</option></select>
-        <label class="dialog-label" for="new-photo-url">User photo URL (optional)</label><input id="new-photo-url" type="url" inputmode="url" placeholder="Paste a public image or Drive share URL">
-        <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add user</button><button id="cancel-user-edit" class="secondary-button hidden" type="button">Cancel edit</button></div>
+        <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
+        <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
+        <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" required autocomplete="email" placeholder="user@example.com">
+        <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
+        <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
+        <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Create account</button></div>
       </form>
-      <form id="rename-client-form" class="rename-client-form">
-        <label class="dialog-label" for="renamed-client">Rename selected client</label>
-        <div class="rename-row"><input id="renamed-client" required maxlength="80"><button class="secondary-button" type="submit">Rename</button></div>
-      </form>
-      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>User</th><th>Client</th><th>Role</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
-      <p class="dialog-footnote">Never keep real passwords in a spreadsheet. This local roster does not authenticate users.</p>
+      <p id="admin-account-feedback" class="auth-feedback" role="status"></p>
+      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+      <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
     </section>
   </dialog>
   <div id="drawer-backdrop" class="drawer-backdrop"></div>
@@ -510,15 +528,7 @@
       '<path d="m5 12 4 4L19 6"/>',
       '<path d="M4 19a8 8 0 1 1 16 0M12 11v4l3 2M12 3v2"/>'
     ];
-    const clientSelect = document.querySelector('#client-select');
-    const initialClientNames = Array.from({ length: 30 }, (_, index) => `Client ${String(index + 1).padStart(2, '0')}`);
-    const clientNamesKey = 'aquahr:preview-clients';
-    const usersKey = 'aquahr:preview-users';
     const dashboardLinksPrefix = 'aquahr:preview-links:';
-    const defaultUsers = [
-      ...initialClientNames.map((client, index) => ({ username: `client${String(index + 1).padStart(2, '0')}`, displayName: `${client} User`, client, photo: '', role: 'user' })),
-      { username: 'raziel', displayName: 'Raziel', client: 'GMA SOUTH', photo: 'https://drive.google.com/file/d/16zZhZlR2WjHBjQXMD_IEqVgbXht75FSr/view?usp=sharing', role: 'user' }
-    ];
     let currentUser = null;
     let selectedDashboard = dashboards[0];
     let toastTimer;
@@ -534,25 +544,20 @@
     const topbarAvatar = document.querySelector('#topbar-avatar');
     const GOOGLE_OAUTH_CLIENT_ID = window.ERTHPORTAL_GOOGLE_CLIENT_ID || '230478655927-ec1pbf2ocbidhsd0his09j92rcqrmae8.apps.googleusercontent.com';
     const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
+    const SUPABASE_URL = (window.ERTHPORTAL_SUPABASE_URL || 'https://YOUR_PROJECT_REF.supabase.co').replace(/\/$/, '');
+    const SUPABASE_ANON_KEY = window.ERTHPORTAL_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
     let googleAccessToken = '';
     let signedInEmail = '';
     let plantillaSpreadsheetId = '';
+    let supabaseAccessToken = '';
+    let portalProfile = null;
 
     function readJSON(key, fallback) {
       try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
       catch { return fallback; }
     }
-    function getUsers() {
-      return readJSON(usersKey, defaultUsers);
-    }
-    function getClientNames() {
-      return readJSON(clientNamesKey, initialClientNames);
-    }
-    function saveUsers(users) {
-      localStorage.setItem(usersKey, JSON.stringify(users));
-    }
     function getActiveClient() {
-      return currentUser?.role === 'admin' ? clientSelect.value : currentUser?.client || getClientNames()[0];
+      return currentUser?.client || 'My spreadsheets';
     }
     function getClientLinks(client = getActiveClient()) {
       return readJSON(`${dashboardLinksPrefix}${client}`, {});
@@ -561,6 +566,35 @@
       const saved = getClientLinks(client)[name];
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
+    }
+    function portalAuthEmail(username) {
+      return `${String(username).trim().toLowerCase()}@accounts.erthportal.invalid`;
+    }
+    async function supabaseRequest(path, options = {}, accessToken = '') {
+      if (SUPABASE_URL.includes('YOUR_PROJECT_REF') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
+        throw new Error('Supabase is not configured. Add the project URL and anon key to the portal.');
+      }
+      const response = await fetch(`${SUPABASE_URL}${path}`, {
+        ...options,
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+      const result = response.status === 204 ? null : await response.json();
+      if (!response.ok) throw new Error(result?.msg || result?.message || result?.error_description || result?.error || 'Supabase request failed.');
+      return result;
+    }
+    async function callAdminFunction(action, payload = {}) {
+      return supabaseRequest('/functions/v1/admin-users', {
+        method: 'POST',
+        body: JSON.stringify({ action, ...payload })
+      }, supabaseAccessToken);
+    }
+    function showLoginPanel(panelId) {
+      ['login-card', 'password-update-panel', 'sheets-auth-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
     }
     function loadGoogleIdentity() {
       if (window.google?.accounts?.oauth2) return Promise.resolve();
@@ -656,22 +690,6 @@
         designation: String(value(12)).trim()
       };
     }
-    function updateClientChoices(selected = '') {
-      const clients = [...new Set([...getClientNames(), ...getUsers().map(user => user.client).filter(Boolean)])];
-      clientSelect.replaceChildren(...clients.map(client => {
-        const option = document.createElement('option');
-        option.value = client;
-        option.textContent = client;
-        return option;
-      }));
-      const datalist = document.querySelector('#client-options');
-      datalist.replaceChildren(...clients.map(client => {
-        const option = document.createElement('option');
-        option.value = client;
-        return option;
-      }));
-      clientSelect.value = clients.includes(selected) ? selected : clients[0];
-    }
     function notify(message) {
       toast.textContent = message;
       toast.classList.remove('hidden');
@@ -713,9 +731,8 @@
       } else {
         [profileAvatar, topbarAvatar].forEach(avatar => { avatar.textContent = user.displayName.slice(0, 2).toUpperCase(); });
       }
-      document.querySelector('#client-select').classList.toggle('hidden', user.role !== 'admin');
       document.querySelector('#manage-users').classList.toggle('hidden', user.role !== 'admin');
-      document.querySelector('#assigned-client').classList.toggle('hidden', user.role === 'admin');
+      document.querySelector('#assigned-client').classList.remove('hidden');
     }
     function updateWelcomeGreeting(user) {
       const prefix = window.matchMedia('(max-width: 390px)').matches ? 'Hi' : 'Good day';
@@ -907,13 +924,19 @@
       if (name === 'PLANTILLA') showPlantilla();
       else showClientDashboard(name);
     }
-    function openDashboardEditor(name) {
+    async function openDashboardEditor(name) {
       if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
       selectedDashboard = name;
       const sources = getDashboardSources(name);
       document.querySelector('#dashboard-dialog-title').textContent = name;
       document.querySelector('#dialog-client').textContent = getActiveClient();
-      const assignedUsers = getUsers().filter(user => user.role !== 'admin' && user.client === getActiveClient());
+      let assignedUsers;
+      try {
+        const { users } = await callAdminFunction('list');
+        assignedUsers = users.filter(user => user.role !== 'admin' && user.client_name === getActiveClient());
+      } catch (error) {
+        return notify(error.message || 'Could not load assigned users.');
+      }
       document.querySelector('#dialog-audience-count').textContent = `${assignedUsers.length} client user${assignedUsers.length === 1 ? '' : 's'} assigned to ${getActiveClient()}`;
       const audience = document.querySelector('#dialog-audience-list');
       audience.replaceChildren();
@@ -937,53 +960,136 @@
       document.querySelector('#open-plantilla-preview').classList.toggle('hidden', name !== 'PLANTILLA');
       dashboardDialog.showModal();
     }
-    function renderRoster() {
+    async function renderRoster() {
       const body = document.querySelector('#user-roster');
-      const users = getUsers();
-      body.innerHTML = users.map(user => {
-        const photo = safePhotoUrl(user.photo);
-        const badge = photo ? `<img src="${escapeHtml(photo)}" alt="" onerror="this.remove()">` : escapeHtml(user.displayName.slice(0, 2).toUpperCase());
-        return `<tr><td>${escapeHtml(user.displayName)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></td><td>${escapeHtml(user.client)}</td><td>${user.role === 'admin' ? 'Admin' : 'Client user'}</td><td><span class="roster-photo">${badge}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-edit-user="${escapeHtml(user.username)}">Edit</button><button class="remove-user" type="button" data-remove-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
-      }).join('');
-      body.querySelectorAll('[data-edit-user]').forEach(button => button.addEventListener('click', () => {
-        const user = getUsers().find(item => item.username === button.dataset.editUser);
-        if (!user) return;
-        editingUsername = user.username;
-        document.querySelector('#new-username').value = user.username;
-        document.querySelector('#new-display-name').value = user.displayName;
-        document.querySelector('#new-user-client').value = user.client;
-        document.querySelector('#new-user-role').value = user.role === 'admin' ? 'admin' : 'user';
-        document.querySelector('#new-photo-url').value = user.photo || '';
-        document.querySelector('#user-form-submit').textContent = 'Update user';
-        document.querySelector('#cancel-user-edit').classList.remove('hidden');
-        document.querySelector('#new-username').focus();
-      }));
-      body.querySelectorAll('[data-remove-user]').forEach(button => button.addEventListener('click', () => {
-        const username = button.dataset.removeUser;
-        saveUsers(getUsers().filter(user => user.username !== username));
-        if (editingUsername === username) resetUserForm();
-        updateClientChoices(getActiveClient());
-        renderRoster();
-      }));
-    }
-    let editingUsername = null;
-    function resetUserForm() {
-      editingUsername = null;
-      document.querySelector('#user-form').reset();
-      document.querySelector('#user-form-submit').textContent = 'Add user';
-      document.querySelector('#cancel-user-edit').classList.add('hidden');
+      body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">Loading accounts...</td></tr>';
+      try {
+        const { users } = await callAdminFunction('list');
+        body.innerHTML = users.map(user => `<tr><td>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></td><td>${escapeHtml(user.google_email)}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`).join('');
+        body.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            const result = await callAdminFunction('reset-password', { username: button.dataset.resetPassword });
+            document.querySelector('#admin-account-feedback').textContent = `Temporary password for ${result.username}: ${result.temporaryPassword}. Give it to the user privately.`;
+            await renderRoster();
+          } catch (error) {
+            document.querySelector('#admin-account-feedback').textContent = error.message;
+            button.disabled = false;
+          }
+        }));
+        body.querySelectorAll('[data-set-status]').forEach(button => button.addEventListener('click', async () => {
+          button.disabled = true;
+          try {
+            await callAdminFunction('set-status', { username: button.dataset.setStatus, status: button.dataset.status });
+            await renderRoster();
+          } catch (error) {
+            document.querySelector('#admin-account-feedback').textContent = error.message;
+            button.disabled = false;
+          }
+        }));
+        body.querySelectorAll('[data-delete-user]').forEach(button => button.addEventListener('click', async () => {
+          const username = button.dataset.deleteUser;
+          if (!window.confirm(`Remove the ${username} portal account?`)) return;
+          button.disabled = true;
+          try {
+            await callAdminFunction('delete', { username });
+            document.querySelector('#admin-account-feedback').textContent = `Removed ${username}.`;
+            await renderRoster();
+          } catch (error) {
+            document.querySelector('#admin-account-feedback').textContent = error.message;
+            button.disabled = false;
+          }
+        }));
+      } catch (error) {
+        body.innerHTML = `<tr><td colspan="6" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
+      }
     }
 
-    updateClientChoices(getClientNames()[0]);
     document.querySelector('#login-form').addEventListener('submit', event => {
       event.preventDefault();
       const error = document.querySelector('#login-error');
-      const button = document.querySelector('#google-login-button');
-      if (GOOGLE_OAUTH_CLIENT_ID.startsWith('YOUR_')) {
-        error.textContent = 'Add your Google OAuth Web Client ID to this page before signing in.';
+      const button = document.querySelector('#login-submit');
+      const username = document.querySelector('#login-username').value.trim().toLowerCase();
+      const password = document.querySelector('#login-password').value;
+      if (!username || !password) return;
+      button.disabled = true;
+      button.textContent = 'Signing in...';
+      error.classList.add('hidden');
+      (async () => {
+        try {
+          const session = await supabaseRequest('/auth/v1/token?grant_type=password', {
+            method: 'POST',
+            body: JSON.stringify({ email: portalAuthEmail(username), password })
+          });
+          supabaseAccessToken = session.access_token;
+          const profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status&id=eq.${encodeURIComponent(session.user.id)}`, {}, supabaseAccessToken);
+          portalProfile = profiles?.[0] || null;
+          if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
+          if (portalProfile.status === 'inactive') {
+            await supabaseRequest('/auth/v1/logout', { method: 'POST' }, supabaseAccessToken).catch(() => {});
+            supabaseAccessToken = '';
+            portalProfile = null;
+            throw new Error('Account deactivated. Contact the portal administrator.');
+          }
+          currentUser = {
+            username: portalProfile.username,
+            displayName: portalProfile.display_name,
+            client: portalProfile.client_name,
+            role: portalProfile.role,
+            photo: ''
+          };
+          if (portalProfile.status === 'default') showLoginPanel('password-update-panel');
+          else showLoginPanel('sheets-auth-panel');
+        } catch (loginError) {
+          supabaseAccessToken = '';
+          portalProfile = null;
+          currentUser = null;
+          error.textContent = loginError?.message || 'Sign-in failed.';
+          error.classList.remove('hidden');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Sign in';
+        }
+      })();
+    });
+    document.querySelector('#password-update-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const error = document.querySelector('#password-update-error');
+      const button = document.querySelector('#password-update-submit');
+      const newPassword = form.elements.newPassword.value;
+      if (newPassword !== form.elements.confirmPassword.value) {
+        error.textContent = 'The passwords do not match.';
         error.classList.remove('hidden');
         return;
       }
+      button.disabled = true;
+      button.textContent = 'Updating...';
+      error.classList.add('hidden');
+      (async () => {
+        try {
+          await supabaseRequest('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password: newPassword }) }, supabaseAccessToken);
+          await callAdminFunction('activate-default', { username: portalProfile.username });
+          portalProfile.status = 'active';
+          form.reset();
+          showLoginPanel('sheets-auth-panel');
+        } catch (updateError) {
+          error.textContent = updateError?.message || 'Could not update password.';
+          error.classList.remove('hidden');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Update password';
+        }
+      })();
+    });
+    document.querySelector('#forgot-password-button').addEventListener('click', () => {
+      const error = document.querySelector('#login-error');
+      error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
+      error.classList.remove('hidden');
+    });
+    document.querySelector('#authorize-sheets-button').addEventListener('click', event => {
+      const button = event.currentTarget;
+      const error = document.querySelector('#sheets-auth-error');
       button.disabled = true;
       button.textContent = 'Connecting to Google...';
       error.classList.add('hidden');
@@ -995,14 +1101,18 @@
           const identity = await response.json();
           if (!response.ok || !identity.email) throw new Error('Google did not return an email for this account.');
           signedInEmail = identity.email;
-          currentUser = { username: signedInEmail, displayName: identity.name || signedInEmail, client: 'My spreadsheets', photo: identity.picture || '', role: 'user' };
+          if (signedInEmail.toLowerCase() !== portalProfile.google_email.toLowerCase()) {
+            googleAccessToken = '';
+            signedInEmail = '';
+            throw new Error(`Sign in to Google as ${portalProfile.google_email} to continue.`);
+          }
+          currentUser.photo = identity.picture || '';
           renderProfile(currentUser);
           loginPage.classList.add('hidden');
           dashboardPage.classList.remove('hidden');
           showHome();
-        } catch (loginError) {
-          googleAccessToken = '';
-          error.textContent = loginError?.message || 'Google sign-in failed.';
+        } catch (authError) {
+          error.textContent = authError?.message || 'Google authorization failed.';
           error.classList.remove('hidden');
         } finally {
           button.disabled = false;
@@ -1011,73 +1121,51 @@
       })();
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
+      const accessToken = supabaseAccessToken;
+      if (accessToken) supabaseRequest('/auth/v1/logout', { method: 'POST' }, accessToken).catch(() => {});
       currentUser = null;
       googleAccessToken = '';
       signedInEmail = '';
       plantillaSpreadsheetId = '';
+      supabaseAccessToken = '';
+      portalProfile = null;
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
+      showLoginPanel('login-card');
     });
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
-    document.querySelector('#client-select').addEventListener('change', () => {
-      if (currentUser?.role !== 'admin') return;
-      renderProfile(currentUser);
-      showHome();
-    });
     document.querySelector('#manage-users').addEventListener('click', () => {
-      document.querySelector('#renamed-client').value = getActiveClient();
+      document.querySelector('#admin-account-feedback').textContent = '';
       renderRoster();
       usersDialog.showModal();
     });
     document.querySelector('#user-form').addEventListener('submit', event => {
       event.preventDefault();
-      if (currentUser?.role !== 'admin') return notify('Only an admin can manage users.');
-      const username = document.querySelector('#new-username').value.trim().toLowerCase();
-      if (username === 'admin') return notify('The admin username is reserved.');
-      const users = getUsers();
-      const existingIndex = editingUsername ? users.findIndex(item => item.username === editingUsername) : -1;
-      const duplicate = users.some(item => item.username.toLowerCase() === username && item.username !== editingUsername);
-      if (duplicate) return notify('That username is already registered.');
-      const photo = document.querySelector('#new-photo-url').value.trim();
-      if (photo && !safePhotoUrl(photo)) return notify('Enter a public HTTPS photo URL.');
-      const user = {
-        username,
-        displayName: document.querySelector('#new-display-name').value.trim(),
-        client: document.querySelector('#new-user-client').value.trim(),
-        photo,
-        role: document.querySelector('#new-user-role').value === 'admin' ? 'admin' : 'user'
-      };
-      if (existingIndex >= 0) users[existingIndex] = user;
-      else users.push(user);
-      saveUsers(users);
-      updateClientChoices(getActiveClient());
-      resetUserForm();
-      renderRoster();
-      notify(`${user.displayName} is saved as ${user.role === 'admin' ? 'an admin' : `a user for ${user.client}`} in this browser preview.`);
-    });
-    document.querySelector('#cancel-user-edit').addEventListener('click', resetUserForm);
-    document.querySelector('#rename-client-form').addEventListener('submit', event => {
-      event.preventDefault();
-      if (currentUser?.role !== 'admin') return notify('Only an admin can rename clients.');
-      const previousName = getActiveClient();
-      const nextName = document.querySelector('#renamed-client').value.trim();
-      if (!nextName) return;
-      if (nextName === previousName) return notify('That is already the selected client name.');
-      const clients = getClientNames().map(name => name === previousName ? nextName : name);
-      localStorage.setItem(clientNamesKey, JSON.stringify([...new Set(clients)]));
-      saveUsers(getUsers().map(user => user.client === previousName ? { ...user, client: nextName } : user));
-      const previousLinks = localStorage.getItem(`${dashboardLinksPrefix}${previousName}`);
-      if (previousLinks) {
-        localStorage.setItem(`${dashboardLinksPrefix}${nextName}`, previousLinks);
-        localStorage.removeItem(`${dashboardLinksPrefix}${previousName}`);
-      }
-      updateClientChoices(nextName);
-      renderProfile(currentUser);
-      renderRoster();
-      showHome();
-      document.querySelector('#renamed-client').value = nextName;
-      notify(`Client renamed to ${nextName}.`);
+      const form = event.currentTarget;
+      const button = document.querySelector('#user-form-submit');
+      button.disabled = true;
+      button.textContent = 'Creating...';
+      document.querySelector('#admin-account-feedback').textContent = '';
+      (async () => {
+        try {
+          const result = await callAdminFunction('create', {
+            username: form.elements.username.value,
+            displayName: form.elements.displayName.value,
+            googleEmail: form.elements.googleEmail.value,
+            clientName: form.elements.clientName.value,
+            role: form.elements.role.value
+          });
+          document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. Temporary password: ${result.temporaryPassword}. Give it to the user privately; it will be required to change at first login.`;
+          form.reset();
+          await renderRoster();
+        } catch (error) {
+          document.querySelector('#admin-account-feedback').textContent = error.message || 'Could not create account.';
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Create account';
+        }
+      })();
     });
     document.querySelector('#dashboard-url-form').addEventListener('submit', event => {
       event.preventDefault();
