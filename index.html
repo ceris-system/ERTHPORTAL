@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eaf8f8">
+  <title>ERTH PORTAL | Operations Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script type="importmap">
+    {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #163c49;
+      --muted: #66828c;
+      --line: rgba(35, 115, 129, .14);
+      --teal: #128f91;
+      --aqua: #66d1d0;
+      --paper: #f1f9f8;
+      --white: rgba(255,255,255,.78);
+      --shadow: 0 22px 65px rgba(24, 82, 95, .13);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); font-family: 'Roboto Mono', monospace; background: var(--paper); }
+    button, select, input { font: inherit; }
+    button, select { cursor: pointer; }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid rgba(27, 164, 164, .38); outline-offset: 3px; }
+    .scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 18% 18%, #effcfa 0, transparent 42%), radial-gradient(ellipse at 86% 78%, #d3f2ef 0, transparent 39%), linear-gradient(135deg, #e6f5f4, #f7fbf8 55%, #dff1ef); }
+    .scene::after { content: ''; position: absolute; inset: 0; background-image: radial-gradient(rgba(17,94,102,.14) .65px, transparent .65px); background-size: 19px 19px; opacity: .18; }
+    #water-scene { width: 100%; height: 100%; display: block; }
+    .app-shell { position: relative; z-index: 1; min-height: 100vh; }
+    .login-page { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(340px, .88fr); align-items: center; gap: clamp(42px, 8vw, 120px); max-width: 1320px; margin: 0 auto; padding: 48px clamp(24px, 7vw, 100px); }
+    .intro { max-width: 560px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font: 800 17px 'Roboto Mono', monospace; letter-spacing: 0; }
+    .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 13px 13px 15px 7px; color: white; background: linear-gradient(145deg, #22b8b1, #126f87); box-shadow: 0 7px 17px rgba(18,143,145,.22); transform: rotate(-5deg); }
+    .brand-mark svg { width: 23px; height: 23px; transform: rotate(5deg); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: #168c8c; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .eyebrow::before { content:''; width: 7px; height: 7px; border-radius: 50%; background: #ed9365; box-shadow: 0 0 0 4px rgba(237,147,101,.15); }
+    .intro h1 { max-width: 600px; margin: 28px 0 18px; font: 800 clamp(42px, 5.2vw, 68px)/1.04 'Roboto Mono', monospace; letter-spacing: 0; }
+    .intro h1 span { color: #158e91; }
+    .intro-copy { max-width: 470px; color: #587780; font-size: 16px; line-height: 1.75; }
+    .intro-foot { display: flex; align-items: center; gap: 12px; margin-top: 34px; color: #66838a; font-size: 12px; }
+    .avatar-stack { display: flex; padding-left: 4px; }
+    .avatar-stack span { width: 27px; height: 27px; display: grid; place-items: center; margin-left: -4px; border: 2px solid #edf8f6; border-radius: 50%; color: white; background: #168d91; font-size: 9px; font-weight: 700; }
+    .avatar-stack span:nth-child(2) { background: #e69a60; }
+    .avatar-stack span:nth-child(3) { background: #447c90; }
+    .login-card { width: 100%; max-width: 430px; justify-self: end; padding: clamp(26px, 4vw, 42px); border: 1px solid rgba(255,255,255,.92); border-radius: 25px; background: rgba(255,255,255,.68); box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,.9); backdrop-filter: blur(24px); }
+    .login-card h2 { margin: 0 0 8px; font: 800 25px 'Roboto Mono', monospace; }
+    .login-card .sub { margin: 0 0 28px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .field { display: grid; gap: 8px; margin: 17px 0; }
+    .field label { color: #365e68; font-size: 12px; font-weight: 700; }
+    .field input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #d8e9e7; border-radius: 11px; color: var(--ink); background: rgba(255,255,255,.78); }
+    .field input::placeholder { color: #99aeb0; }
+    .login-options { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 23px; color: #658087; font-size: 12px; }
+    .remember { display: inline-flex; align-items: center; gap: 8px; }
+    .remember input { accent-color: var(--teal); }
+    .text-button { padding: 0; border: 0; color: #168c8c; background: transparent; font-size: 12px; font-weight: 700; }
+    .primary-button { width: 100%; min-height: 49px; border: 0; border-radius: 12px; color: white; background: linear-gradient(105deg, #148f91, #176c83); box-shadow: 0 10px 20px rgba(20,143,145,.2); font-weight: 700; transition: transform .2s, box-shadow .2s; }
+    .primary-button:hover { transform: translateY(-2px); box-shadow: 0 14px 24px rgba(20,143,145,.27); }
+    .login-note { margin: 19px 0 0; color: #80999d; text-align: center; font-size: 11px; line-height: 1.55; }
+    .demo-note { display: inline-block; margin-top: 14px; padding: 7px 10px; border: 1px solid rgba(20,143,145,.15); border-radius: 8px; color: #397478; background: rgba(228,247,243,.72); font-size: 10px; }
+    .hidden { display: none !important; }
+
+    .dashboard { display: block; min-height: 100vh; }
+    .sidebar { display:none; }
+    .sidebar .brand { padding: 0 9px 26px; }
+    .workspace-label { padding: 0 10px; margin: 0 0 9px; color: #91a8aa; font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .nav-list { display: grid; gap: 4px; overflow-y: auto; }
+    .nav-button { min-height: 42px; display: flex; align-items: center; gap: 11px; padding: 0 11px; border: 1px solid transparent; border-radius: 10px; color: #57747c; background: transparent; text-align: left; font-size: 12px; font-weight: 600; transition: background .18s, color .18s, border-color .18s; }
+    .nav-button:hover { color: var(--ink); background: rgba(255,255,255,.6); }
+    .nav-button.active { border-color: rgba(36,164,159,.13); color: #117e83; background: linear-gradient(100deg, rgba(202,244,235,.8), rgba(255,255,255,.64)); box-shadow: inset 3px 0 #1aa4a0; }
+    .nav-icon { width: 18px; height: 18px; display: grid; place-items: center; color: #72a6a8; }
+    .nav-icon svg { width: 17px; height: 17px; }
+    .sidebar-bottom { margin-top: auto; }
+    .connection-chip { display: flex; align-items: flex-start; gap: 9px; padding: 12px 11px; border: 1px solid rgba(216,185,118,.28); border-radius: 11px; color: #796b4b; background: rgba(255,248,225,.58); font-size: 10px; line-height: 1.5; }
+    .connection-chip svg { flex: 0 0 15px; width: 15px; height: 15px; margin-top: 1px; }
+    .profile { display: flex; align-items: center; gap: 10px; padding: 17px 8px 0; margin-top: 14px; border-top: 1px solid var(--line); }
+    .profile-avatar { width: 34px; height: 34px; display:grid; place-items:center; border-radius: 12px; color:white; background: linear-gradient(140deg,#efaa73,#dc7b61); font-size: 12px; font-weight: 700; }
+    .profile-avatar img { width:100%; height:100%; border-radius:inherit; object-fit:cover; }
+    .topbar-profile { display:flex; align-items:center; gap:8px; color:#365d65; font-size:10px; font-weight:700; }
+    .topbar-avatar { width:34px; height:34px; display:grid; place-items:center; overflow:hidden; border:1px solid rgba(255,255,255,.9); border-radius:50%; color:white; background:linear-gradient(145deg,#36b5ac,#247985); box-shadow:0 4px 12px rgba(27,105,113,.18); }
+    .topbar-avatar img { width:100%; height:100%; object-fit:cover; }
+    .profile-info { min-width: 0; flex: 1; }
+    .profile-info strong, .profile-info span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .profile-info strong { font-size: 11px; }
+    .profile-info span { margin-top: 3px; color: #829b9d; font-size: 10px; }
+    .logout { display: grid; place-items:center; width: 33px; height: 33px; border: 0; border-radius: 9px; color: #739097; background: transparent; }
+    .logout:hover { color: #bd655b; background: rgba(255,255,255,.78); }
+    .logout svg { width: 17px; height: 17px; }
+    .main { min-width: 0; padding: 13px clamp(18px, 3.5vw, 48px) 18px; }
+    .topbar { display: flex; align-items:center; justify-content:space-between; gap: 16px; max-width: 1440px; margin: 0 auto 12px; }
+    .topbar-left { min-width:0; display:flex; align-items:center; gap:13px; }
+    .topbar-brand { flex:0 0 auto; gap:0; font-size:12px; }
+    .header-welcome { min-width:0; display:grid; gap:3px; padding-left:12px; border-left:1px solid rgba(53,139,143,.18); }
+    .header-welcome strong { overflow:hidden; color:#1b4953; font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+    .header-welcome span { color:#789399; font-size:9px; }
+    .topbar-logout { width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center; border:1px solid rgba(53,139,143,.16); border-radius:11px; color:#55777f; background:rgba(255,255,255,.62); }
+    .topbar-logout:hover { color:#bd655b; background:white; }
+    .topbar-logout svg { width:17px; height:17px; }
+    .breadcrumbs { color:#799298; font-size:11px; }
+    .breadcrumbs strong { color:#2c5862; font-weight:700; }
+    .topbar-right { display:flex; align-items:center; gap:10px; }
+    .client-label { color:#789197; font-size:11px; }
+    .client-select { height: 39px; max-width: 190px; padding: 0 34px 0 12px; border: 1px solid rgba(53,139,143,.19); border-radius: 10px; color:#265761; background:rgba(255,255,255,.72); font-size:11px; font-weight:700; }
+    .client-badge { padding:9px 11px; border:1px solid rgba(53,139,143,.18); border-radius:9px; color:#265761; background:rgba(255,255,255,.7); font-size:10px; font-weight:700; }
+    .utility-button, .secondary-button { min-height:38px; padding:0 13px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:#287176; background:rgba(255,255,255,.72); font-size:11px; font-weight:700; }
+    .utility-button:hover, .secondary-button:hover { background:white; }
+    .workspace-card { display:flex; align-items:center; gap:11px; margin:0 5px; padding:12px 11px; border:1px solid rgba(55,150,151,.16); border-radius:13px; background:rgba(255,255,255,.58); }
+    .workspace-card strong, .workspace-card span { display:block; }
+    .workspace-card strong { font-size:12px; }
+    .workspace-card div span { margin-top:4px; color:#81999e; font-size:10px; }
+    .workspace-dot { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#4fc1a6; box-shadow:0 0 0 5px rgba(79,193,166,.12); }
+    .content { max-width: 1320px; margin: 0 auto; animation: rise .5s both; }
+    @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:translateY(0); } }
+    .welcome-line { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:13px; }
+    .welcome-line h1 { margin:0; font:800 clamp(20px, 2vw, 27px)/1.2 'Roboto Mono',monospace; letter-spacing:0; }
+    .welcome-line p { margin:5px 0 0; color:#718b92; font-size:10px; }
+    .date-mark { color:#64848b; font-size:11px; }
+    .alert-board { padding: 14px 20px 13px; border:1px solid rgba(255,255,255,.94); border-radius:19px; background:rgba(255,255,255,.76); box-shadow:0 12px 32px rgba(33,100,111,.08), inset 0 1px 0 white; backdrop-filter:blur(20px); }
+    .alert-heading { position:relative; text-align:center; }
+    .required-tag { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:20px; color:white; background:#eb5360; font-size:9px; font-weight:800; letter-spacing:.06em; }
+    .required-tag::before { content:''; width:6px; height:6px; border-radius:50%; background:white; }
+    .alert-heading h2 { margin:7px 0 4px; font:800 clamp(14px, 1.35vw, 18px)/1.3 'Roboto Mono',monospace; letter-spacing:0; color:#355fe1; }
+    .alert-heading p { margin:0; color:#647e94; font-size:11px; }
+    .steps { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-top:27px; }
+    .step { position:relative; min-height:103px; padding:25px 9px 9px; border:1px solid var(--step); border-radius:14px 14px 21px 21px; background:var(--wash); text-align:center; box-shadow:0 4px 12px color-mix(in srgb, var(--step) 10%, transparent); }
+    .step-icon { position:absolute; top:-21px; left:50%; width:43px; height:43px; display:grid; place-items:center; border:2px solid var(--step); border-radius:50%; color:var(--step); background:rgba(255,255,255,.97); box-shadow:0 4px 10px rgba(22,58,71,.15); transform:translateX(-50%); }
+    .step-icon svg { width:21px; height:21px; }
+    .step h3 { min-height:22px; margin:1px 0 5px; color:#233f67; font-size:8px; line-height:1.3; font-weight:800; }
+    .step p { margin:0; color:#527082; font-size:8px; line-height:1.4; }
+    .step.blue { --step:#3b98ff; --wash:rgba(196,226,255,.68); }
+    .step.green { --step:#1fbd80; --wash:rgba(186,239,214,.7); }
+    .step.gold { --step:#f3a700; --wash:rgba(255,229,151,.72); }
+    .step.orange { --step:#ff8a20; --wash:rgba(255,211,164,.75); }
+    .step.red { --step:#ff646c; --wash:rgba(255,192,193,.77); }
+    .alert-footer { margin-top:10px; padding:7px 10px; border:1px solid rgba(90,138,255,.24); border-radius:9px; color:#274f85; background:rgba(219,231,255,.57); text-align:center; font-size:8px; font-weight:600; }
+    .dashboard-picker { margin-top:0; }
+    .picker-heading { display:flex; align-items:end; justify-content:space-between; gap:16px; margin-bottom:7px; }
+    .picker-heading h2 { margin:0; font:800 14px/1.25 'Roboto Mono',monospace; }
+    .picker-heading p { margin:3px 0 0; color:#718b92; font-size:9px; }
+    .picker-count { color:#779298; font-size:10px; white-space:nowrap; }
+    .bubble-grid { display:grid; grid-template-columns:repeat(11,minmax(0,1fr)); gap:7px; }
+    .bubble-button { position:relative; min-width:0; min-height:76px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; overflow:visible; padding:4px 5px; border:0; border-radius:0; color:#28565f; background:transparent; box-shadow:none; cursor:pointer; }
+    .bubble-button:hover { z-index:1; background:transparent; }
+    .bubble-button:active { background:transparent; }
+    .bubble-icon { position:relative; isolation:isolate; width:38px; height:38px; flex:0 0 38px; display:grid; place-items:center; overflow:hidden; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#087e84; background:radial-gradient(circle at 31% 22%,#fff 0 7%,rgba(255,255,255,.95) 15%,rgba(194,242,236,.88) 46%,rgba(72,173,180,.72) 82%,rgba(255,255,255,.88) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 0 -4px 7px rgba(35,122,136,.28),0 3px 0 rgba(47,130,140,.32),0 7px 10px rgba(24,83,96,.19); transform:translateY(0) translateZ(0); transition:transform .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s; }
+    .bubble-icon::before { content:''; position:absolute; z-index:-1; top:4px; left:7px; width:16px; height:6px; border-radius:50%; background:rgba(255,255,255,.96); filter:blur(2px); transform:rotate(-25deg); }
+    .bubble-icon svg { width:19px; height:19px; filter:drop-shadow(0 1px 0 rgba(255,255,255,.95)) drop-shadow(0 2px 2px rgba(16,87,98,.28)); }
+    .bubble-button:hover .bubble-icon { transform:translateY(-3px) scale(1.09) rotateY(12deg); box-shadow:inset 0 2px 4px white,inset 0 -5px 8px rgba(35,122,136,.3),0 4px 0 rgba(47,130,140,.3),0 11px 15px rgba(24,83,96,.24); }
+    .bubble-button:active .bubble-icon { transform:translateY(2px) scale(.96); box-shadow:inset 0 2px 5px rgba(35,122,136,.25),0 1px 0 rgba(47,130,140,.25),0 3px 5px rgba(24,83,96,.16); }
+    .bubble-name { min-width:0; max-width:100%; color:#28535c; text-align:center; font-size:8px; font-weight:800; line-height:1.2; overflow-wrap:anywhere; }
+    .bubble-meta { display:none; }
+    .bubble-state { position:absolute; z-index:2; top:5px; right:6px; width:6px; height:6px; border:1px solid white; border-radius:50%; background:#d4a354; box-shadow:0 0 0 3px rgba(212,163,84,.15); }
+    .bubble-state.connected { background:#40b58e; box-shadow:0 0 0 3px rgba(64,181,142,.15); }
+    .liquid-dialog { width:min(520px,calc(100vw - 28px)); max-width:none; max-height:min(88vh,850px); overflow:visible; padding:0; border:1px solid rgba(255,255,255,.9); border-radius:24px; color:var(--ink); background:transparent; box-shadow:0 28px 90px rgba(16,68,81,.27); }
+    .liquid-dialog::backdrop { background:rgba(22,57,68,.27); backdrop-filter:blur(9px); }
+    .liquid-dialog[open] { animation:pop-in .26s cubic-bezier(.18,.8,.28,1.12) both; }
+    @keyframes pop-in { from { opacity:0; transform:translateY(14px) scale(.9); } to { opacity:1; transform:translateY(0) scale(1); } }
+    .dialog-panel { position:relative; max-height:min(88vh,850px); overflow:auto; padding:32px; border:1px solid rgba(255,255,255,.72); border-radius:inherit; background:radial-gradient(ellipse at 12% 0%,rgba(255,255,255,.96),transparent 45%),linear-gradient(145deg,rgba(247,255,253,.91),rgba(217,245,242,.86)); box-shadow:inset 0 1px 0 white; backdrop-filter:blur(28px); }
+    .dialog-close { position:absolute; top:16px; right:17px; width:34px; height:34px; border:1px solid rgba(61,130,137,.15); border-radius:50%; color:#53777d; background:rgba(255,255,255,.55); font-size:22px; line-height:1; }
+    .dialog-kicker { color:#168c8c; font-size:9px; font-weight:800; letter-spacing:.12em; }
+    .dialog-panel h2 { margin:9px 42px 7px 0; font:800 23px/1.22 'Roboto Mono',monospace; }
+    .dialog-copy { margin:0 0 23px; color:#67838b; font-size:12px; line-height:1.6; }
+    .dialog-label { display:block; margin:14px 0 7px; color:#365e68; font-size:11px; font-weight:700; }
+    .dialog-panel input, .dialog-panel select { width:100%; min-height:43px; padding:0 12px; border:1px solid #d5e8e5; border-radius:10px; color:var(--ink); background:rgba(255,255,255,.79); font-size:12px; }
+    .dialog-scope { margin-top:10px; color:#718b92; font-size:10px; }
+    .dialog-audience { margin-top:10px; padding:10px 11px; border:1px solid rgba(53,139,143,.13); border-radius:10px; color:#55787f; background:rgba(237,249,246,.7); font-size:10px; }
+    .dialog-audience strong { color:#28565f; }
+    .audience-list { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+    .audience-user { padding:4px 7px; border:1px solid rgba(53,139,143,.12); border-radius:999px; color:#3d6d73; background:rgba(255,255,255,.72); font-size:9px; }
+    .dialog-actions { display:flex; gap:9px; margin-top:19px; }
+    .dialog-actions .primary-button { width:auto; flex:1; min-height:43px; }
+    .secondary-button { min-height:43px; }
+    .secondary-button:disabled { cursor:not-allowed; opacity:.48; }
+    .dialog-footnote { margin:18px 0 0; padding-top:13px; border-top:1px solid rgba(53,139,143,.12); color:#83999d; font-size:10px; line-height:1.55; }
+    .user-panel { padding-bottom:24px; }
+    .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
+    .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
+    .user-form-actions .primary-button { margin-top:0; }
+    .roster-wrap { max-height:230px; overflow:auto; margin-top:20px; border:1px solid rgba(53,139,143,.15); border-radius:11px; background:rgba(255,255,255,.48); }
+    .roster-table { width:100%; border-collapse:collapse; font-size:10px; text-align:left; }
+    .roster-table th { position:sticky; top:0; padding:9px 10px; color:#6c898f; background:#edf8f6; font-size:9px; }
+    .roster-table td { padding:8px 10px; border-top:1px solid rgba(53,139,143,.1); color:#355c64; }
+    .roster-photo { width:28px; height:28px; display:grid; place-items:center; overflow:hidden; border-radius:50%; color:white; background:#61a9a4; font-size:9px; font-weight:700; }
+    .roster-photo img { width:100%; height:100%; object-fit:cover; }
+    .remove-user { border:0; color:#b7685e; background:none; font-size:10px; }
+    .roster-actions { display:flex; align-items:center; gap:9px; }
+    .edit-user { padding:5px 8px; border:1px solid rgba(53,139,143,.17); border-radius:7px; color:#287176; background:rgba(255,255,255,.7); font-size:9px; }
+    .user-source-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+    .source-link { padding:15px; border:1px solid rgba(255,255,255,.94); border-radius:14px; color:#286068; background:rgba(255,255,255,.68); box-shadow:0 8px 22px rgba(37,101,112,.1); font-size:11px; font-weight:700; text-decoration:none; transition:transform .2s,background .2s; }
+    .source-link:hover { transform:translateY(-2px); background:white; }
+    .login-error { margin:10px 0 0; color:#b6444e; font-size:11px; }
+    .url-list { display:grid; gap:8px; }
+    .url-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:7px; }
+    .url-row input { min-width:0; }
+    .remove-source { width:36px; height:43px; border:1px solid rgba(194,103,96,.2); border-radius:10px; color:#b7685e; background:rgba(255,255,255,.72); font-size:17px; }
+    .add-source-button { margin-top:9px; padding:7px 0; border:0; color:#147f83; background:transparent; font-size:10px; font-weight:700; }
+    .rename-client-form { padding:15px 0 2px; margin-top:17px; border-top:1px solid rgba(53,139,143,.14); }
+    .rename-row { display:flex; gap:8px; }
+    .rename-row input { min-width:0; }
+    .rename-row .secondary-button { flex:0 0 auto; }
+    .plantilla-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .plantilla-toolbar h1 { margin:0; font:800 20px/1.2 'Roboto Mono',monospace; }
+    .plantilla-toolbar p { margin:5px 0 0; color:#718b92; font-size:9px; }
+    .plantilla-table-wrap { overflow:auto; border:1px solid rgba(255,255,255,.94); border-radius:15px; background:rgba(255,255,255,.72); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
+    .plantilla-table { width:100%; min-width:850px; border-collapse:collapse; text-align:left; }
+    .plantilla-table th { padding:13px 11px; border-bottom:1px solid rgba(53,139,143,.16); color:#32656c; background:rgba(224,245,241,.76); font-size:9px; font-weight:800; white-space:nowrap; }
+    .plantilla-table td { padding:11px; border-bottom:1px solid rgba(53,139,143,.1); color:#658087; font-size:9px; }
+    .plantilla-empty { color:#80979c !important; text-align:center; }
+    .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
+    .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
+    .drawer-backdrop.open { visibility:visible; opacity:1; }
+    .record-drawer { position:fixed; z-index:9; top:0; right:0; width:min(430px,92vw); height:100dvh; overflow:auto; padding:36px 27px; border-left:1px solid rgba(255,255,255,.9); color:var(--ink); background:linear-gradient(150deg,rgba(250,255,254,.96),rgba(218,243,241,.94)); box-shadow:-20px 0 65px rgba(20,68,77,.2); backdrop-filter:blur(28px); clip-path:inset(0 0 0 100%); visibility:hidden; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s linear .35s; }
+    .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
+    .record-drawer h2 { margin:10px 40px 8px 0; font:800 20px 'Roboto Mono',monospace; }
+    .record-drawer-fields { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:21px; }
+    .drawer-field { padding:11px; border:1px solid rgba(53,139,143,.13); border-radius:10px; background:rgba(255,255,255,.56); }
+    .drawer-field span,.drawer-field strong { display:block; }
+    .drawer-field span { margin-bottom:6px; color:#82999e; font-size:8px; text-transform:uppercase; }
+    .drawer-field strong { color:#3b626b; font-size:10px; font-weight:600; }
+    .module-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin:4px 0 24px; }
+    .module-heading h1 { margin:0; font:800 clamp(25px, 3vw, 34px)/1.2 'Roboto Mono',monospace; }
+    .module-heading p { margin:8px 0 0; color:#718b92; font-size:12px; }
+    .module-index { padding:8px 10px; border:1px solid rgba(53,139,143,.16); border-radius:9px; color:#4e7f83; background:rgba(255,255,255,.55); font-size:10px; font-weight:700; white-space:nowrap; }
+    .empty-module { min-height:300px; display:grid; place-items:center; padding:35px; border:1px dashed rgba(57,137,143,.28); border-radius:19px; background:rgba(255,255,255,.45); text-align:center; }
+    .empty-inner { max-width:390px; }
+    .empty-icon { width:54px; height:54px; display:grid; place-items:center; margin:0 auto 17px; border-radius:18px; color:#188c8f; background:rgba(179,237,228,.53); }
+    .empty-icon svg { width:25px; height:25px; }
+    .empty-inner h2 { margin:0 0 9px; font:700 17px 'Roboto Mono',monospace; }
+    .empty-inner p { margin:0; color:#708b92; font-size:12px; line-height:1.7; }
+    .module-footer { display:flex; justify-content:space-between; gap:15px; margin-top:15px; color:#81999e; font-size:10px; }
+    .toast { position:fixed; z-index:10; right:24px; bottom:24px; max-width:min(360px, calc(100vw - 40px)); padding:13px 16px; border:1px solid rgba(255,255,255,.9); border-radius:12px; color:#315b64; background:rgba(255,255,255,.9); box-shadow:0 12px 35px rgba(23,77,87,.15); font-size:12px; line-height:1.5; backdrop-filter:blur(12px); animation:rise .2s both; }
+    .menu-toggle { display:none; width:38px; height:38px; place-items:center; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.75); }
+    .menu-toggle svg { width:19px; height:19px; }
+    @media(max-width:1000px) {
+      .bubble-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
+      .steps { grid-template-columns:repeat(5,minmax(0,1fr)); row-gap:28px; }
+      .bubble-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
+      .step:nth-child(4), .step:nth-child(5) { margin-top:0; }
+      .step { min-height:142px; }
+    }
+    @media(max-width:720px) {
+      .login-page { grid-template-columns:1fr; align-content:start; gap:14px; padding:20px 18px; }
+      .intro { width:100%; max-width:none; margin:0; text-align:left; }
+      .intro > div, .intro-copy, .intro-foot { display:none; }
+      .intro h1 { margin:12px 0 0; font-size:16px; line-height:1.35; }
+      .login-card { justify-self:center; width:100%; max-width:450px; padding:21px; }
+      .login-card .sub { margin-bottom:18px; }
+      .field { gap:7px; margin:13px 0; }
+      .field input { height:44px; }
+      .login-options { margin:12px 0 17px; }
+      .login-note { margin-top:14px; }
+      .demo-note { margin-top:10px; }
+      .dashboard { display:block; }
+      .sidebar { display:none; }
+      .main { padding:16px 17px 34px; }
+      .topbar { margin-bottom:12px; gap:8px; }
+      .topbar-left { gap:8px; }
+      .topbar-brand { display:none; }
+      .header-welcome { padding-left:8px; }
+      .header-welcome strong { font-size:11px; }
+      .topbar-right { gap:7px; }
+      .client-label, .status-pill { display:none; }
+      .client-select { max-width:112px; height:36px; padding:0 22px 0 8px; font-size:10px; }
+      .utility-button { min-height:36px; padding:0 9px; font-size:10px; }
+      .bubble-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 7px; }
+      .bubble-button { width:100%; max-width:none; padding:9px; gap:7px; }
+      .bubble-icon { width:26px; height:26px; }
+      .bubble-name { font-size:9px; }
+      .bubble-state { right:19%; bottom:18%; }
+      .dialog-panel { padding:25px 20px; }
+      .client-select { max-width:158px; height:36px; font-size:10px; }
+      .welcome-line { align-items:flex-start; flex-direction:column; gap:9px; }
+      .alert-board { padding:16px 12px 12px; }
+      .steps { grid-template-columns:repeat(2,minmax(0,1fr)); gap:23px 9px; margin-top:25px; }
+      .step { min-height:106px; padding:23px 7px 8px; }
+      .step:nth-child(5) { grid-column:1 / -1; width:calc(50% - 5px); justify-self:center; }
+      .step-icon { width:36px; height:36px; top:-18px; }
+      .step-icon svg { width:17px; height:17px; }
+      .step h3, .step p { font-size:8px; }
+      .alert-heading h2 { font-size:13px; }
+      .module-footer { flex-direction:column; }
+    }
+    @media(max-width:390px) {
+      .main { padding-right:12px; padding-left:12px; }
+      .topbar { gap:8px; }
+      .topbar-right { gap:5px; }
+      .client-select { max-width:125px; padding-right:22px; padding-left:9px; }
+      .client-badge { max-width:86px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .utility-button { padding:0 8px; font-size:10px; }
+      .topbar-profile span { display:none; }
+      .topbar-avatar { width:29px; height:29px; }
+      .topbar { gap:4px; }
+      .topbar-right { gap:4px; }
+      .client-select { max-width:90px; padding-left:7px; }
+      .utility-button { min-height:34px; padding:0 6px; font-size:9px; }
+      .header-welcome strong { font-size:10px; }
+      #topbar-date { display:none; }
+      .bubble-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .bubble-button { width:100%; max-width:none; }
+      .bubble-name { font-size:8px; }
+      .bubble-state { right:15%; bottom:14%; }
+      .plantilla-toolbar { align-items:flex-start; flex-direction:column; }
+      .step h3, .step p { font-size:8px; }
+    }
+    @media(prefers-reduced-motion:reduce) {
+      *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true"><canvas id="water-scene"></canvas></div>
+  <div class="app-shell">
+    <main id="login-page" class="login-page">
+      <section class="intro">
+        <a class="brand" href="#" aria-label="ERTH PORTAL home">
+          <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+          ERTH PORTAL
+        </a>
+        <div style="margin-top:58px"><span class="eyebrow">People operations, in flow</span></div>
+        <h1>Clearer work.<br><span>Calmer days.</span></h1>
+        <p class="intro-copy">Your HR operations, organized in one place. Sign in to review vacancies, plantilla records, approvals, and workforce movement.</p>
+        <div class="intro-foot"><div class="avatar-stack" aria-hidden="true"><span>HR</span><span>01</span><span>+</span></div><span>One client portal for your HR team</span></div>
+      </section>
+      <section class="login-card" aria-labelledby="login-title">
+        <h2 id="login-title">Welcome back</h2>
+        <p class="sub">Sign in to open your assigned client portal.</p>
+        <form id="login-form">
+          <div class="field"><label for="username">Username</label><input id="username" name="username" autocomplete="username" placeholder="Enter your username" required></div>
+          <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></div>
+          <div class="login-options"><label class="remember"><input type="checkbox" name="remember"> Remember me</label><button class="text-button" id="forgot-button" type="button">Forgot password?</button></div>
+          <button class="primary-button" type="submit">Sign in <span aria-hidden="true">&nbsp;→</span></button>
+        </form>
+        <p id="login-error" class="login-error hidden" role="alert"></p>
+        <p class="login-note">Your account opens its assigned client.</p>
+        <div class="demo-note">Preview only: use <strong>admin</strong> or a username in the demo roster. Passwords are not checked.</div>
+      </section>
+    </main>
+
+    <div id="dashboard" class="dashboard hidden">
+      <aside id="sidebar" class="sidebar">
+        <a class="brand" href="#" aria-label="Return to action center">
+          <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+          ERTH PORTAL
+        </a>
+        <p class="workspace-label">CLIENT</p>
+        <div class="workspace-card"><span class="workspace-dot"></span><div><strong id="sidebar-client">Client 01</strong><span id="sidebar-role">Client access</span></div></div>
+        <div class="sidebar-bottom">
+          <div class="connection-chip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3.5 19h17L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span>Dashboard links are saved separately for each client. Live data is not connected.</span></div>
+          <div class="profile"><div class="profile-avatar" id="profile-avatar">HR</div><div class="profile-info"><strong id="profile-name">Preview user</strong><span id="profile-username">User preview</span></div></div>
+        </div>
+      </aside>
+      <section class="main">
+        <header class="topbar">
+          <div class="topbar-left"><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><span id="topbar-date"></span></div></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">Client 01</span><select id="client-select" class="client-select hidden" aria-label="Preview client"></select><button id="manage-users" class="utility-button hidden" type="button">Users</button><div class="topbar-profile"><div id="topbar-avatar" class="topbar-avatar">ER</div><span id="topbar-name">Preview</span></div></div>
+        </header>
+        <div id="content" class="content" aria-live="polite"></div>
+      </section>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <dialog id="dashboard-dialog" class="liquid-dialog" aria-labelledby="dashboard-dialog-title">
+    <section class="dialog-panel">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
+      <span class="dialog-kicker">DASHBOARD CONNECTION</span>
+      <h2 id="dashboard-dialog-title">Dashboard</h2>
+      <p class="dialog-copy">Paste the spreadsheet or published dashboard URL for this dashboard and client.</p>
+      <form id="dashboard-url-form">
+        <label class="dialog-label">Spreadsheet URLs for this dashboard</label>
+        <div id="dashboard-url-list" class="url-list"></div>
+        <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
+        <div class="dialog-scope">These URLs are saved for <strong id="dialog-client">Client 01</strong> only.</div>
+        <div class="dialog-audience"><strong id="dialog-audience-count">Users who will receive this dashboard</strong><div id="dialog-audience-list" class="audience-list"></div></div>
+        <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
+      </form>
+      <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
+    </section>
+  </dialog>
+  <dialog id="users-dialog" class="liquid-dialog" aria-labelledby="users-dialog-title">
+    <section class="dialog-panel user-panel">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
+      <span class="dialog-kicker">ADMIN PREVIEW</span>
+      <h2 id="users-dialog-title">User access</h2>
+      <p class="dialog-copy">Map each username to its client and optional photo. These demo records stay in this browser.</p>
+      <form id="user-form" class="user-form">
+        <label class="dialog-label" for="new-username">Username</label><input id="new-username" required maxlength="50" placeholder="e.g. j.santos">
+        <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" required maxlength="80" placeholder="e.g. Jamie Santos">
+        <label class="dialog-label" for="new-user-client">Assigned client</label><input id="new-user-client" list="client-options" required maxlength="80" placeholder="Type the client name"><datalist id="client-options"></datalist>
+        <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role"><option value="user">Client user</option><option value="admin">Administrator</option></select>
+        <label class="dialog-label" for="new-photo-url">User photo URL (optional)</label><input id="new-photo-url" type="url" inputmode="url" placeholder="Paste a public image or Drive share URL">
+        <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add user</button><button id="cancel-user-edit" class="secondary-button hidden" type="button">Cancel edit</button></div>
+      </form>
+      <form id="rename-client-form" class="rename-client-form">
+        <label class="dialog-label" for="renamed-client">Rename selected client</label>
+        <div class="rename-row"><input id="renamed-client" required maxlength="80"><button class="secondary-button" type="submit">Rename</button></div>
+      </form>
+      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>User</th><th>Client</th><th>Role</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+      <p class="dialog-footnote">Never keep real passwords in a spreadsheet. This local roster does not authenticate users.</p>
+    </section>
+  </dialog>
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
+  <aside id="record-drawer" class="record-drawer" aria-labelledby="record-drawer-title" aria-hidden="true">
+    <button id="close-record-drawer" class="dialog-close" type="button" aria-label="Close record drawer">×</button>
+    <span class="dialog-kicker">PLANTILLA RECORD</span>
+    <h2 id="record-drawer-title">Position details</h2>
+    <p class="dialog-copy">This is a drawer preview. Connect a spreadsheet to display live record values.</p>
+    <div id="record-drawer-fields" class="record-drawer-fields"></div>
+    <p class="dialog-footnote">Values are blank until Plantilla spreadsheet data is connected.</p>
+  </aside>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    const canvas = document.querySelector('#water-scene');
+    try {
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x000000, 0);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, .1, 100);
+      camera.position.z = 12;
+      scene.add(new THREE.AmbientLight(0xffffff, 1.6));
+      const keyLight = new THREE.PointLight(0xffffff, 34, 28);
+      keyLight.position.set(-4, 5, 7);
+      scene.add(keyLight);
+      const aquaLight = new THREE.PointLight(0x8de4db, 26, 25);
+      aquaLight.position.set(5, -3, 6);
+      scene.add(aquaLight);
+      const drops = [];
+      const dropMaterial = new THREE.MeshPhysicalMaterial({ color: 0xb5eee8, roughness: .1, metalness: .02, transmission: .3, thickness: 1.4, clearcoat: 1, clearcoatRoughness: .08, transparent: true, opacity: .24 });
+      const highlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .34 });
+      for (let index = 0; index < 10; index++) {
+        const radius = .14 + Math.random() * .3;
+        const drop = new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 20), dropMaterial);
+        drop.position.set((Math.random() - .5) * 15, (Math.random() - .5) * 9, -1 - Math.random() * 4);
+        drop.scale.set(.78 + Math.random() * .45, 1.12 + Math.random() * .65, .42 + Math.random() * .28);
+        drop.userData = { baseY: drop.position.y, phase: Math.random() * Math.PI * 2, speed: .18 + Math.random() * .22 };
+        scene.add(drop);
+        drops.push(drop);
+        const glint = new THREE.Mesh(new THREE.SphereGeometry(radius * .19, 12, 10), highlightMaterial);
+        glint.position.set(-radius * .28, radius * .37, radius * .38);
+        drop.add(glint);
+      }
+      const clock = new THREE.Clock();
+      const animate = () => {
+        const elapsed = clock.getElapsedTime();
+        for (const drop of drops) {
+          drop.position.y = drop.userData.baseY + Math.sin(elapsed * drop.userData.speed + drop.userData.phase) * .17;
+          drop.rotation.z = Math.sin(elapsed * .2 + drop.userData.phase) * .08;
+        }
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+      };
+      animate();
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    } catch (error) {
+      canvas.hidden = true;
+    }
+
+    const dashboards = [
+      'PLANTILLA', 'PLANTILLA SUMMARY', 'SIL', 'VCODE MASTERLIST', 'VACANCY MONITORING',
+      'HR EMPLOC MONITORING', '+-5% BUFFER', 'VCODE VARIANCE', 'DEACTIVATION', 'FOR APPROVAL', 'ATTRITION'
+    ];
+    const iconPaths = [
+      '<path d="M7 3h10v3H7zM6 6H4v15h16V6h-2M8 11h8M8 15h5"/>',
+      '<path d="M4 19V5m0 14h16M8 15l3-4 3 2 5-7"/>',
+      '<path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h4"/>',
+      '<path d="M4 5h16v14H4zM8 9h8M8 13h5M8 16h3"/>',
+      '<path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6M3 20h18"/>',
+      '<path d="M4 5h16v14H4zM8 9h8M8 13h5M8 16h3"/>',
+      '<path d="M12 3v18M5 7h14M5 17h14M8 3 5 7l3 4m8 2 3 4-3 4"/>',
+      '<path d="M12 3 3.5 19h17L12 3Zm0 6v4m0 3h.01"/>',
+      '<path d="M5 5h14v14H5zM9 9h6M9 13h6M9 17h3"/>',
+      '<path d="m5 12 4 4L19 6"/>',
+      '<path d="M4 19a8 8 0 1 1 16 0M12 11v4l3 2M12 3v2"/>'
+    ];
+    const clientSelect = document.querySelector('#client-select');
+    const initialClientNames = Array.from({ length: 30 }, (_, index) => `Client ${String(index + 1).padStart(2, '0')}`);
+    const clientNamesKey = 'aquahr:preview-clients';
+    const usersKey = 'aquahr:preview-users';
+    const dashboardLinksPrefix = 'aquahr:preview-links:';
+    const defaultUsers = [
+      ...initialClientNames.map((client, index) => ({ username: `client${String(index + 1).padStart(2, '0')}`, displayName: `${client} User`, client, photo: '', role: 'user' })),
+      { username: 'raziel', displayName: 'Raziel', client: 'GMA SOUTH', photo: 'https://drive.google.com/file/d/16zZhZlR2WjHBjQXMD_IEqVgbXht75FSr/view?usp=sharing', role: 'user' }
+    ];
+    let currentUser = null;
+    let selectedDashboard = dashboards[0];
+    let toastTimer;
+
+    const loginPage = document.querySelector('#login-page');
+    const dashboardPage = document.querySelector('#dashboard');
+    const content = document.querySelector('#content');
+    const toast = document.querySelector('#toast');
+    const dashboardDialog = document.querySelector('#dashboard-dialog');
+    const usersDialog = document.querySelector('#users-dialog');
+    const openDashboardUrl = document.querySelector('#open-dashboard-url');
+    const profileAvatar = document.querySelector('#profile-avatar');
+    const topbarAvatar = document.querySelector('#topbar-avatar');
+
+    function readJSON(key, fallback) {
+      try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+      catch { return fallback; }
+    }
+    function getUsers() {
+      return readJSON(usersKey, defaultUsers);
+    }
+    function getClientNames() {
+      return readJSON(clientNamesKey, initialClientNames);
+    }
+    function saveUsers(users) {
+      localStorage.setItem(usersKey, JSON.stringify(users));
+    }
+    function getActiveClient() {
+      return currentUser?.role === 'admin' ? clientSelect.value : currentUser?.client || getClientNames()[0];
+    }
+    function getClientLinks(client = getActiveClient()) {
+      return readJSON(`${dashboardLinksPrefix}${client}`, {});
+    }
+    function getDashboardSources(name, client = getActiveClient()) {
+      const saved = getClientLinks(client)[name];
+      if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
+      return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
+    }
+    function updateClientChoices(selected = '') {
+      const clients = [...new Set([...getClientNames(), ...getUsers().map(user => user.client).filter(Boolean)])];
+      clientSelect.replaceChildren(...clients.map(client => {
+        const option = document.createElement('option');
+        option.value = client;
+        option.textContent = client;
+        return option;
+      }));
+      const datalist = document.querySelector('#client-options');
+      datalist.replaceChildren(...clients.map(client => {
+        const option = document.createElement('option');
+        option.value = client;
+        return option;
+      }));
+      clientSelect.value = clients.includes(selected) ? selected : clients[0];
+    }
+    function notify(message) {
+      toast.textContent = message;
+      toast.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add('hidden'), 3600);
+    }
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
+    }
+    function safePhotoUrl(value) {
+      if (!value) return '';
+      try {
+        const url = new URL(value);
+        if (url.protocol !== 'https:') return '';
+        const driveId = url.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || (url.hostname === 'drive.google.com' ? url.searchParams.get('id') : '');
+        return driveId ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w512` : url.href;
+      } catch { return ''; }
+    }
+    function renderProfile(user) {
+      document.querySelector('#profile-name').textContent = user.displayName;
+      document.querySelector('#profile-username').textContent = user.role === 'admin' ? 'Administrator' : user.username;
+      document.querySelector('#topbar-name').textContent = user.displayName;
+      updateWelcomeGreeting(user);
+      document.querySelector('#topbar-date').textContent = new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date());
+      document.querySelector('#sidebar-client').textContent = user.role === 'admin' ? getActiveClient() : user.client;
+      document.querySelector('#sidebar-role').textContent = user.role === 'admin' ? 'Administrator preview' : 'Assigned client';
+      document.querySelector('#assigned-client').textContent = user.role === 'admin' ? getActiveClient() : user.client;
+      profileAvatar.replaceChildren();
+      topbarAvatar.replaceChildren();
+      const photo = safePhotoUrl(user.photo);
+      if (photo) {
+        [profileAvatar, topbarAvatar].forEach(avatar => {
+          const image = document.createElement('img');
+          image.src = photo;
+          image.alt = `${user.displayName} profile photo`;
+          image.onerror = () => { avatar.textContent = user.displayName.slice(0, 2).toUpperCase(); };
+          avatar.append(image);
+        });
+      } else {
+        [profileAvatar, topbarAvatar].forEach(avatar => { avatar.textContent = user.displayName.slice(0, 2).toUpperCase(); });
+      }
+      document.querySelector('#client-select').classList.toggle('hidden', user.role !== 'admin');
+      document.querySelector('#manage-users').classList.toggle('hidden', user.role !== 'admin');
+      document.querySelector('#assigned-client').classList.toggle('hidden', user.role === 'admin');
+    }
+    function updateWelcomeGreeting(user) {
+      const prefix = window.matchMedia('(max-width: 390px)').matches ? 'Hi' : 'Good day';
+      document.querySelector('#welcome-greeting').textContent = `${prefix}, ${user.displayName}`;
+    }
+    function renderBubbles() {
+      content.querySelectorAll('.bubble-grid').forEach(element => element.remove());
+      const section = document.createElement('section');
+      section.className = 'dashboard-picker';
+      section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><span class="picker-count">11</span></div><div class="bubble-grid"></div>`;
+      const grid = section.querySelector('.bubble-grid');
+      dashboards.forEach((name, index) => {
+        const sourceCount = getDashboardSources(name).length;
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'bubble-button';
+        const adminCanEdit = currentUser?.role === 'admin';
+        const bubbleMeta = sourceCount ? (adminCanEdit ? `${sourceCount} SOURCE${sourceCount === 1 ? '' : 'S'}` : 'OPEN') : (adminCanEdit ? 'ADD URL' : 'NO LINK');
+        button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
+        button.innerHTML = `<span class="bubble-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><span class="bubble-name">${escapeHtml(name)}</span><span class="bubble-meta">${bubbleMeta}</span><span class="bubble-state ${sourceCount ? 'connected' : ''}" aria-hidden="true"></span>`;
+        button.addEventListener('click', () => adminCanEdit ? openDashboardEditor(name) : openUserDashboard(name));
+        grid.append(button);
+      });
+      content.prepend(section);
+    }
+    function showHome() {
+      const client = getActiveClient();
+      document.querySelector('#sidebar-client').textContent = client;
+      document.querySelector('#assigned-client').textContent = client;
+      content.innerHTML = `
+        <section class="alert-board" aria-labelledby="alert-title">
+          <header class="alert-heading"><span class="required-tag">ACTION REQUIRED</span><h2 id="alert-title">ATTENTION: ACTION REQUIRED FOR HR DATA ACCURACY</h2><p>Please review and update your records promptly.</p></header>
+          <div class="steps">
+            <article class="step blue"><span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-2M8 2h5v4H8zM7 10h6M7 13h5"/><circle cx="16" cy="14" r="4"/><path d="m19 17 2 2"/></svg></span><h3>1. UPDATE YOUR<br>VACANCY.</h3><p>Keep all active vacancy listings accurate.</p></article>
+            <article class="step green"><span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 5 2 2 4-4"/></svg></span><h3>2. CHECK THE VACANT<br>DATE.</h3><p>Verify that all vacant dates are correctly logged.</p></article>
+            <article class="step gold"><span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h10l4 4v10a2 2 0 0 1-2 2h-2l-3 3v-3H7a2 2 0 0 1-2-2V3Z"/><path d="M9 8h6M9 12h6m-6 4h3"/></svg></span><h3>3. UPDATE HR REMARKS</h3><p>Don't forget to update both vacancy status and HR EMPLOC remarks.</p></article>
+            <article class="step orange"><span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="m8 21 4-4 4 4M8 9h8M8 12h5"/><path d="M17 8h2v6h-5"/></svg></span><h3>4. CLICK NEWLY HIRED</h3><p>Always click the “Newly Hired” button in your plantilla when onboarding.</p></article>
+            <article class="step red"><span class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 16H3l9-16Z"/><path d="M12 9v4m0 3h.01M18 7v9m3-6v6"/></svg></span><h3>5. CHECK VCODE<br>VARIANCE</h3><p>Carefully review your VCODE variance to prevent discrepancies.</p></article>
+          </div>
+          <footer class="alert-footer">Ensuring smooth processing and preventing system conflicts. Thank you for your cooperation!</footer>
+        </section>`;
+      renderBubbles();
+    }
+    const plantillaHeaders = ['VCODE', 'EMPLOC', "MEMBER'S NAME", 'POSITION', 'OUTLET', 'HC', 'SEPARATION DATE', 'STATUS', 'VIEW'];
+    function showPlantilla() {
+      const sourceCount = getDashboardSources('PLANTILLA').length;
+      const adminSourceButton = currentUser?.role === 'admin' ? '<button id="plantilla-sources" class="secondary-button" type="button">Spreadsheet URLs</button>' : '';
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · ${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} saved</p></div><div class="plantilla-actions">${adminSourceButton}<button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody><tr><td colspan="8" class="plantilla-empty">${sourceCount ? 'Spreadsheet source saved. Live rows will appear here when data loading is connected.' : 'No spreadsheet source is connected for this client yet.'}</td><td><button class="view-row-button" type="button" id="preview-record">View</button></td></tr></tbody></table></div><div class="module-footer"><span>Plantilla dashboard</span><span>Spreadsheet links stay managed by the administrator.</span></div>`;
+      document.querySelector('#plantilla-sources')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
+      document.querySelector('#plantilla-home').addEventListener('click', showHome);
+      document.querySelector('#preview-record').addEventListener('click', openRecordDrawer);
+    }
+    function showClientDashboard(name) {
+      const index = dashboards.indexOf(name);
+      const sourceCount = getDashboardSources(name).length;
+      document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode(name));
+      content.innerHTML = `<div class="module-heading"><div><h1>${escapeHtml(name)}</h1><p>CLIENT: ${escapeHtml(getActiveClient())}</p></div><span class="module-index">DASHBOARD ${String(index + 1).padStart(2, '0')} / 11</span></div><section class="empty-module"><div class="empty-inner"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><h2>${escapeHtml(name)} dashboard</h2><p>${sourceCount ? `${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} assigned. This portal dashboard is open; live spreadsheet rows are not yet loaded into the preview.` : `No spreadsheet source is connected for ${escapeHtml(getActiveClient())}. Ask the administrator to add one.`}</p></div></section><button id="dashboard-home" class="secondary-button" type="button">Back to action center</button>`;
+      document.querySelector('#dashboard-home').addEventListener('click', showHome);
+    }
+    function openRecordDrawer() {
+      const fields = plantillaHeaders.filter(header => header !== 'VIEW');
+      document.querySelector('#record-drawer-fields').innerHTML = fields.map(header => `<div class="drawer-field"><span>${escapeHtml(header)}</span><strong>Not connected</strong></div>`).join('');
+      document.querySelector('#record-drawer').classList.add('open');
+      document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
+      document.querySelector('#drawer-backdrop').classList.add('open');
+    }
+    function closeRecordDrawer() {
+      document.querySelector('#record-drawer').classList.remove('open');
+      document.querySelector('#record-drawer').setAttribute('aria-hidden', 'true');
+      document.querySelector('#drawer-backdrop').classList.remove('open');
+    }
+    function addDashboardUrlRow(value = '') {
+      const list = document.querySelector('#dashboard-url-list');
+      const row = document.createElement('div');
+      row.className = 'url-row';
+      const input = document.createElement('input');
+      input.className = 'dashboard-url-input';
+      input.type = 'url';
+      input.inputMode = 'url';
+      input.autocomplete = 'url';
+      input.placeholder = 'https://docs.google.com/spreadsheets/d/...';
+      input.setAttribute('aria-label', `Spreadsheet URL ${list.children.length + 1}`);
+      input.value = value;
+      const remove = document.createElement('button');
+      remove.className = 'remove-source';
+      remove.type = 'button';
+      remove.setAttribute('aria-label', 'Remove spreadsheet URL');
+      remove.textContent = '×';
+      remove.addEventListener('click', () => row.remove());
+      row.append(input, remove);
+      list.append(row);
+    }
+    function openUserDashboard(name) {
+      if (name === 'PLANTILLA') showPlantilla();
+      else showClientDashboard(name);
+    }
+    function openDashboardEditor(name) {
+      if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
+      selectedDashboard = name;
+      const sources = getDashboardSources(name);
+      document.querySelector('#dashboard-dialog-title').textContent = name;
+      document.querySelector('#dialog-client').textContent = getActiveClient();
+      const assignedUsers = getUsers().filter(user => user.role !== 'admin' && user.client === getActiveClient());
+      document.querySelector('#dialog-audience-count').textContent = `${assignedUsers.length} client user${assignedUsers.length === 1 ? '' : 's'} assigned to ${getActiveClient()}`;
+      const audience = document.querySelector('#dialog-audience-list');
+      audience.replaceChildren();
+      if (assignedUsers.length) {
+        assignedUsers.forEach(user => {
+          const tag = document.createElement('span');
+          tag.className = 'audience-user';
+          tag.textContent = `${user.displayName} (@${user.username})`;
+          audience.append(tag);
+        });
+      } else {
+        const empty = document.createElement('span');
+        empty.className = 'audience-user';
+        empty.textContent = 'No client users assigned';
+        audience.append(empty);
+      }
+      const list = document.querySelector('#dashboard-url-list');
+      list.replaceChildren();
+      (sources.length ? sources : ['']).forEach(source => addDashboardUrlRow(source));
+      openDashboardUrl.disabled = !sources.length;
+      document.querySelector('#open-plantilla-preview').classList.toggle('hidden', name !== 'PLANTILLA');
+      dashboardDialog.showModal();
+    }
+    function renderRoster() {
+      const body = document.querySelector('#user-roster');
+      const users = getUsers();
+      body.innerHTML = users.map(user => {
+        const photo = safePhotoUrl(user.photo);
+        const badge = photo ? `<img src="${escapeHtml(photo)}" alt="" onerror="this.remove()">` : escapeHtml(user.displayName.slice(0, 2).toUpperCase());
+        return `<tr><td>${escapeHtml(user.displayName)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></td><td>${escapeHtml(user.client)}</td><td>${user.role === 'admin' ? 'Admin' : 'Client user'}</td><td><span class="roster-photo">${badge}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-edit-user="${escapeHtml(user.username)}">Edit</button><button class="remove-user" type="button" data-remove-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
+      }).join('');
+      body.querySelectorAll('[data-edit-user]').forEach(button => button.addEventListener('click', () => {
+        const user = getUsers().find(item => item.username === button.dataset.editUser);
+        if (!user) return;
+        editingUsername = user.username;
+        document.querySelector('#new-username').value = user.username;
+        document.querySelector('#new-display-name').value = user.displayName;
+        document.querySelector('#new-user-client').value = user.client;
+        document.querySelector('#new-user-role').value = user.role === 'admin' ? 'admin' : 'user';
+        document.querySelector('#new-photo-url').value = user.photo || '';
+        document.querySelector('#user-form-submit').textContent = 'Update user';
+        document.querySelector('#cancel-user-edit').classList.remove('hidden');
+        document.querySelector('#new-username').focus();
+      }));
+      body.querySelectorAll('[data-remove-user]').forEach(button => button.addEventListener('click', () => {
+        const username = button.dataset.removeUser;
+        saveUsers(getUsers().filter(user => user.username !== username));
+        if (editingUsername === username) resetUserForm();
+        updateClientChoices(getActiveClient());
+        renderRoster();
+      }));
+    }
+    let editingUsername = null;
+    function resetUserForm() {
+      editingUsername = null;
+      document.querySelector('#user-form').reset();
+      document.querySelector('#user-form-submit').textContent = 'Add user';
+      document.querySelector('#cancel-user-edit').classList.add('hidden');
+    }
+
+    updateClientChoices(getClientNames()[0]);
+    document.querySelector('#login-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const username = new FormData(event.currentTarget).get('username').trim().toLowerCase();
+      const error = document.querySelector('#login-error');
+      if (username === 'admin') {
+        currentUser = { username: 'admin', displayName: 'Administrator', client: getClientNames()[0], photo: '', role: 'admin' };
+      } else {
+        currentUser = getUsers().find(user => user.username.toLowerCase() === username) || null;
+      }
+      if (!currentUser) {
+        error.textContent = 'Username not found in the preview roster. Sign in as admin to add a user first.';
+        error.classList.remove('hidden');
+        return;
+      }
+      error.classList.add('hidden');
+      if (currentUser.role === 'admin') updateClientChoices(currentUser.client || getClientNames()[0]);
+      else updateClientChoices(currentUser.client);
+      renderProfile(currentUser);
+      loginPage.classList.add('hidden');
+      dashboardPage.classList.remove('hidden');
+      showHome();
+    });
+    document.querySelector('#logout-button').addEventListener('click', () => {
+      currentUser = null;
+      dashboardPage.classList.add('hidden');
+      loginPage.classList.remove('hidden');
+      document.querySelector('#login-form').reset();
+    });
+    document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
+    document.querySelector('#client-select').addEventListener('change', () => {
+      if (currentUser?.role !== 'admin') return;
+      renderProfile(currentUser);
+      showHome();
+    });
+    document.querySelector('#manage-users').addEventListener('click', () => {
+      document.querySelector('#renamed-client').value = getActiveClient();
+      renderRoster();
+      usersDialog.showModal();
+    });
+    document.querySelector('#user-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (currentUser?.role !== 'admin') return notify('Only an admin can manage users.');
+      const username = document.querySelector('#new-username').value.trim().toLowerCase();
+      if (username === 'admin') return notify('The admin username is reserved.');
+      const users = getUsers();
+      const existingIndex = editingUsername ? users.findIndex(item => item.username === editingUsername) : -1;
+      const duplicate = users.some(item => item.username.toLowerCase() === username && item.username !== editingUsername);
+      if (duplicate) return notify('That username is already registered.');
+      const photo = document.querySelector('#new-photo-url').value.trim();
+      if (photo && !safePhotoUrl(photo)) return notify('Enter a public HTTPS photo URL.');
+      const user = {
+        username,
+        displayName: document.querySelector('#new-display-name').value.trim(),
+        client: document.querySelector('#new-user-client').value.trim(),
+        photo,
+        role: document.querySelector('#new-user-role').value === 'admin' ? 'admin' : 'user'
+      };
+      if (existingIndex >= 0) users[existingIndex] = user;
+      else users.push(user);
+      saveUsers(users);
+      updateClientChoices(getActiveClient());
+      resetUserForm();
+      renderRoster();
+      notify(`${user.displayName} is saved as ${user.role === 'admin' ? 'an admin' : `a user for ${user.client}`} in this browser preview.`);
+    });
+    document.querySelector('#cancel-user-edit').addEventListener('click', resetUserForm);
+    document.querySelector('#rename-client-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (currentUser?.role !== 'admin') return notify('Only an admin can rename clients.');
+      const previousName = getActiveClient();
+      const nextName = document.querySelector('#renamed-client').value.trim();
+      if (!nextName) return;
+      if (nextName === previousName) return notify('That is already the selected client name.');
+      const clients = getClientNames().map(name => name === previousName ? nextName : name);
+      localStorage.setItem(clientNamesKey, JSON.stringify([...new Set(clients)]));
+      saveUsers(getUsers().map(user => user.client === previousName ? { ...user, client: nextName } : user));
+      const previousLinks = localStorage.getItem(`${dashboardLinksPrefix}${previousName}`);
+      if (previousLinks) {
+        localStorage.setItem(`${dashboardLinksPrefix}${nextName}`, previousLinks);
+        localStorage.removeItem(`${dashboardLinksPrefix}${previousName}`);
+      }
+      updateClientChoices(nextName);
+      renderProfile(currentUser);
+      renderRoster();
+      showHome();
+      document.querySelector('#renamed-client').value = nextName;
+      notify(`Client renamed to ${nextName}.`);
+    });
+    document.querySelector('#dashboard-url-form').addEventListener('submit', event => {
+      event.preventDefault();
+      if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
+      const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
+      const sources = [];
+      for (const value of values) {
+        let parsed;
+        try { parsed = new URL(value); } catch { return notify('Enter a complete URL for each source.'); }
+        if (!['http:', 'https:'].includes(parsed.protocol)) return notify('Use HTTP or HTTPS spreadsheet links.');
+        sources.push(parsed.href);
+      }
+      const links = getClientLinks();
+      if (sources.length) links[selectedDashboard] = sources;
+      else delete links[selectedDashboard];
+      localStorage.setItem(`${dashboardLinksPrefix}${getActiveClient()}`, JSON.stringify(links));
+      openDashboardUrl.disabled = !sources.length;
+      dashboardDialog.close();
+      if (selectedDashboard === 'PLANTILLA' && !content.querySelector('.plantilla-table')) showHome();
+      else if (selectedDashboard === 'PLANTILLA') showPlantilla();
+      else showHome();
+      notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for ${selectedDashboard} / ${getActiveClient()} in this browser.`);
+    });
+    document.querySelector('#add-dashboard-url').addEventListener('click', () => addDashboardUrlRow());
+    openDashboardUrl.addEventListener('click', () => {
+      const saved = getDashboardSources(selectedDashboard)[0];
+      if (saved) window.open(saved, '_blank', 'noopener,noreferrer');
+    });
+    document.querySelector('#open-plantilla-preview').addEventListener('click', () => {
+      dashboardDialog.close();
+      showPlantilla();
+    });
+    document.querySelector('#close-record-drawer').addEventListener('click', closeRecordDrawer);
+    document.querySelector('#drawer-backdrop').addEventListener('click', closeRecordDrawer);
+    document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+    [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
+      if (event.target === dialog) dialog.close();
+    }));
+    document.querySelector('#forgot-button').addEventListener('click', () => notify('Ask your portal administrator to update your preview account.'));
+  </script>
+</body>
+</html>
