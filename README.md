@@ -18,3 +18,14 @@ Each user opens the site, chooses **Continue with Google**, opens **PLANTILLA**,
 The portal reads rows 9 onward and uses VCODE in column B as the unique row key. It displays dates in uppercase, for example `SEPTEMBER 26, 2026`. Updates write only Rate (H), Separation Date (AG), and Status (AH). The signed-in user's Google permissions protect their sheet.
 
 This GitHub version uses Google sign-in instead of the preview username/password form. Account access and revocation are controlled by Google; this page does not implement a separate username/password or ACTIVE/INACTIVE/DEFAULT account directory.
+
+### OAuth branding and production
+
+In Google Auth Platform **Branding**, use these public URLs:
+
+- App homepage: `https://ceris-system.github.io/ERTHPORTAL/`
+- Privacy policy: `https://ceris-system.github.io/ERTHPORTAL/privacy.html`
+- App name: `ERTH PORTAL`
+- Support and developer contact: an email address you monitor
+
+Save the branding information, then return to **Audience** and select **Publish app** to leave Testing. Publishing allows accounts beyond the test-user list to attempt sign-in; it does not itself mean Google has verified the app. Because Sheets access is a sensitive OAuth scope, Google may still show an unverified-app warning, limit users, or require submission in **Verification Center**. Follow Google's verification prompts before general distribution. If Google requires domain ownership verification, a custom domain you control may be needed because `github.io` is shared hosting.

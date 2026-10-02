@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eaf8f8">
+  <title>Privacy | ERTH PORTAL</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; --ink:#163c49; --muted:#587780; --teal:#128f91; --line:#d8e9e7; }
+    * { box-sizing:border-box; }
+    body { min-height:100vh; margin:0; padding:40px 20px; color:var(--ink); font:16px/1.65 'DM Sans',sans-serif; background:radial-gradient(ellipse at 15% 10%,#effcfa,transparent 40%),linear-gradient(135deg,#e6f5f4,#f7fbf8 55%,#dff1ef); }
+    main { width:min(760px,100%); margin:0 auto; padding:clamp(24px,5vw,48px); border:1px solid rgba(255,255,255,.92); border-radius:20px; background:rgba(255,255,255,.86); box-shadow:0 22px 65px rgba(24,82,95,.13); }
+    a { color:#117e83; }
+    h1 { margin:0; font-size:32px; line-height:1.2; }
+    .updated { margin:8px 0 28px; color:var(--muted); font-size:13px; }
+    h2 { margin:25px 0 7px; font-size:18px; }
+    p { margin:8px 0; }
+    .back { display:inline-block; margin-bottom:24px; font-size:13px; font-weight:700; }
+    @media(max-width:500px) { body { padding:16px 12px; } h1 { font-size:26px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="back" href="./">Back to ERTH PORTAL</a>
+    <h1>ERTH PORTAL Privacy Notice</h1>
+    <p class="updated">Last updated: October 2, 2026</p>
+    <p>ERTH PORTAL lets users view and update a PLANTILLA Google Sheet that they choose. The portal is hosted on GitHub Pages and communicates directly between the user's browser and Google services.</p>
+
+    <h2>Google account information</h2>
+    <p>When you sign in, the portal receives your Google email address, display name, and profile image from Google. The email address is used to keep your selected spreadsheet URL separate from other accounts using the same browser. This account information is held in the current page session and is not sent to an ERTH PORTAL server.</p>
+
+    <h2>Google Sheets access</h2>
+    <p>The portal requests permission to read and write Google Sheets that your Google account can access. You choose a spreadsheet by entering its URL. The portal reads the PLANTILLA tab from row 9 onward and displays employee data in your browser. When you submit an update, it changes only Rate (column H), Separation Date (column AG), and Status (column AH) on the row matching the VCODE.</p>
+    <p>Sheet contents are fetched directly from the Google Sheets API into your browser and are not stored by an ERTH PORTAL server. Google processes the requests under Google's privacy and security practices. Only connect a sheet you are authorized to access.</p>
+
+    <h2>Local browser storage</h2>
+    <p>The selected spreadsheet ID is saved in your browser's local storage under your Google email address so you do not have to reconnect on every visit. The OAuth access token is kept in memory for the open page and is not saved to local storage. Clearing this site's browser data removes the saved spreadsheet selection.</p>
+
+    <h2>Third-party services</h2>
+    <p>Google provides sign-in and the Sheets API. Google Fonts and jsDelivr provide page assets. These services may receive standard connection information when your browser requests their resources. ERTH PORTAL does not use advertising or analytics trackers.</p>
+
+    <h2>Data security and contact</h2>
+    <p>Access to sheet data depends on your Google account permissions. Do not share your OAuth access token or publish employee sheets to the web. For privacy questions, contact the support email shown on the ERTH PORTAL Google consent screen.</p>
+  </main>
+</body>
+</html>
