@@ -371,12 +371,6 @@
         </form>
         <p id="password-update-error" class="login-error hidden" role="alert"></p>
       </section>
-      <section id="sheets-auth-panel" class="login-card hidden" aria-labelledby="sheets-auth-title">
-        <h2 id="sheets-auth-title">Authorize your spreadsheet</h2>
-        <p class="sub">Continue with the Google account assigned to your portal username.</p>
-        <button id="authorize-sheets-button" class="primary-button" type="button">Continue with Google</button>
-        <p id="sheets-auth-error" class="login-error hidden" role="alert"></p>
-      </section>
     </main>
 
     <div id="dashboard" class="dashboard hidden">
@@ -424,7 +418,7 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">PRIVATE SHEET CONNECTION</span>
       <h2 id="plantilla-connect-title">Connect your PLANTILLA sheet</h2>
-      <p class="dialog-copy">Paste your spreadsheet URL. It is saved to your signed-in Google account, and your Google permissions control which sheet you can access.</p>
+      <p class="dialog-copy">Paste your spreadsheet URL. The portal loads the sheet directly from the link you provide.</p>
       <form id="plantilla-connect-form">
         <label class="dialog-label" for="plantilla-sheet-url">Google Sheets URL</label>
         <input id="plantilla-sheet-url" name="url" type="url" inputmode="url" autocomplete="url" required placeholder="https://docs.google.com/spreadsheets/d/...">
@@ -607,7 +601,7 @@
       }, supabaseAccessToken);
     }
     function showLoginPanel(panelId) {
-      ['login-card', 'password-update-panel', 'sheets-auth-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
+      ['login-card', 'password-update-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
     }
     function loadGoogleIdentity() {
       if (window.google?.accounts?.oauth2) return Promise.resolve();
@@ -631,8 +625,37 @@
         tokenClient.requestAccessToken({ prompt: '' });
       });
     }
+    async function publicSheetValues(sheetId, range = 'A1:ZZ') {
+      const match = range.match(/^([^!]+)!/);
+      const sheetName = match ? match[1] : '';
+      const url = new URL(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq`);
+      url.searchParams.set('tqx', 'out:json');
+      if (sheetName) url.searchParams.set('sheet', sheetName);
+      if (range.includes('!')) url.searchParams.set('range', range.split('!')[1]);
+      const response = await fetch(url.href, { headers: { Accept: 'application/json' } });
+      const text = await response.text();
+      if (!response.ok) {
+        throw new Error('This spreadsheet could not be opened. Check that the URL is public or published.');
+      }
+      const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\((.*)\)\s*;?\s*$/s);
+      if (!jsonMatch) {
+        throw new Error('This spreadsheet did not return readable table data.');
+      }
+      const payload = JSON.parse(jsonMatch[1]);
+      const rows = payload?.table?.rows || [];
+      return {
+        values: rows.map(row => (row.c || []).map(cell => cell && cell.v !== undefined ? cell.v : ''))
+      };
+    }
     async function sheetsApiRequest(path, options = {}) {
-      if (!googleAccessToken) throw new Error('Sign in with Google to access your sheet.');
+      if (!googleAccessToken) {
+        const idMatch = path.match(/spreadsheets\/([^/]+)\/values\//);
+        if (!idMatch) throw new Error('No spreadsheet ID was found in the URL.');
+        const sheetId = idMatch[1];
+        const rangeMatch = path.match(/values\/(.*?)(?:\?|$)/);
+        const range = rangeMatch ? decodeURIComponent(rangeMatch[1]) : 'A1:ZZ';
+        return publicSheetValues(sheetId, range);
+      }
       const response = await fetch(`https://sheets.googleapis.com/v4/${path}`, {
         ...options,
         headers: { Authorization: `Bearer ${googleAccessToken}`, 'Content-Type': 'application/json', ...options.headers }
@@ -807,14 +830,9 @@
       const status = document.querySelector('#plantilla-status');
       const body = document.querySelector('#plantilla-table-body');
       if (!status || !body) return;
-      if (!googleAccessToken) {
-        status.textContent = 'Sign in with Google to load your private sheet.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Google authorization is required.</td></tr>';
-        return;
-      }
       if (!plantillaSpreadsheetId) {
-        status.textContent = 'Connect your own spreadsheet to begin.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">No spreadsheet is connected for this Google account.</td></tr>';
+        status.textContent = 'Connect your spreadsheet to begin.';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">No spreadsheet is connected for this portal yet.</td></tr>';
         return;
       }
       status.textContent = 'Loading records...';
@@ -830,7 +848,7 @@
         renderPlantillaTable();
       } catch (error) {
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Connect your sheet or check your Google access, then refresh.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Connect a public Google Sheets URL or check that the sheet is available, then refresh.</td></tr>';
       }
     }
     function renderPlantillaTable() {
@@ -1051,8 +1069,15 @@
             role: portalProfile.role,
             photo: ''
           };
-          if (portalProfile.status === 'default') showLoginPanel('password-update-panel');
-          else showLoginPanel('sheets-auth-panel');
+          if (portalProfile.status === 'default') {
+            showLoginPanel('password-update-panel');
+          } else {
+            currentUser.photo = '';
+            renderProfile(currentUser);
+            loginPage.classList.add('hidden');
+            dashboardPage.classList.remove('hidden');
+            showHome();
+          }
         } catch (loginError) {
           supabaseAccessToken = '';
           portalProfile = null;
@@ -1085,7 +1110,11 @@
           await callAdminFunction('activate-default', { username: portalProfile.username });
           portalProfile.status = 'active';
           form.reset();
-          showLoginPanel('sheets-auth-panel');
+          currentUser.photo = '';
+          renderProfile(currentUser);
+          loginPage.classList.add('hidden');
+          dashboardPage.classList.remove('hidden');
+          showHome();
         } catch (updateError) {
           error.textContent = updateError?.message || 'Could not update password.';
           error.classList.remove('hidden');
@@ -1099,39 +1128,6 @@
       const error = document.querySelector('#login-error');
       error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
       error.classList.remove('hidden');
-    });
-    document.querySelector('#authorize-sheets-button').addEventListener('click', event => {
-      const button = event.currentTarget;
-      const error = document.querySelector('#sheets-auth-error');
-      button.disabled = true;
-      button.textContent = 'Connecting to Google...';
-      error.classList.add('hidden');
-      (async () => {
-        try {
-          await loadGoogleIdentity();
-          googleAccessToken = await requestGoogleAccessToken();
-          const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: `Bearer ${googleAccessToken}` } });
-          const identity = await response.json();
-          if (!response.ok || !identity.email) throw new Error('Google did not return an email for this account.');
-          signedInEmail = identity.email;
-          if (portalProfile.google_email && portalProfile.google_email.trim() && signedInEmail.toLowerCase() !== portalProfile.google_email.toLowerCase()) {
-            googleAccessToken = '';
-            signedInEmail = '';
-            throw new Error(`Sign in to Google as ${portalProfile.google_email} to continue.`);
-          }
-          currentUser.photo = identity.picture || '';
-          renderProfile(currentUser);
-          loginPage.classList.add('hidden');
-          dashboardPage.classList.remove('hidden');
-          showHome();
-        } catch (authError) {
-          error.textContent = authError?.message || 'Google authorization failed.';
-          error.classList.remove('hidden');
-        } finally {
-          button.disabled = false;
-          button.textContent = 'Continue with Google';
-        }
-      })();
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
       const accessToken = supabaseAccessToken;
