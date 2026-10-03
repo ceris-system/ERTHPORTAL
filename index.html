@@ -442,6 +442,7 @@
         <label class="dialog-label" for="new-default-password">Default password</label><input id="new-default-password" name="defaultPassword" type="text" autocomplete="new-password" placeholder="Leave blank to auto-generate">
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
+        <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Create account</button></div>
       </form>
       <p id="admin-account-feedback" class="auth-feedback" role="status"></p>
@@ -1178,7 +1179,8 @@
             googleEmail: form.elements.googleEmail.value,
             defaultPassword: form.elements.defaultPassword.value,
             clientName: form.elements.clientName.value,
-            role: form.elements.role.value
+            role: form.elements.role.value,
+            status: form.elements.status.value
           });
           const passwordMessage = result.temporaryPassword ? `Temporary password: ${result.temporaryPassword}.` : 'Password set by admin.';
           document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;

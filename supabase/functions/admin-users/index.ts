@@ -84,6 +84,7 @@ Deno.serve(async request => {
       const defaultPassword = String(body.defaultPassword || '').trim();
       const clientName = String(body.clientName || '').trim() || 'My spreadsheets';
       const role = body.role === 'admin' ? 'admin' : 'user';
+      const status = ['default', 'active', 'inactive'].includes(String(body.status || '').trim()) ? String(body.status).trim() : 'default';
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       if (!displayName) throw new Error('Display name is required.');
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
@@ -106,7 +107,7 @@ Deno.serve(async request => {
         google_email: googleEmail || '',
         client_name: clientName,
         role,
-        status: 'default'
+        status
       }).select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status').single();
       if (profileError || !profile) {
         await adminClient.auth.admin.deleteUser(created.user.id);
