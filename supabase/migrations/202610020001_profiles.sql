@@ -19,3 +19,4 @@ create policy "Users can read their own profile"
   for select
   to authenticated
   using (id = auth.uid());
+  
