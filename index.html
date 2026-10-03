@@ -442,7 +442,8 @@
       <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
-        <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" required autocomplete="email" placeholder="user@example.com">
+        <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" autocomplete="email" placeholder="user@example.com (optional)">
+        <label class="dialog-label" for="new-default-password">Default password</label><input id="new-default-password" name="defaultPassword" type="text" autocomplete="new-password" placeholder="Leave blank to auto-generate">
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Create account</button></div>
@@ -1113,7 +1114,7 @@
           const identity = await response.json();
           if (!response.ok || !identity.email) throw new Error('Google did not return an email for this account.');
           signedInEmail = identity.email;
-          if (signedInEmail.toLowerCase() !== portalProfile.google_email.toLowerCase()) {
+          if (portalProfile.google_email && portalProfile.google_email.trim() && signedInEmail.toLowerCase() !== portalProfile.google_email.toLowerCase()) {
             googleAccessToken = '';
             signedInEmail = '';
             throw new Error(`Sign in to Google as ${portalProfile.google_email} to continue.`);
@@ -1165,10 +1166,12 @@
             username: form.elements.username.value,
             displayName: form.elements.displayName.value,
             googleEmail: form.elements.googleEmail.value,
+            defaultPassword: form.elements.defaultPassword.value,
             clientName: form.elements.clientName.value,
             role: form.elements.role.value
           });
-          document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. Temporary password: ${result.temporaryPassword}. Give it to the user privately; it will be required to change at first login.`;
+          const passwordMessage = result.temporaryPassword ? `Temporary password: ${result.temporaryPassword}.` : 'Password set by admin.';
+          document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;
           form.reset();
           await renderRoster();
         } catch (error) {

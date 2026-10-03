@@ -79,13 +79,14 @@ Deno.serve(async request => {
       const username = String(body.username || '').trim().toLowerCase();
       const displayName = String(body.displayName || '').trim();
       const googleEmail = String(body.googleEmail || '').trim().toLowerCase();
+      const defaultPassword = String(body.defaultPassword || '').trim();
       const clientName = String(body.clientName || '').trim() || 'My spreadsheets';
       const role = body.role === 'admin' ? 'admin' : 'user';
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       if (!displayName) throw new Error('Display name is required.');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("Enter the user's Google email address.");
+      if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
 
-      const temporaryPassword = createTemporaryPassword();
+      const temporaryPassword = defaultPassword || createTemporaryPassword();
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
         email: usernameEmail(username),
         password: temporaryPassword,
@@ -98,7 +99,7 @@ Deno.serve(async request => {
         id: created.user.id,
         username,
         display_name: displayName,
-        google_email: googleEmail,
+        google_email: googleEmail || '',
         client_name: clientName,
         role,
         status: 'default'
@@ -107,7 +108,7 @@ Deno.serve(async request => {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');
       }
-      return respond({ user: profile, temporaryPassword });
+      return respond({ user: profile, temporaryPassword: defaultPassword ? defaultPassword : temporaryPassword });
     }
 
     const targetUsername = String(body.username || '').trim().toLowerCase();
