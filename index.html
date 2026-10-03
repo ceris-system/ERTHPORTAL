@@ -199,6 +199,7 @@
     .source-link { padding:15px; border:1px solid rgba(255,255,255,.94); border-radius:14px; color:#286068; background:rgba(255,255,255,.68); box-shadow:0 8px 22px rgba(37,101,112,.1); font-size:11px; font-weight:700; text-decoration:none; transition:transform .2s,background .2s; }
     .source-link:hover { transform:translateY(-2px); background:white; }
     .login-error { margin:10px 0 0; color:#b6444e; font-size:11px; }
+    .password-toggle { margin-top:8px; border:0; background:none; color:#1c7c80; font-size:10px; font-weight:700; cursor:pointer; }
     .auth-feedback { min-height:18px; margin:12px 0 0; color:#587780; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
     .account-state { display:inline-block; padding:4px 7px; border-radius:6px; background:#e5f4f0; color:#247c72; font-size:9px; font-weight:700; text-transform:uppercase; }
     .url-list { display:grid; gap:8px; }
@@ -355,6 +356,7 @@
         <form id="login-form">
           <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
           <div class="field"><label for="login-password">Password</label><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"></div>
+          <button class="password-toggle" id="login-password-toggle" type="button" aria-label="Show password">Show password</button>
           <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
           <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
@@ -366,6 +368,7 @@
         <p class="sub">A temporary password was detected. Choose a new password to continue.</p>
         <form id="password-update-form">
           <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+          <button class="password-toggle" id="new-password-toggle" type="button" aria-label="Show new password">Show password</button>
           <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
           <button id="password-update-submit" class="primary-button" type="submit">Update password</button>
         </form>
@@ -1141,6 +1144,18 @@
       const error = document.querySelector('#login-error');
       error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
       error.classList.remove('hidden');
+    });
+    document.querySelector('#login-password-toggle').addEventListener('click', () => {
+      const passwordInput = document.querySelector('#login-password');
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      document.querySelector('#login-password-toggle').textContent = isHidden ? 'Hide password' : 'Show password';
+    });
+    document.querySelector('#new-password-toggle').addEventListener('click', () => {
+      const passwordInput = document.querySelector('#new-password');
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      document.querySelector('#new-password-toggle').textContent = isHidden ? 'Hide password' : 'Show password';
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
       const accessToken = supabaseAccessToken;
