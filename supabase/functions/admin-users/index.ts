@@ -27,7 +27,7 @@ function createTemporaryPassword() {
 
 async function findProfile(adminClient: ReturnType<typeof createClient>, id: string) {
   const { data, error } = await adminClient.from('profiles')
-    .select('id, username, display_name, google_email, client_name, role, status')
+    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status')
     .eq('id', id)
     .single();
   if (error || !data) throw new Error('Account profile was not found.');
@@ -69,7 +69,7 @@ Deno.serve(async request => {
 
     if (body.action === 'list') {
       const { data, error } = await adminClient.from('profiles')
-        .select('id, username, display_name, google_email, client_name, role, status, created_at')
+        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status, created_at')
         .order('username');
       if (error) throw new Error('Could not load account list.');
       return respond({ users: data });
@@ -79,6 +79,8 @@ Deno.serve(async request => {
       const username = String(body.username || '').trim().toLowerCase();
       const displayName = String(body.displayName || '').trim();
       const googleEmail = String(body.googleEmail || '').trim().toLowerCase();
+      const photoUrl = String(body.photoUrl || '').trim();
+      const sheetUrl = String(body.sheetUrl || '').trim();
       const defaultPassword = String(body.defaultPassword || '').trim();
       const clientName = String(body.clientName || '').trim() || 'My spreadsheets';
       const role = body.role === 'admin' ? 'admin' : 'user';
@@ -99,11 +101,13 @@ Deno.serve(async request => {
         id: created.user.id,
         username,
         display_name: displayName,
+        photo_url: photoUrl || '',
+        sheet_url: sheetUrl || '',
         google_email: googleEmail || '',
         client_name: clientName,
         role,
         status: 'default'
-      }).select('id, username, display_name, google_email, client_name, role, status').single();
+      }).select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status').single();
       if (profileError || !profile) {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');

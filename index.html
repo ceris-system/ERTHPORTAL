@@ -436,6 +436,8 @@
       <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
+        <label class="dialog-label" for="new-photo-url">Profile photo URL</label><input id="new-photo-url" name="photoUrl" type="url" inputmode="url" autocomplete="photo" placeholder="https://example.com/photo.jpg (optional)">
+        <label class="dialog-label" for="new-sheet-url">Assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" autocomplete="email" placeholder="user@example.com (optional)">
         <label class="dialog-label" for="new-default-password">Default password</label><input id="new-default-password" name="defaultPassword" type="text" autocomplete="new-password" placeholder="Leave blank to auto-generate">
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
@@ -671,8 +673,8 @@
       if (!match) throw new Error('Enter a Google Sheets spreadsheet URL.');
       return match[1];
     }
-    function spreadsheetUrlStorageKey(email = signedInEmail) {
-      return `erthportal:plantilla-sheet:${email.toLowerCase()}`;
+    function spreadsheetUrlStorageKey(email = signedInEmail || currentUser?.username || 'default') {
+      return `erthportal:plantilla-sheet:${String(email).toLowerCase()}`;
     }
     function sheetDate(value) {
       if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000);
@@ -816,7 +818,9 @@
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
     function showPlantilla() {
-      plantillaSpreadsheetId = localStorage.getItem(spreadsheetUrlStorageKey()) || '';
+      const savedSheetUrl = portalProfile?.sheet_url || localStorage.getItem(spreadsheetUrlStorageKey());
+      plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      if (plantillaSpreadsheetId) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions"><button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-connect').addEventListener('click', () => {
         document.querySelector('#plantilla-sheet-url').value = plantillaSpreadsheetId ? `https://docs.google.com/spreadsheets/d/${plantillaSpreadsheetId}/edit` : '';
@@ -996,7 +1000,7 @@
       body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
-        body.innerHTML = users.map(user => `<tr><td>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></td><td>${escapeHtml(user.google_email)}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`).join('');
+        body.innerHTML = users.map(user => `<tr><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`).join('');
         body.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
           try {
@@ -1053,7 +1057,7 @@
             body: JSON.stringify({ email: portalAuthEmail(username), password })
           });
           supabaseAccessToken = session.access_token;
-          const profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status&id=eq.${encodeURIComponent(session.user.id)}`, {}, supabaseAccessToken);
+          const profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status&id=eq.${encodeURIComponent(session.user.id)}`, {}, supabaseAccessToken);
           portalProfile = profiles?.[0] || null;
           if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
           if (portalProfile.status === 'inactive') {
@@ -1062,17 +1066,25 @@
             portalProfile = null;
             throw new Error('Account deactivated. Contact the portal administrator.');
           }
+          if (portalProfile.sheet_url) {
+            try {
+              const sheetId = spreadsheetIdFromUrl(portalProfile.sheet_url);
+              plantillaSpreadsheetId = sheetId;
+              localStorage.setItem(spreadsheetUrlStorageKey(currentUser?.username || portalProfile.username), sheetId);
+            } catch (error) {
+              portalProfile.sheet_url = '';
+            }
+          }
           currentUser = {
             username: portalProfile.username,
             displayName: portalProfile.display_name,
             client: portalProfile.client_name,
             role: portalProfile.role,
-            photo: ''
+            photo: portalProfile.photo_url || ''
           };
           if (portalProfile.status === 'default') {
             showLoginPanel('password-update-panel');
           } else {
-            currentUser.photo = '';
             renderProfile(currentUser);
             loginPage.classList.add('hidden');
             dashboardPage.classList.remove('hidden');
@@ -1161,6 +1173,8 @@
           const result = await callAdminFunction('create', {
             username: form.elements.username.value,
             displayName: form.elements.displayName.value,
+            photoUrl: form.elements.photoUrl.value,
+            sheetUrl: form.elements.sheetUrl.value,
             googleEmail: form.elements.googleEmail.value,
             defaultPassword: form.elements.defaultPassword.value,
             clientName: form.elements.clientName.value,
