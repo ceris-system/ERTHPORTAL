@@ -356,7 +356,6 @@
         <form id="login-form">
           <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
           <div class="field"><label for="login-password">Password</label><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"></div>
-          <button class="password-toggle" id="login-password-toggle" type="button" aria-label="Show password">Show password</button>
           <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
           <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
@@ -368,7 +367,6 @@
         <p class="sub">A temporary password was detected. Choose a new password to continue.</p>
         <form id="password-update-form">
           <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="10" autocomplete="new-password"></div>
-          <button class="password-toggle" id="new-password-toggle" type="button" aria-label="Show new password">Show password</button>
           <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
           <button id="password-update-submit" class="primary-button" type="submit">Update password</button>
         </form>
@@ -442,7 +440,7 @@
         <label class="dialog-label" for="new-photo-url">Profile photo URL</label><input id="new-photo-url" name="photoUrl" type="url" inputmode="url" autocomplete="photo" placeholder="https://example.com/photo.jpg (optional)">
         <label class="dialog-label" for="new-sheet-url">Assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" autocomplete="email" placeholder="user@example.com (optional)">
-        <label class="dialog-label" for="new-default-password">Default password</label><input id="new-default-password" name="defaultPassword" type="text" autocomplete="new-password" placeholder="Leave blank to auto-generate">
+        <label class="dialog-label" for="new-default-password">Default password</label><div style="display:flex;gap:8px;align-items:center;"><input id="new-default-password" name="defaultPassword" type="password" autocomplete="new-password" placeholder="Leave blank to auto-generate" style="flex:1;min-width:0;"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="Show default password" style="margin:0;white-space:nowrap;">Show</button></div>
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -1145,17 +1143,11 @@
       error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
       error.classList.remove('hidden');
     });
-    document.querySelector('#login-password-toggle').addEventListener('click', () => {
-      const passwordInput = document.querySelector('#login-password');
+    document.querySelector('#admin-password-toggle').addEventListener('click', () => {
+      const passwordInput = document.querySelector('#new-default-password');
       const isHidden = passwordInput.type === 'password';
       passwordInput.type = isHidden ? 'text' : 'password';
-      document.querySelector('#login-password-toggle').textContent = isHidden ? 'Hide password' : 'Show password';
-    });
-    document.querySelector('#new-password-toggle').addEventListener('click', () => {
-      const passwordInput = document.querySelector('#new-password');
-      const isHidden = passwordInput.type === 'password';
-      passwordInput.type = isHidden ? 'text' : 'password';
-      document.querySelector('#new-password-toggle').textContent = isHidden ? 'Hide password' : 'Show password';
+      document.querySelector('#admin-password-toggle').textContent = isHidden ? 'Hide' : 'Show';
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
       const accessToken = supabaseAccessToken;
