@@ -579,18 +579,25 @@
       if (SUPABASE_URL.includes('YOUR_PROJECT_REF') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
         throw new Error('Supabase is not configured. Add the project URL and anon key to the portal.');
       }
-      const response = await fetch(`${SUPABASE_URL}${path}`, {
-        ...options,
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          ...options.headers
+      try {
+        const response = await fetch(`${SUPABASE_URL}${path}`, {
+          ...options,
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            ...options.headers
+          }
+        });
+        const result = response.status === 204 ? null : await response.json();
+        if (!response.ok) throw new Error(result?.msg || result?.message || result?.error_description || result?.error || 'Supabase request failed.');
+        return result;
+      } catch (error) {
+        if (error instanceof TypeError) {
+          throw new Error('Could not reach Supabase. Open the site from the live HTTPS URL or check that the project URL and CORS settings are correct.');
         }
-      });
-      const result = response.status === 204 ? null : await response.json();
-      if (!response.ok) throw new Error(result?.msg || result?.message || result?.error_description || result?.error || 'Supabase request failed.');
-      return result;
+        throw error;
+      }
     }
     async function callAdminFunction(action, payload = {}) {
       return supabaseRequest('/functions/v1/admin-users', {
