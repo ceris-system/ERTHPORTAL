@@ -447,7 +447,7 @@
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Create account</button></div>
       </form>
       <p id="admin-account-feedback" class="auth-feedback" role="status"></p>
-      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th></th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
       <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
     </section>
   </dialog>
@@ -997,22 +997,38 @@
       document.querySelector('#open-plantilla-preview').classList.toggle('hidden', name !== 'PLANTILLA');
       dashboardDialog.showModal();
     }
+    const rosterPasswordMap = new Map();
+    const rosterPasswordVisible = {};
+
     async function renderRoster() {
       const body = document.querySelector('#user-roster');
-      body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">Loading accounts...</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
-        body.innerHTML = users.map(user => `<tr><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`).join('');
+        body.innerHTML = users.map(user => {
+          const tempPassword = rosterPasswordMap.get(user.username);
+          const isVisible = !!rosterPasswordVisible[user.username] && tempPassword;
+          const passwordCell = tempPassword ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace;letter-spacing:.04em;">${isVisible ? escapeHtml(tempPassword) : '••••••••'}</span><button class="edit-user" type="button" data-view-password="${escapeHtml(user.username)}">${isVisible ? 'Hide' : 'Show'}</button></div>` : '<span class="plantilla-empty">No temp password</span>';
+          return `<tr><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td>${passwordCell}</td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
+        }).join('');
         body.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
           try {
             const result = await callAdminFunction('reset-password', { username: button.dataset.resetPassword });
+            rosterPasswordMap.set(result.username, result.temporaryPassword);
+            rosterPasswordVisible[result.username] = true;
             document.querySelector('#admin-account-feedback').textContent = `Temporary password for ${result.username}: ${result.temporaryPassword}. Give it to the user privately.`;
             await renderRoster();
           } catch (error) {
             document.querySelector('#admin-account-feedback').textContent = error.message;
             button.disabled = false;
           }
+        }));
+        body.querySelectorAll('[data-view-password]').forEach(button => button.addEventListener('click', async () => {
+          const username = button.dataset.viewPassword;
+          const currentValue = !!rosterPasswordVisible[username];
+          rosterPasswordVisible[username] = !currentValue;
+          await renderRoster();
         }));
         body.querySelectorAll('[data-set-status]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
@@ -1030,6 +1046,8 @@
           button.disabled = true;
           try {
             await callAdminFunction('delete', { username });
+            rosterPasswordMap.delete(username);
+            delete rosterPasswordVisible[username];
             document.querySelector('#admin-account-feedback').textContent = `Removed ${username}.`;
             await renderRoster();
           } catch (error) {
@@ -1038,7 +1056,7 @@
           }
         }));
       } catch (error) {
-        body.innerHTML = `<tr><td colspan="6" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
       }
     }
 
@@ -1189,6 +1207,10 @@
             role: form.elements.role.value,
             status: form.elements.status.value
           });
+          if (result.temporaryPassword) {
+            rosterPasswordMap.set(result.user.username, result.temporaryPassword);
+            rosterPasswordVisible[result.user.username] = true;
+          }
           const passwordMessage = result.temporaryPassword ? `Temporary password: ${result.temporaryPassword}.` : 'Password set by admin.';
           document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;
           form.reset();
