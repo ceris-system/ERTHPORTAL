@@ -9,7 +9,7 @@ Account passwords are managed by Supabase Auth and are never stored in the profi
 ## Supabase Setup
 
 1. Create a Supabase project on the Free plan.
-2. In **SQL Editor**, run `supabase/migrations/202610020001_profiles.sql`, then `supabase/migrations/202610050001_profile_photo_sheet.sql` to add photo and spreadsheet assignments to an existing profile table.
+2. In **SQL Editor**, run `supabase/migrations/202610020001_profiles.sql`, `supabase/migrations/202610050001_profile_photo_sheet.sql`, and `supabase/migrations/202610050002_dashboard_assignments.sql` in that order.
 3. Deploy the protected `admin-users` Edge Function. With the Supabase CLI installed, run `supabase login`, `supabase link --project-ref YOUR_PROJECT_REF`, `supabase db push`, and `supabase functions deploy admin-users` from this repository. The function uses Supabase's server-side `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; never put the service-role key in the page or GitHub.
 4. Bootstrap the first administrator in Supabase **Authentication → Users**: create and confirm a user with email `admin@accounts.erthportal.invalid` and a strong password. Copy that Auth user's UUID. In SQL Editor, insert its profile, replacing the UUID and Google email:
 
@@ -22,6 +22,8 @@ Account passwords are managed by Supabase Auth and are never stored in the profi
 6. Publish the updated frontend and `supabase` folder to GitHub Pages.
 
 Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives a temporary password and must replace it at next sign-in.
+
+Admins add users from the dashboard's **Add User** control. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
 
 ## Deployment config checklist
 

@@ -4,6 +4,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const authEmailDomain = 'accounts.erthportal.invalid';
+const dashboardNames = new Set([
+  'PLANTILLA', 'PLANTILLA SUMMARY', 'SIL', 'VCODE MASTERLIST', 'VACANCY MONITORING',
+  'HR EMPLOC MONITORING', '+-5% BUFFER', 'VCODE VARIANCE', 'DEACTIVATION', 'FOR APPROVAL', 'ATTRITION'
+]);
 const headers = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
@@ -65,6 +69,14 @@ Deno.serve(async request => {
       return respond({ status: 'active' });
     }
 
+    if (body.action === 'my-dashboard-sources') {
+      const { data, error } = await adminClient.from('dashboard_assignments')
+        .select('dashboard_name, sheet_urls')
+        .eq('user_id', user.id);
+      if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
+      return respond({ assignments: data || [] });
+    }
+
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);
 
     if (body.action === 'list') {
@@ -73,6 +85,44 @@ Deno.serve(async request => {
         .order('username');
       if (error) throw new Error('Could not load account list.');
       return respond({ users: data });
+    }
+
+    if (body.action === 'get-dashboard-assignment' || body.action === 'set-dashboard-assignment') {
+      const username = String(body.username || '').trim().toLowerCase();
+      const dashboardName = String(body.dashboardName || '').trim();
+      if (!dashboardNames.has(dashboardName)) throw new Error('Choose a valid dashboard.');
+      const { data: target, error: targetError } = await adminClient.from('profiles')
+        .select('id, username, role')
+        .eq('username', username)
+        .single();
+      if (targetError || !target || target.role === 'admin') throw new Error('Choose a valid user account.');
+
+      if (body.action === 'get-dashboard-assignment') {
+        const { data, error } = await adminClient.from('dashboard_assignments')
+          .select('sheet_urls')
+          .eq('user_id', target.id)
+          .eq('dashboard_name', dashboardName)
+          .maybeSingle();
+        if (error) throw new Error('Could not load this user\'s spreadsheet assignment.');
+        return respond({ username, dashboardName, urls: data?.sheet_urls || [] });
+      }
+
+      if (!Array.isArray(body.urls) || body.urls.length > 10) throw new Error('Provide up to 10 spreadsheet URLs.');
+      const urls = body.urls.map((value: unknown) => {
+        if (typeof value !== 'string') throw new Error('Each spreadsheet URL must be text.');
+        let url: URL;
+        try { url = new URL(value.trim()); } catch { throw new Error('Enter a complete spreadsheet URL.'); }
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Spreadsheet URLs must use HTTP or HTTPS.');
+        return url.href;
+      });
+      const { error } = await adminClient.from('dashboard_assignments').upsert({
+        user_id: target.id,
+        dashboard_name: dashboardName,
+        sheet_urls: urls,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,dashboard_name' });
+      if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
+      return respond({ username, dashboardName, urls });
     }
 
     if (body.action === 'create') {
