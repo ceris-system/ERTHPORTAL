@@ -420,7 +420,7 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">PRIVATE SHEET CONNECTION</span>
       <h2 id="plantilla-connect-title">Connect your PLANTILLA sheet</h2>
-      <p class="dialog-copy">Paste the Google Sheets URL. Public sheets can connect directly. For a private sheet, authorize the Google account that can access it; it does not need to match your portal username.</p>
+      <p class="dialog-copy">Open ERTH PORTAL from its GitHub Pages HTTPS address, not a local index.html file. Paste the Google Sheets URL. Public sheets connect directly; authorize Google for a private sheet.</p>
       <form id="plantilla-connect-form">
         <label class="dialog-label" for="plantilla-sheet-url">Google Sheets URL</label>
         <input id="plantilla-sheet-url" name="url" type="url" inputmode="url" autocomplete="url" required placeholder="https://docs.google.com/spreadsheets/d/...">
@@ -647,13 +647,22 @@
       });
     }
     async function publicSheetValues(sheetId, range = 'A1:ZZ') {
+      if (window.location.protocol === 'file:') {
+        throw new Error('Open ERTH PORTAL from its GitHub Pages HTTPS address. Google Sheets cannot connect from a local index.html file.');
+      }
       const match = range.match(/^([^!]+)!/);
       const sheetName = match ? match[1] : '';
       const url = new URL(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq`);
       url.searchParams.set('tqx', 'out:json');
       if (sheetName) url.searchParams.set('sheet', sheetName);
       if (range.includes('!')) url.searchParams.set('range', range.split('!')[1]);
-      const response = await fetch(url.href, { headers: { Accept: 'application/json' } });
+      let response;
+      try {
+        response = await fetch(url.href, { headers: { Accept: 'application/json' } });
+      } catch (error) {
+        if (error instanceof TypeError) throw new Error('Could not reach Google Sheets. Open the portal from its GitHub Pages HTTPS address and check the spreadsheet sharing or Google authorization.');
+        throw error;
+      }
       const text = await response.text();
       if (!response.ok) throw new Error('Google could not read this sheet. If it is private, authorize the Google account that has access.');
       const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\((.*)\)\s*;?\s*$/s);
@@ -1354,6 +1363,7 @@
       button.textContent = 'Authorizing...';
       (async () => {
         try {
+          if (window.location.protocol !== 'https:') throw new Error('Google authorization requires the portal’s GitHub Pages HTTPS address.');
           await loadGoogleIdentity();
           googleAccessToken = await requestGoogleAccessToken();
           notify('Google Sheets access authorized. Now connect your spreadsheet.');
