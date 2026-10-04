@@ -437,7 +437,7 @@
       <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
-        <label class="dialog-label" for="new-photo-url">Profile photo URL</label><input id="new-photo-url" name="photoUrl" type="url" inputmode="url" autocomplete="photo" placeholder="https://example.com/photo.jpg (optional)">
+        <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="new-sheet-url">Assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="new-google-email">Assigned Google email</label><input id="new-google-email" name="googleEmail" type="email" autocomplete="email" placeholder="user@example.com (optional)">
         <label class="dialog-label" for="new-default-password">Default password</label><div style="display:flex;gap:8px;align-items:center;"><input id="new-default-password" name="defaultPassword" type="password" autocomplete="new-password" placeholder="Leave blank to auto-generate" style="flex:1;min-width:0;"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="Show default password" style="margin:0;white-space:nowrap;">Show</button></div>
@@ -1077,7 +1077,14 @@
             body: JSON.stringify({ email: portalAuthEmail(username), password })
           });
           supabaseAccessToken = session.access_token;
-          const profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status&id=eq.${encodeURIComponent(session.user.id)}`, {}, supabaseAccessToken);
+          const profileFilter = `&id=eq.${encodeURIComponent(session.user.id)}`;
+          let profiles;
+          try {
+            profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+          } catch (profileError) {
+            if (!/column .* does not exist|could not find the .* column/i.test(profileError.message || '')) throw profileError;
+            profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+          }
           portalProfile = profiles?.[0] || null;
           if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
           if (portalProfile.status === 'inactive') {
@@ -1166,6 +1173,26 @@
       const isHidden = passwordInput.type === 'password';
       passwordInput.type = isHidden ? 'text' : 'password';
       document.querySelector('#admin-password-toggle').textContent = isHidden ? 'Hide' : 'Show';
+      document.querySelector('#admin-password-toggle').setAttribute('aria-label', isHidden ? 'Hide default password' : 'Show default password');
+    });
+    document.querySelector('#new-photo-file').addEventListener('change', event => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        notify('Choose an image file for the profile photo.');
+        event.currentTarget.value = '';
+        return;
+      }
+      if (file.size > 512 * 1024) {
+        notify('Choose an image smaller than 512 KB.');
+        event.currentTarget.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        document.querySelector('#new-photo-url').value = String(reader.result || '');
+      });
+      reader.readAsDataURL(file);
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
       const accessToken = supabaseAccessToken;
