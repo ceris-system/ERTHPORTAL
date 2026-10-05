@@ -77,6 +77,48 @@ Deno.serve(async request => {
       return respond({ assignments: data || [] });
     }
 
+    if (body.action === 'update-own-account') {
+      if (actor.status !== 'active') throw new Error('Only active accounts can change account settings.');
+      const username = String(body.username || '').trim().toLowerCase();
+      const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
+        throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
+      }
+      if (newPassword && newPassword.length < 10) throw new Error('New password must be at least 10 characters.');
+
+      if (username !== actor.username) {
+        const { data: existing, error: existingError } = await adminClient.from('profiles')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle();
+        if (existingError) throw new Error('Could not check whether that username is available.');
+        if (existing && existing.id !== user.id) throw new Error('That username is already in use.');
+
+        const { error: profileError } = await adminClient.from('profiles')
+          .update({ username })
+          .eq('id', user.id);
+        if (profileError) throw new Error('Could not update username.');
+      }
+
+      const authChanges: Record<string, unknown> = {};
+      if (username !== actor.username) {
+        authChanges.email = usernameEmail(username);
+        authChanges.email_confirm = true;
+        authChanges.user_metadata = { ...user.user_metadata, username };
+      }
+      if (newPassword) authChanges.password = newPassword;
+      if (Object.keys(authChanges).length) {
+        const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, authChanges);
+        if (updateError) {
+          if (username !== actor.username) {
+            await adminClient.from('profiles').update({ username: actor.username }).eq('id', user.id);
+          }
+          throw new Error(updateError.message || 'Could not update account settings.');
+        }
+      }
+      return respond({ username, passwordUpdated: !!newPassword });
+    }
+
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);
 
     if (body.action === 'list') {
