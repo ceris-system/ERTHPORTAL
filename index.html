@@ -654,9 +654,6 @@
       });
     }
     async function publicSheetValues(sheetId, range = 'A1:ZZ') {
-      if (window.location.protocol === 'file:') {
-        throw new Error('Open ERTH PORTAL from its GitHub Pages HTTPS address. Google Sheets cannot connect from a local index.html file.');
-      }
       const match = range.match(/^([^!]+)!/);
       const sheetName = match ? match[1] : '';
       const url = new URL(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(sheetId)}/gviz/tq`);
