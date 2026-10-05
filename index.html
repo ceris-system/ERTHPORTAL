@@ -200,6 +200,9 @@
     .source-link:hover { transform:translateY(-2px); background:white; }
     .login-error { margin:10px 0 0; color:#b6444e; font-size:11px; }
     .password-toggle { margin-top:8px; border:0; background:none; color:#1c7c80; font-size:10px; font-weight:700; cursor:pointer; }
+    .login-password-row { display:flex; align-items:center; gap:8px; }
+    .login-password-row input { flex:1; min-width:0; }
+    .login-password-row .password-toggle { flex:0 0 auto; margin:0; white-space:nowrap; }
     .auth-feedback { min-height:18px; margin:12px 0 0; color:#587780; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
     .account-state { display:inline-block; padding:4px 7px; border-radius:6px; background:#e5f4f0; color:#247c72; font-size:9px; font-weight:700; text-transform:uppercase; }
     .url-list { display:grid; gap:8px; }
@@ -355,7 +358,7 @@
         <p class="sub">Sign in to your ERTH PORTAL account.</p>
         <form id="login-form">
           <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
-          <div class="field"><label for="login-password">Password</label><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"></div>
+          <div class="field"><label for="login-password">Password</label><div class="login-password-row"><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"><button class="password-toggle" id="login-password-toggle" type="button" aria-label="View password" title="View password">View Password</button></div></div>
           <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
           <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
@@ -1253,6 +1256,14 @@
       document.querySelector('#admin-password-toggle').setAttribute('aria-label', isHidden ? 'Hide password' : 'View password');
       document.querySelector('#admin-password-toggle').title = isHidden ? 'Hide password' : 'View password';
     });
+    document.querySelector('#login-password-toggle').addEventListener('click', () => {
+      const passwordInput = document.querySelector('#login-password');
+      const isHidden = passwordInput.type === 'password';
+      passwordInput.type = isHidden ? 'text' : 'password';
+      document.querySelector('#login-password-toggle').textContent = isHidden ? 'Hide Password' : 'View Password';
+      document.querySelector('#login-password-toggle').setAttribute('aria-label', isHidden ? 'Hide password' : 'View password');
+      document.querySelector('#login-password-toggle').title = isHidden ? 'Hide password' : 'View password';
+    });
     document.querySelector('#new-photo-file').addEventListener('change', event => {
       const file = event.currentTarget.files?.[0];
       if (!file) return;
@@ -1286,6 +1297,10 @@
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
+      document.querySelector('#login-password').type = 'password';
+      document.querySelector('#login-password-toggle').textContent = 'View Password';
+      document.querySelector('#login-password-toggle').setAttribute('aria-label', 'View password');
+      document.querySelector('#login-password-toggle').title = 'View password';
       showLoginPanel('login-card');
     });
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
