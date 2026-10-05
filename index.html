@@ -200,9 +200,11 @@
     .source-link:hover { transform:translateY(-2px); background:white; }
     .login-error { margin:10px 0 0; color:#b6444e; font-size:11px; }
     .password-toggle { margin-top:8px; border:0; background:none; color:#1c7c80; font-size:10px; font-weight:700; cursor:pointer; }
-    .login-password-row { display:flex; align-items:center; gap:8px; }
-    .login-password-row input { flex:1; min-width:0; }
-    .login-password-row .password-toggle { flex:0 0 auto; margin:0; white-space:nowrap; }
+    .password-field { position:relative; }
+    .password-field input { width:100%; padding-right:44px; }
+    .password-toggle { position:absolute; top:50%; right:9px; display:grid; width:30px; height:30px; place-items:center; margin:0; padding:0; transform:translateY(-50%); border:0; border-radius:6px; color:#34777c; background:transparent; cursor:pointer; }
+    .password-toggle:hover { background:rgba(51,139,142,.09); }
+    .password-toggle svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     .auth-feedback { min-height:18px; margin:12px 0 0; color:#587780; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
     .account-state { display:inline-block; padding:4px 7px; border-radius:6px; background:#e5f4f0; color:#247c72; font-size:9px; font-weight:700; text-transform:uppercase; }
     .url-list { display:grid; gap:8px; }
@@ -358,7 +360,7 @@
         <p class="sub">Sign in to your ERTH PORTAL account.</p>
         <form id="login-form">
           <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
-          <div class="field"><label for="login-password">Password</label><div class="login-password-row"><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"><button class="password-toggle" id="login-password-toggle" type="button" aria-label="View password" title="View password">View Password</button></div></div>
+          <div class="field"><label for="login-password">Password</label><div class="password-field"><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"><button class="password-toggle" id="login-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-3.1 3.7M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.4 6 9.5 6c1.2 0 2.3-.2 3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div></div>
           <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
           <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
@@ -444,7 +446,7 @@
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
         <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="new-sheet-url">User's assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
-        <label class="dialog-label" for="new-default-password">Set initial password</label><div style="display:flex;gap:8px;align-items:center;"><input id="new-default-password" name="defaultPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="User changes this at first sign-in" style="flex:1;min-width:0;"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password" style="margin:0;white-space:nowrap;">View Password</button></div>
+        <label class="dialog-label" for="new-default-password">Set initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="User changes this at first sign-in"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-3.1 3.7M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.4 6 9.5 6c1.2 0 2.3-.2 3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -1248,21 +1250,23 @@
       error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
       error.classList.remove('hidden');
     });
+    function setPasswordToggleState(button, isVisible) {
+      button.setAttribute('aria-label', isVisible ? 'Hide password' : 'View password');
+      button.title = isVisible ? 'Hide password' : 'View password';
+      button.querySelector('.password-eye-open').classList.toggle('hidden', isVisible);
+      button.querySelector('.password-eye-closed').classList.toggle('hidden', !isVisible);
+    }
     document.querySelector('#admin-password-toggle').addEventListener('click', () => {
       const passwordInput = document.querySelector('#new-default-password');
-      const isHidden = passwordInput.type === 'password';
-      passwordInput.type = isHidden ? 'text' : 'password';
-      document.querySelector('#admin-password-toggle').textContent = isHidden ? 'Hide Password' : 'View Password';
-      document.querySelector('#admin-password-toggle').setAttribute('aria-label', isHidden ? 'Hide password' : 'View password');
-      document.querySelector('#admin-password-toggle').title = isHidden ? 'Hide password' : 'View password';
+      const isVisible = passwordInput.type === 'password';
+      passwordInput.type = isVisible ? 'text' : 'password';
+      setPasswordToggleState(document.querySelector('#admin-password-toggle'), isVisible);
     });
     document.querySelector('#login-password-toggle').addEventListener('click', () => {
       const passwordInput = document.querySelector('#login-password');
-      const isHidden = passwordInput.type === 'password';
-      passwordInput.type = isHidden ? 'text' : 'password';
-      document.querySelector('#login-password-toggle').textContent = isHidden ? 'Hide Password' : 'View Password';
-      document.querySelector('#login-password-toggle').setAttribute('aria-label', isHidden ? 'Hide password' : 'View password');
-      document.querySelector('#login-password-toggle').title = isHidden ? 'Hide password' : 'View password';
+      const isVisible = passwordInput.type === 'password';
+      passwordInput.type = isVisible ? 'text' : 'password';
+      setPasswordToggleState(document.querySelector('#login-password-toggle'), isVisible);
     });
     document.querySelector('#new-photo-file').addEventListener('change', event => {
       const file = event.currentTarget.files?.[0];
@@ -1298,9 +1302,7 @@
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
       document.querySelector('#login-password').type = 'password';
-      document.querySelector('#login-password-toggle').textContent = 'View Password';
-      document.querySelector('#login-password-toggle').setAttribute('aria-label', 'View password');
-      document.querySelector('#login-password-toggle').title = 'View password';
+      setPasswordToggleState(document.querySelector('#login-password-toggle'), false);
       showLoginPanel('login-card');
     });
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
