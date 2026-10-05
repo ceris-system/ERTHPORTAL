@@ -1264,6 +1264,11 @@
     document.querySelector('#user-form').addEventListener('submit', event => {
       event.preventDefault();
       const form = event.currentTarget;
+      const assignedSheetUrl = form.elements.sheetUrl.value.trim();
+      if (assignedSheetUrl) {
+        try { spreadsheetIdFromUrl(assignedSheetUrl); }
+        catch { document.querySelector('#admin-account-feedback').textContent = 'Paste the Google Sheets document link, such as https://docs.google.com/spreadsheets/d/.../edit. A script.google.com/macros URL is an Apps Script, not a spreadsheet.'; return; }
+      }
       const button = document.querySelector('#user-form-submit');
       button.disabled = true;
       button.textContent = 'Creating...';
@@ -1274,7 +1279,7 @@
             username: form.elements.username.value,
             displayName: form.elements.displayName.value,
             photoUrl: form.elements.photoUrl.value,
-            sheetUrl: form.elements.sheetUrl.value,
+            sheetUrl: assignedSheetUrl,
             defaultPassword: form.elements.defaultPassword.value,
             clientName: form.elements.clientName.value,
             role: form.elements.role.value,
@@ -1307,6 +1312,7 @@
         let parsed;
         try { parsed = new URL(value); } catch { return notify('Enter a complete URL for each source.'); }
         if (!['http:', 'https:'].includes(parsed.protocol)) return notify('Use HTTP or HTTPS spreadsheet links.');
+        try { spreadsheetIdFromUrl(parsed.href); } catch { return notify('Use the Google Sheets document link, not a script.google.com/macros Apps Script link.'); }
         sources.push(parsed.href);
       }
       const button = event.currentTarget.querySelector('button[type="submit"]');
