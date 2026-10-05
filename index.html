@@ -607,10 +607,17 @@
       }
     }
     async function callAdminFunction(action, payload = {}) {
-      return supabaseRequest('/functions/v1/admin-users', {
-        method: 'POST',
-        body: JSON.stringify({ action, ...payload })
-      }, supabaseAccessToken);
+      try {
+        return await supabaseRequest('/functions/v1/admin-users', {
+          method: 'POST',
+          body: JSON.stringify({ action, ...payload })
+        }, supabaseAccessToken);
+      } catch (error) {
+        if (/Could not reach Supabase/i.test(error.message || '')) {
+          throw new Error('The admin-users service is not deployed or reachable in Supabase. Deploy the admin-users Edge Function, then retry. This is not a spreadsheet URL error.');
+        }
+        throw error;
+      }
     }
     async function loadDashboardAssignments() {
       dashboardAssignments = {};
