@@ -556,6 +556,8 @@
     let signedInEmail = '';
     let plantillaSpreadsheetId = '';
     let supabaseAccessToken = '';
+    let supabaseRefreshToken = '';
+    let supabaseRefreshPromise = null;
     let portalProfile = null;
 
     function readJSON(key, fallback) {
@@ -582,20 +584,46 @@
     function portalAuthEmail(username) {
       return `${String(username).trim().toLowerCase()}@accounts.erthportal.invalid`;
     }
+    async function refreshSupabaseSession() {
+      if (!supabaseRefreshToken) throw new Error('Your session expired. Sign in again.');
+      if (!supabaseRefreshPromise) {
+        supabaseRefreshPromise = (async () => {
+          const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh_token: supabaseRefreshToken })
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            supabaseAccessToken = '';
+            supabaseRefreshToken = '';
+            throw new Error('Your session expired. Sign in again.');
+          }
+          supabaseAccessToken = result.access_token;
+          supabaseRefreshToken = result.refresh_token || supabaseRefreshToken;
+        })().finally(() => { supabaseRefreshPromise = null; });
+      }
+      await supabaseRefreshPromise;
+    }
     async function supabaseRequest(path, options = {}, accessToken = '') {
       if (SUPABASE_URL.includes('YOUR_PROJECT_REF') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
         throw new Error('Supabase is not configured. Add the project URL and anon key to the portal.');
       }
       try {
-        const response = await fetch(`${SUPABASE_URL}${path}`, {
+        const sendRequest = token => fetch(`${SUPABASE_URL}${path}`, {
           ...options,
           headers: {
             apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken || SUPABASE_ANON_KEY}`,
+            Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
             ...options.headers
           }
         });
+        let response = await sendRequest(accessToken || supabaseAccessToken);
+        if (response.status === 401 && supabaseRefreshToken && !path.startsWith('/auth/v1/token')) {
+          await refreshSupabaseSession();
+          response = await sendRequest(supabaseAccessToken);
+        }
         const result = response.status === 204 ? null : await response.json();
         if (!response.ok) throw new Error(result?.msg || result?.message || result?.error_description || result?.error || 'Supabase request failed.');
         return result;
@@ -1121,6 +1149,7 @@
             body: JSON.stringify({ email: portalAuthEmail(username), password })
           });
           supabaseAccessToken = session.access_token;
+          supabaseRefreshToken = session.refresh_token || '';
           const profileFilter = `&id=eq.${encodeURIComponent(session.user.id)}`;
           let profiles;
           try {
@@ -1134,6 +1163,7 @@
           if (portalProfile.status === 'inactive') {
             await supabaseRequest('/auth/v1/logout', { method: 'POST' }, supabaseAccessToken).catch(() => {});
             supabaseAccessToken = '';
+            supabaseRefreshToken = '';
             portalProfile = null;
             throw new Error('Account deactivated. Contact the portal administrator.');
           }
@@ -1164,6 +1194,7 @@
           }
         } catch (loginError) {
           supabaseAccessToken = '';
+          supabaseRefreshToken = '';
           portalProfile = null;
           currentUser = null;
           error.textContent = loginError?.message || 'Sign-in failed.';
@@ -1248,6 +1279,7 @@
       signedInEmail = '';
       plantillaSpreadsheetId = '';
       supabaseAccessToken = '';
+      supabaseRefreshToken = '';
       portalProfile = null;
       dashboardAssignments = {};
       dashboardPage.classList.add('hidden');
