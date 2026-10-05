@@ -942,6 +942,15 @@
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="plantilla-connect" class="secondary-button" type="button">${previewedUser || currentUser?.role !== 'admin' ? 'Authorize Google Sheets' : 'Connect my sheet'}</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
+      const openAssignedSheet = document.createElement('button');
+      openAssignedSheet.className = 'secondary-button';
+      openAssignedSheet.type = 'button';
+      openAssignedSheet.textContent = 'Open assigned sheet';
+      openAssignedSheet.disabled = !savedSheetUrl;
+      openAssignedSheet.addEventListener('click', () => {
+        if (savedSheetUrl) window.open(savedSheetUrl, '_blank', 'noopener,noreferrer');
+      });
+      document.querySelector('.plantilla-actions').prepend(openAssignedSheet);
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton.addEventListener('click', async () => {
         if (currentUser?.role !== 'admin' || previewedUser) {
@@ -983,7 +992,7 @@
         renderPlantillaTable();
       } catch (error) {
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Connect a public Google Sheets URL or check that the sheet is available, then refresh.</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Could not load sheet rows in the portal. Use Open assigned sheet to open the spreadsheet directly, or authorize Google Sheets and refresh.</td></tr>';
       }
     }
     function renderPlantillaTable() {
