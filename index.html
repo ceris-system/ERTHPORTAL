@@ -395,13 +395,26 @@
       <section class="main">
         <header class="topbar">
           <div class="topbar-left"><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><span id="topbar-date"></span></div></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-users" class="utility-button hidden" type="button">Add Users</button><div class="topbar-profile"><div id="topbar-avatar" class="topbar-avatar">ER</div><span id="topbar-name">Preview</span></div></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-users" class="utility-button hidden" type="button">Add Users</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="topbar-profile"><div id="topbar-avatar" class="topbar-avatar">ER</div><span id="topbar-name">Preview</span></div></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
     </div>
   </div>
   <div id="toast" class="toast hidden" role="status"></div>
+  <dialog id="preview-user-dialog" class="liquid-dialog" aria-labelledby="preview-user-title">
+    <section class="dialog-panel">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
+      <span class="dialog-kicker">ADMIN PREVIEW</span>
+      <h2 id="preview-user-title">Preview User Portal</h2>
+      <p class="dialog-copy">Choose an account to see its assigned dashboards and spreadsheets. Your administrator session stays active.</p>
+      <form id="preview-user-form">
+        <label class="dialog-label" for="preview-user-select">User account</label>
+        <select id="preview-user-select" required></select>
+        <button id="start-user-preview" class="primary-button" type="submit">Open User Portal</button>
+      </form>
+    </section>
+  </dialog>
   <dialog id="dashboard-dialog" class="liquid-dialog" aria-labelledby="dashboard-dialog-title">
     <section class="dialog-panel">
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
@@ -540,6 +553,7 @@
     ];
     const dashboardLinksPrefix = 'aquahr:preview-links:';
     let currentUser = null;
+    let previewedUser = null;
     let dashboardAssignments = {};
     let selectedDashboard = dashboards[0];
     let toastTimer;
@@ -550,6 +564,7 @@
     const toast = document.querySelector('#toast');
     const dashboardDialog = document.querySelector('#dashboard-dialog');
     const usersDialog = document.querySelector('#users-dialog');
+    const previewUserDialog = document.querySelector('#preview-user-dialog');
     const openDashboardUrl = document.querySelector('#open-dashboard-url');
     const profileAvatar = document.querySelector('#profile-avatar');
     const topbarAvatar = document.querySelector('#topbar-avatar');
@@ -570,16 +585,17 @@
       catch { return fallback; }
     }
     function getActiveClient() {
-      return currentUser?.client || 'My spreadsheets';
+      return previewedUser?.client || currentUser?.client || 'My spreadsheets';
     }
     function getClientLinks(client = getActiveClient()) {
       return readJSON(`${dashboardLinksPrefix}${client}`, {});
     }
     function getDashboardSources(name, client = getActiveClient()) {
-      if (currentUser?.role !== 'admin') {
+      if (previewedUser || currentUser?.role !== 'admin') {
         const assigned = dashboardAssignments[name];
         if (Array.isArray(assigned)) return assigned.filter(value => typeof value === 'string' && value.trim());
-        if (name === 'PLANTILLA' && portalProfile?.sheet_url) return [portalProfile.sheet_url];
+        const sheetUrl = previewedUser?.sheet_url || portalProfile?.sheet_url;
+        if (name === 'PLANTILLA' && sheetUrl) return [sheetUrl];
         return [];
       }
       const saved = getClientLinks(client)[name];
@@ -741,6 +757,9 @@
     function spreadsheetIdFromUrl(value) {
       let url;
       try { url = new URL(value); } catch { throw new Error('Enter a valid Google Sheets URL.'); }
+      if (url.hostname === 'script.google.com' && url.pathname.includes('/macros/')) {
+        throw new Error('This is an Apps Script web-app URL, not a spreadsheet. Open the Google Sheets file itself and copy its link: https://docs.google.com/spreadsheets/d/.../edit');
+      }
       const match = url.hostname === 'docs.google.com' && url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
       if (!match) throw new Error('Enter a Google Sheets spreadsheet URL.');
       return match[1];
@@ -841,7 +860,10 @@
       } else {
         [profileAvatar, topbarAvatar].forEach(avatar => { avatar.textContent = user.displayName.slice(0, 2).toUpperCase(); });
       }
-      document.querySelector('#manage-users').classList.toggle('hidden', user.role !== 'admin');
+      const isAdminSession = currentUser?.role === 'admin';
+      document.querySelector('#manage-users').classList.toggle('hidden', !isAdminSession);
+      document.querySelector('#preview-user-portal').classList.toggle('hidden', !isAdminSession || !!previewedUser);
+      document.querySelector('#return-to-admin').classList.toggle('hidden', !isAdminSession || !previewedUser);
       document.querySelector('#assigned-client').classList.remove('hidden');
     }
     function updateWelcomeGreeting(user) {
@@ -864,7 +886,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'bubble-button';
-        const adminCanEdit = currentUser?.role === 'admin';
+        const adminCanEdit = currentUser?.role === 'admin' && !previewedUser;
         const bubbleMeta = sourceCount ? (adminCanEdit ? `${sourceCount} SOURCE${sourceCount === 1 ? '' : 'S'}` : 'OPEN') : (adminCanEdit ? 'ADD URL' : 'NO LINK');
         button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
         button.innerHTML = `<span class="bubble-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><span class="bubble-name">${escapeHtml(name)}</span><span class="bubble-meta">${bubbleMeta}</span><span class="bubble-state ${sourceCount ? 'connected' : ''}" aria-hidden="true"></span>`;
@@ -895,15 +917,14 @@
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
     function showPlantilla() {
-      const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
+      const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
-      if (plantillaSpreadsheetId) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="plantilla-connect" class="secondary-button" type="button">${previewedUser || currentUser?.role !== 'admin' ? 'Authorize Google Sheets' : 'Connect my sheet'}</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
-      if (currentUser?.role !== 'admin') connectButton.textContent = 'Authorize Google Sheets';
       connectButton.addEventListener('click', async () => {
-        if (currentUser?.role !== 'admin') {
+        if (currentUser?.role !== 'admin' || previewedUser) {
           try {
             await authorizeGoogleSheets();
             notify('Google Sheets access authorized. Loading your assigned PLANTILLA sheet.');
@@ -1087,6 +1108,7 @@
         userSelect.append(option);
       });
       if (!clientUsers.length) return notify('Add a user account before assigning a spreadsheet URL.');
+      if (previewedUser && clientUsers.some(user => user.username === previewedUser.username)) userSelect.value = previewedUser.username;
       const list = document.querySelector('#dashboard-url-list');
       const loadSelectedAssignment = async () => {
         const { urls } = await callAdminFunction('get-dashboard-assignment', {
@@ -1169,6 +1191,44 @@
       } catch (error) {
         body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
       }
+    }
+
+    async function enterUserPortalPreview(username) {
+      const { users } = await callAdminFunction('list');
+      const user = users.find(item => item.username === username && item.role !== 'admin');
+      if (!user) throw new Error('Choose a valid non-admin user account.');
+      const assignments = await Promise.all(dashboards.map(async dashboardName => {
+        const result = await callAdminFunction('get-dashboard-assignment', { username, dashboardName });
+        return [dashboardName, result.urls || []];
+      }));
+      dashboardAssignments = Object.fromEntries(assignments.filter(([, urls]) => urls.length));
+      previewedUser = {
+        username: user.username,
+        displayName: user.display_name,
+        client: user.client_name,
+        role: 'user',
+        photo: user.photo_url || '',
+        sheet_url: user.sheet_url || ''
+      };
+      googleAccessToken = '';
+      signedInEmail = '';
+      plantillaSpreadsheetId = '';
+      previewUserDialog.close();
+      renderProfile(previewedUser);
+      showHome();
+      notify(`Previewing @${user.username}'s portal. Your admin access is still active.`);
+    }
+
+    function returnToAdminPortal() {
+      if (currentUser?.role !== 'admin') return;
+      previewedUser = null;
+      dashboardAssignments = {};
+      googleAccessToken = '';
+      signedInEmail = '';
+      plantillaSpreadsheetId = '';
+      renderProfile(currentUser);
+      showHome();
+      notify('Returned to administrator mode.');
     }
 
     document.querySelector('#login-form').addEventListener('submit', event => {
@@ -1325,6 +1385,7 @@
       const accessToken = supabaseAccessToken;
       if (accessToken) supabaseRequest('/auth/v1/logout', { method: 'POST' }, accessToken).catch(() => {});
       currentUser = null;
+      previewedUser = null;
       googleAccessToken = '';
       signedInEmail = '';
       plantillaSpreadsheetId = '';
@@ -1345,6 +1406,40 @@
       renderRoster();
       usersDialog.showModal();
     });
+    document.querySelector('#preview-user-portal').addEventListener('click', async () => {
+      const button = document.querySelector('#preview-user-portal');
+      button.disabled = true;
+      try {
+        const { users } = await callAdminFunction('list');
+        const select = document.querySelector('#preview-user-select');
+        select.replaceChildren();
+        users.filter(user => user.role !== 'admin').forEach(user => {
+          const option = document.createElement('option');
+          option.value = user.username;
+          option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name}`;
+          select.append(option);
+        });
+        if (!select.options.length) return notify('Add a user account before previewing a user portal.');
+        previewUserDialog.showModal();
+      } catch (error) {
+        notify(error.message || 'Could not load user accounts.');
+      } finally {
+        button.disabled = false;
+      }
+    });
+    document.querySelector('#preview-user-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const button = document.querySelector('#start-user-preview');
+      button.disabled = true;
+      button.textContent = 'Loading portal...';
+      enterUserPortalPreview(document.querySelector('#preview-user-select').value)
+        .catch(error => notify(error.message || 'Could not open this user portal.'))
+        .finally(() => {
+          button.disabled = false;
+          button.textContent = 'Open User Portal';
+        });
+    });
+    document.querySelector('#return-to-admin').addEventListener('click', returnToAdminPortal);
     document.querySelector('#user-form').addEventListener('submit', event => {
       event.preventDefault();
       const form = event.currentTarget;
@@ -1407,7 +1502,7 @@
           await callAdminFunction('set-dashboard-assignment', { username, dashboardName: selectedDashboard, urls: sources });
           openDashboardUrl.disabled = !sources.length;
           dashboardDialog.close();
-          if (currentUser?.username === username) {
+          if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             if (selectedDashboard === 'PLANTILLA') showPlantilla();
             else showClientDashboard(selectedDashboard);
