@@ -693,6 +693,20 @@
         throw error;
       }
     }
+    async function callSheetsFunction(action, payload = {}) {
+      if (!supabaseAccessToken) throw new Error('Sign in to the portal to access assigned spreadsheets.');
+      try {
+        return await supabaseRequest('/functions/v1/google-sheets-api', {
+          method: 'POST',
+          body: JSON.stringify({ action, ...payload })
+        }, supabaseAccessToken);
+      } catch (error) {
+        if (/Could not reach Supabase/i.test(error.message || '')) {
+          throw new Error('The google-sheets-api service is not deployed or reachable in Supabase. Contact the portal administrator.');
+        }
+        throw error;
+      }
+    }
     async function loadDashboardAssignments() {
       dashboardAssignments = {};
       try {
@@ -946,20 +960,11 @@
       const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="plantilla-connect" class="secondary-button" type="button">${previewedUser || currentUser?.role !== 'admin' ? 'Authorize Google Sheets' : 'Connect my sheet'}</button><button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      const adminOwnsSheet = currentUser?.role === 'admin' && !previewedUser;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Back to action center</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
-      connectButton.addEventListener('click', async () => {
-        if (currentUser?.role !== 'admin' || previewedUser) {
-          try {
-            await authorizeGoogleSheets();
-            notify('Google Sheets access authorized. Loading your assigned PLANTILLA sheet.');
-            await loadPlantillaRecords();
-          } catch (error) {
-            notify(error.message || 'Could not authorize Google Sheets.');
-          }
-          return;
-        }
+      connectButton?.addEventListener('click', () => {
         document.querySelector('#plantilla-sheet-url').value = plantillaSpreadsheetId ? `https://docs.google.com/spreadsheets/d/${plantillaSpreadsheetId}/edit` : '';
         document.querySelector('#plantilla-connect-dialog').showModal();
       });
@@ -979,17 +984,27 @@
       status.textContent = 'Loading records...';
       body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr>';
       try {
-        const range = encodeURIComponent('PLANTILLA!A9:AJ');
-        const [rawResult, displayResult] = await Promise.all([
-          sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-          sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
-        ]);
-        const rowCount = Math.max(rawResult.values?.length || 0, displayResult.values?.length || 0);
-        plantillaRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawResult.values?.[index] || [], displayResult.values?.[index] || [], index + 9)).filter(record => record.vcode);
+        let rawValues;
+        let displayValues;
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          const result = await callSheetsFunction('read-plantilla', previewedUser ? { targetUsername: previewedUser.username } : {});
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+        } else {
+          const range = encodeURIComponent('PLANTILLA!A9:AJ');
+          const [rawResult, displayResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          rawValues = rawResult.values || [];
+          displayValues = displayResult.values || [];
+        }
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        plantillaRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawValues[index] || [], displayValues[index] || [], index + 9)).filter(record => record.vcode);
         renderPlantillaTable();
       } catch (error) {
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
-        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Could not load sheet rows in the portal. Authorize Google Sheets, confirm the signed-in Google account can access this file, then refresh.</td></tr>';
+        body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
       }
     }
     function renderPlantillaTable() {
@@ -1056,23 +1071,33 @@
             const status = form.elements.status.value;
             if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
-            const vcodeRange = encodeURIComponent('PLANTILLA!B9:B');
-            const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
-            const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
-            if (!matches.length) throw new Error(`No row found for VCODE ${vcode}.`);
-            if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once; no changes were made.`);
-            const rowNumber = matches[0];
-            await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
-              method: 'POST',
-              body: JSON.stringify({
-                valueInputOption: 'RAW',
-                data: [
-                  { range: `PLANTILLA!H${rowNumber}`, values: [[numericRate]] },
-                  { range: `PLANTILLA!AG${rowNumber}`, values: [[sheetDateSerial(form.elements.separationDate.value)]] },
-                  { range: `PLANTILLA!AH${rowNumber}`, values: [[status]] }
-                ]
-              })
-            });
+            if (currentUser?.role !== 'admin' || previewedUser) {
+              await callSheetsFunction('update-plantilla', {
+                ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
+                vcode,
+                rate: numericRate,
+                separationDate: form.elements.separationDate.value,
+                status
+              });
+            } else {
+              const vcodeRange = encodeURIComponent('PLANTILLA!B9:B');
+              const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
+              const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
+              if (!matches.length) throw new Error(`No row found for VCODE ${vcode}.`);
+              if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once; no changes were made.`);
+              const rowNumber = matches[0];
+              await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  valueInputOption: 'RAW',
+                  data: [
+                    { range: `PLANTILLA!H${rowNumber}`, values: [[numericRate]] },
+                    { range: `PLANTILLA!AG${rowNumber}`, values: [[sheetDateSerial(form.elements.separationDate.value)]] },
+                    { range: `PLANTILLA!AH${rowNumber}`, values: [[status]] }
+                  ]
+                })
+              });
+            }
             await loadPlantillaRecords();
             openRecordDrawer(vcode);
             notify(`Updated VCODE ${vcode}.`);

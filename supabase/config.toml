@@ -2,3 +2,6 @@ project_id = "YOUR_SUPABASE_PROJECT_REF"
 
 [functions.admin-users]
 verify_jwt = true
+
+[functions.google-sheets-api]
+verify_jwt = true
