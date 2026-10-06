@@ -263,6 +263,7 @@
     .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
     .record-drawer > .dialog-kicker { display:inline-block !important; }
     .record-drawer h2 { width:fit-content; max-width:100%; padding:5px 7px; margin:8px 40px 8px 0; border-radius:3px; color:#1b4953; background:rgba(102,209,208,.14); font:800 20px 'Roboto Mono',monospace; overflow-wrap:anywhere; }
+    .record-drawer h2.single-line-title { width:calc(100% - 40px); font-size:clamp(12px,2.8vw,16px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .record-drawer-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:10px; }
     .record-summary { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,max-content)); gap:6px; max-width:100%; }
     .record-summary .drawer-field { max-width:100%; padding:5px 8px; border-radius:2px; background:rgba(102,209,208,.17); }
@@ -1414,6 +1415,7 @@
       if (!record) return notify(`No loaded VCODE record matches ${vcode}.`);
       const field = (label, value, primary = false) => `<div class="drawer-field${primary ? ' primary' : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       document.querySelector('#record-drawer-kicker').textContent = 'VCODE MASTERLIST RECORD';
+      document.querySelector('#record-drawer-title').classList.remove('single-line-title');
       document.querySelector('#record-drawer-title').textContent = record.vcode;
       document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode, true)}${field('OUTLET', record.outlet, true)}${field('POSITION', record.position, true)}</div><h3 class="drawer-section-title">VIEW DETAILS</h3>${field('HC', record.hc)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('SCHEDULE', record.schedule)}${field('DESIGNATION', record.designation)}${field('PENALTY', record.penalty)}${field('COORDINATOR', record.coordinator)}${field('HRCO', record.hrco)}${field('CHAIN', record.chain)}${field('CITY', record.city)}`;
       document.querySelector('#record-drawer').classList.add('open');
@@ -1519,7 +1521,11 @@
       const filteredRecords = search
         ? vacancyRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
         : vacancyRecords;
-      status.textContent = `${filteredRecords.length} of ${vacancyRecords.length} records loaded`;
+      const totalHc = filteredRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${filteredRecords.length} of ${vacancyRecords.length} records loaded`;
       if (!vacancyRecords.length) {
         body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">No rows with a VCODE were found from row 5 onward.</td></tr>';
         return;
@@ -1538,8 +1544,9 @@
       const optionList = (values, selected) => `<option value="">Choose...</option>${[...new Set([...values, selected].filter(Boolean))].map(value => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('')}`;
       const directAdmin = currentUser?.role === 'admin' && !previewedUser;
       document.querySelector('#record-drawer-kicker').textContent = 'VACANCY RECORD';
-      document.querySelector('#record-drawer-title').textContent = record.position || record.vcode;
-      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode)}${field('OUTLET', record.outlet)}${field('POSITION', record.position)}</div><h3 class="drawer-section-title">VACANCY DETAILS</h3>${field('HC', record.hc)}${field('AGING', record.aging)}<form id="vacancy-update-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="vacancy-date-vacant">DATE OF VACANT</label><input id="vacancy-date-vacant" name="vacantDate" type="date" value="${escapeHtml(record.vacantDateInput)}"><small class="drawer-date-display" data-date-display-for="vacantDate">${escapeHtml(record.vacantDate || '-')}</small></div><div class="field"><label for="vacancy-last-name">LASTNAME</label><input id="vacancy-last-name" name="lastName" value="${escapeHtml(record.lastName)}"></div><div class="field"><label for="vacancy-first-name">FIRST NAME</label><input id="vacancy-first-name" name="firstName" value="${escapeHtml(record.firstName)}"></div><div class="field"><label for="vacancy-middle-name">MIDDLE NAME</label><input id="vacancy-middle-name" name="middleName" value="${escapeHtml(record.middleName)}"></div><div class="field"><label for="vacancy-contact-number">CONTACT NUMBER</label><input id="vacancy-contact-number" name="contactNumber" value="${escapeHtml(record.contactNumber)}"></div><div class="field"><label for="vacancy-date-onboard">DATE ONBOARD</label><input id="vacancy-date-onboard" name="dateOnboard" type="date" value="${escapeHtml(record.dateOnboardInput)}"><small class="drawer-date-display" data-date-display-for="dateOnboard">${escapeHtml(record.dateOnboard || '-')}</small></div><div class="field"><label for="vacancy-reliever">RELIEVER</label><input id="vacancy-reliever" name="reliever" value="${escapeHtml(record.reliever)}"></div><div class="field"><label for="vacancy-coordinator">COORDINATOR</label><select id="vacancy-coordinator" name="coordinator">${optionList(vacancyDeployers, record.coordinator)}</select></div><div class="field"><label for="vacancy-deployed-by">DEPLOYED BY</label><select id="vacancy-deployed-by" name="deployedBy">${optionList(vacancyDeployers, record.deployedBy)}</select></div><div class="field" style="grid-column:1/-1"><label for="vacancy-hrco-remarks">HRCO REMARKS</label><textarea id="vacancy-hrco-remarks" name="hrcoRemarks" rows="3">${escapeHtml(record.hrcoRemarks)}</textarea></div></div>${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update record</button></form>`;
+      document.querySelector('#record-drawer-title').classList.remove('single-line-title');
+      document.querySelector('#record-drawer-title').textContent = record.vcode;
+      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('OUTLET', record.outlet)}${field('POSITION', record.position)}</div><form id="vacancy-update-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="vacancy-date-vacant">DATE OF VACANT</label><input id="vacancy-date-vacant" name="vacantDate" type="date" value="${escapeHtml(record.vacantDateInput)}"><small class="drawer-date-display" data-date-display-for="vacantDate">${escapeHtml(record.vacantDate || '-')}</small></div><div class="field"><label for="vacancy-last-name">LASTNAME</label><input id="vacancy-last-name" name="lastName" value="${escapeHtml(record.lastName)}"></div><div class="field"><label for="vacancy-first-name">FIRST NAME</label><input id="vacancy-first-name" name="firstName" value="${escapeHtml(record.firstName)}"></div><div class="field"><label for="vacancy-middle-name">MIDDLE NAME</label><input id="vacancy-middle-name" name="middleName" value="${escapeHtml(record.middleName)}"></div><div class="field"><label for="vacancy-contact-number">CONTACT NUMBER</label><input id="vacancy-contact-number" name="contactNumber" value="${escapeHtml(record.contactNumber)}"></div><div class="field"><label for="vacancy-date-onboard">DATE ONBOARD</label><input id="vacancy-date-onboard" name="dateOnboard" type="date" value="${escapeHtml(record.dateOnboardInput)}"><small class="drawer-date-display" data-date-display-for="dateOnboard">${escapeHtml(record.dateOnboard || '-')}</small></div><div class="field"><label for="vacancy-reliever">RELIEVER</label><input id="vacancy-reliever" name="reliever" value="${escapeHtml(record.reliever)}"></div><div class="field"><label for="vacancy-coordinator">COORDINATOR</label><select id="vacancy-coordinator" name="coordinator">${optionList(vacancyDeployers, record.coordinator)}</select></div><div class="field"><label for="vacancy-deployed-by">DEPLOYED BY</label><select id="vacancy-deployed-by" name="deployedBy">${optionList(vacancyDeployers, record.deployedBy)}</select></div><div class="field" style="grid-column:1/-1"><label for="vacancy-hrco-remarks">HRCO REMARKS</label><textarea id="vacancy-hrco-remarks" name="hrcoRemarks" rows="3">${escapeHtml(record.hrcoRemarks)}</textarea></div></div>${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update record</button></form>`;
       document.querySelectorAll('[data-date-display-for]').forEach(display => {
         const input = document.querySelector(`#vacancy-update-form [name="${display.dataset.dateDisplayFor}"]`);
         input.addEventListener('input', () => { display.textContent = input.value ? displaySheetDate(input.value) : '-'; });
@@ -1554,7 +1561,20 @@
     }
     async function submitVacancyUpdate(form, vcode) {
       const button = form.querySelector('button[type="submit"]');
-      const values = Object.fromEntries(new FormData(form).entries());
+      const formData = new FormData(form);
+      const values = {
+        vcode,
+        vacantDate: formData.get('vacantDate'),
+        lastName: formData.get('lastName'),
+        firstName: formData.get('firstName'),
+        middleName: formData.get('middleName'),
+        contactNumber: formData.get('contactNumber'),
+        dateOnboard: formData.get('dateOnboard'),
+        reliever: formData.get('reliever'),
+        hrcoRemarks: formData.get('hrcoRemarks'),
+        coordinator: formData.get('coordinator'),
+        deployedBy: formData.get('deployedBy')
+      };
       button.disabled = true;
       button.textContent = 'Updating...';
       form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = true; });
@@ -1626,6 +1646,7 @@
       try {
         let rawValues;
         let displayValues;
+        let serverFiltered = false;
         if (currentUser?.role !== 'admin' || previewedUser) {
           const result = await callSheetsFunction('read-hr-emploc', {
             clientName: getActiveClient(),
@@ -1633,6 +1654,7 @@
           });
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
+          serverFiltered = true;
         } else {
           const range = encodeURIComponent('G1N!G9:AC');
           const [rawResult, displayResult] = await Promise.all([
@@ -1642,26 +1664,28 @@
           rawValues = rawResult.values || [];
           displayValues = displayResult.values || [];
         }
-        const activeClient = getActiveClient();
-        const clientRange = encodeURIComponent('G1N!B9:B');
-        const clientResult = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
-        const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
-        const rowCount = Math.max(rawValues.length, displayValues.length, clientValues.length);
-        const keptRaw = [];
-        const keptDisplay = [];
-        for (let index = 0; index < rowCount; index += 1) {
-          const rawRow = rawValues[index] || [];
-          const displayRow = displayValues[index] || [];
-          const clientValue = String(clientValues[index] || '').trim();
-          if (!activeClient || activeClient === 'My spreadsheets' || clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
-            keptRaw.push(rawRow);
-            keptDisplay.push(displayRow);
+        if (!serverFiltered) {
+          const activeClient = getActiveClient();
+          const clientRange = encodeURIComponent('G1N!B9:B');
+          const clientResult = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
+          const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
+          const rowCount = Math.max(rawValues.length, displayValues.length, clientValues.length);
+          const keptRaw = [];
+          const keptDisplay = [];
+          for (let index = 0; index < rowCount; index += 1) {
+            const rawRow = rawValues[index] || [];
+            const displayRow = displayValues[index] || [];
+            const clientValue = String(clientValues[index] || '').trim();
+            if (!activeClient || activeClient === 'My spreadsheets' || clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+              keptRaw.push(rawRow);
+              keptDisplay.push(displayRow);
+            }
           }
+          rawValues = keptRaw;
+          displayValues = keptDisplay;
         }
-        rawValues = keptRaw;
-        displayValues = keptDisplay;
-        const finalRowCount = Math.max(rawValues.length, displayValues.length);
-        hrEmplocRecords = Array.from({ length: finalRowCount }, (_, index) => {
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        hrEmplocRecords = Array.from({ length: rowCount }, (_, index) => {
           const raw = rawValues[index] || [];
           const display = displayValues[index] || [];
           const value = column => String(display[column] ?? '').trim();
@@ -1694,7 +1718,11 @@
       const filteredRecords = search
         ? hrEmplocRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
         : hrEmplocRecords;
-      status.textContent = `${filteredRecords.length} of ${hrEmplocRecords.length} records loaded`;
+      const totalHc = filteredRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${filteredRecords.length} of ${hrEmplocRecords.length} records loaded`;
       if (!hrEmplocRecords.length) {
         body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows with a VCODE were found from row 9 onward.</td></tr>';
         return;
@@ -1709,11 +1737,11 @@
     function openHrEmplocDrawer(vcode) {
       const record = hrEmplocRecords.find(item => item.vcode === vcode);
       if (!record) return notify(`No loaded HR EMPLOC record matches VCODE ${vcode}.`);
-      const field = (label, value) => `<div class="drawer-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       const directAdmin = currentUser?.role === 'admin' && !previewedUser;
       document.querySelector('#record-drawer-kicker').textContent = 'HR EMPLOC RECORD';
-      document.querySelector('#record-drawer-title').textContent = record.fullName || record.vcode;
-      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode)}${field('MEMBERS NAME', record.fullName)}</div><h3 class="drawer-section-title">REMARKS</h3><form id="hr-emploc-update-form" class="drawer-update"><div class="field"><label for="hr-emploc-remarks">HRCO REMARKS</label><textarea id="hr-emploc-remarks" name="hrcoRemarks" rows="5">${escapeHtml(record.hrcoRemarks)}</textarea></div><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}">${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update remarks</button></form>`;
+      document.querySelector('#record-drawer-title').classList.add('single-line-title');
+      document.querySelector('#record-drawer-title').textContent = `${record.vcode} · ${record.fullName || '-'}`;
+      document.querySelector('#record-drawer-fields').innerHTML = `<h3 class="drawer-section-title">REMARKS</h3><form id="hr-emploc-update-form" class="drawer-update"><div class="field"><label for="hr-emploc-remarks">HRCO REMARKS</label><textarea id="hr-emploc-remarks" name="hrcoRemarks" rows="5">${escapeHtml(record.hrcoRemarks)}</textarea></div><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}">${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update remarks</button></form>`;
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
@@ -1724,7 +1752,7 @@
     }
     async function submitHrEmplocUpdate(form, vcode) {
       const button = form.querySelector('button[type="submit"]');
-      const values = Object.fromEntries(new FormData(form).entries());
+      const values = { vcode, hrcoRemarks: new FormData(form).get('hrcoRemarks') };
       button.disabled = true;
       button.textContent = 'Updating...';
       form.querySelectorAll('textarea').forEach(input => { input.disabled = true; });
@@ -1851,6 +1879,7 @@
       const section = title => `<h3 class="drawer-section-title">${escapeHtml(title)}</h3>`;
       const statusOptions = [...new Set([...plantillaStatuses, record.status].filter(Boolean))];
       document.querySelector('#record-drawer-kicker').textContent = 'PLANTILLA RECORD';
+      document.querySelector('#record-drawer-title').classList.remove('single-line-title');
       document.querySelector('#record-drawer-title').textContent = record.memberName || record.vcode;
       document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('EMPLOC', record.emploc, true)}${field('VCODE', record.vcode, true)}${field('OUTLET', record.outlet, true)}</div>${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address, false, 'address-field')}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div></div><button class="primary-button" type="submit">Update record</button><div class="record-update-progress" aria-live="polite"><span data-progress-label>Ready to update</span><span data-progress-value>0%</span><progress max="100" value="0" aria-label="Record update progress"></progress></div></form>`;
       document.querySelector('#record-drawer').classList.add('open');
