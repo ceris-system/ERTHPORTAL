@@ -226,10 +226,10 @@
     .plantilla-toolbar p { margin:5px 0 0; color:#718b92; font-size:9px; }
     .plantilla-actions { display:flex; align-items:center; gap:8px; }
     .plantilla-status { min-height:17px; margin:0 0 9px; color:#66828c; font-size:11px; }
-    .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(255,255,255,.94); border-radius:15px; background:rgba(255,255,255,.72); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
+    .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(0,0,0,.12); border-radius:15px; background:rgba(255,255,255,.9); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
     .plantilla-table { width:100%; min-width:960px; border-collapse:separate; border-spacing:0; text-align:left; }
-    .plantilla-table th { position:sticky; top:0; z-index:2; padding:13px 11px; border-bottom:1px solid rgba(53,139,143,.2); color:#32656c; background:#e0f5f1; font-size:9px; font-weight:800; white-space:nowrap; }
-    .plantilla-table td { padding:11px; border-bottom:1px solid rgba(53,139,143,.1); color:#658087; font-size:9px; }
+    .plantilla-table th { position:sticky; top:0; z-index:2; padding:15px 12px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
+    .plantilla-table td { padding:13px 12px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.4; vertical-align:middle; }
     .plantilla-empty { color:#80979c !important; text-align:center; }
     .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
     .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
@@ -238,18 +238,25 @@
     .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
     .record-drawer h2 { margin:10px 40px 8px 0; font:800 20px 'Roboto Mono',monospace; }
     .record-drawer-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
-    .drawer-section-title { grid-column:1 / -1; margin:13px 0 0; color:#168c8c; font-size:11px; font-weight:800; letter-spacing:.06em; }
-    .drawer-field { min-width:0; padding:11px; border:1px solid rgba(53,139,143,.13); border-radius:10px; background:rgba(255,255,255,.56); }
-    .drawer-field.primary { border-color:rgba(53,139,143,.25); background:rgba(255,255,255,.82); }
+    .drawer-section-title { grid-column:1 / -1; margin:13px 0 0; padding:9px 11px; border-left:4px solid #128f91; border-radius:0 8px 8px 0; color:#125e62; background:rgba(102,209,208,.28); font-size:12px; font-weight:800; letter-spacing:.06em; }
+    .drawer-field { min-width:0; padding:10px 11px; border:0; border-radius:8px; background:rgba(255,255,255,.48); }
+    .drawer-field.primary { background:rgba(255,255,255,.78); }
     .drawer-field span,.drawer-field strong { display:block; }
-    .drawer-field span { margin-bottom:6px; color:#82999e; font-size:8px; text-transform:uppercase; }
-    .drawer-field strong { color:#3b626b; font-size:10px; font-weight:600; }
-    .drawer-update { grid-column:1 / -1; padding-top:13px; margin-top:12px; border-top:1px solid rgba(53,139,143,.14); }
-    .drawer-update h3 { margin:0 0 8px; color:#168c8c; font-size:11px; letter-spacing:.06em; }
-    .drawer-update .field { margin:11px 0; }
-    .drawer-update label { color:#365e68; font-size:11px; font-weight:700; }
-    .drawer-update input, .drawer-update select { width:100%; min-height:40px; padding:0 10px; border:1px solid #d5e8e5; border-radius:9px; color:var(--ink); background:rgba(255,255,255,.82); font-size:12px; }
-    .drawer-update .primary-button { margin-top:7px; }
+    .drawer-field span { margin-bottom:6px; color:#52737a; font-size:10px; font-weight:800; text-transform:uppercase; }
+    .drawer-field strong { color:#173f48; font-size:12px; font-weight:700; }
+    .drawer-update { grid-column:1 / -1; padding:14px 0 0; margin-top:12px; border:0; border-top:1px solid rgba(53,139,143,.14); }
+    .drawer-update h3 { margin:0 0 12px; padding:9px 11px; border-left:4px solid #d27a42; border-radius:0 8px 8px 0; color:#7c421f; background:rgba(245,178,123,.25); font-size:12px; letter-spacing:.06em; }
+    .drawer-update-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .drawer-update .field { min-width:0; margin:0; }
+    .drawer-update label { color:#294f58; font-size:11px; font-weight:800; }
+    .drawer-update input, .drawer-update select { width:100%; min-height:42px; padding:0 10px; border:1px solid #c6dcda; border-radius:9px; color:#142f35; background:rgba(255,255,255,.9); font-size:12px; }
+    .drawer-update .primary-button { width:auto; min-width:145px; min-height:42px; padding:0 16px; margin-top:12px; }
+    .record-update-progress { display:grid; grid-template-columns:1fr auto; align-items:center; gap:7px 12px; margin-top:13px; color:#315f66; font-size:11px; font-weight:700; }
+    .record-update-progress progress { grid-column:1 / -1; width:100%; height:9px; overflow:hidden; border:0; border-radius:999px; background:#dcebe8; accent-color:#128f91; }
+    .record-update-progress progress::-webkit-progress-bar { border-radius:999px; background:#dcebe8; }
+    .record-update-progress progress::-webkit-progress-value { border-radius:999px; background:linear-gradient(90deg,#128f91,#66d1d0); transition:width .25s ease; }
+    .record-update-progress progress::-moz-progress-bar { border-radius:999px; background:linear-gradient(90deg,#128f91,#66d1d0); }
+    @media(max-width:520px) { .drawer-update-fields { grid-template-columns:minmax(0,1fr); } }
     .plantilla-connect-dialog { width:min(460px,calc(100vw - 28px)); }
     .plantilla-connect-dialog .dialog-panel { padding:28px; }
     .plantilla-connect-dialog .field { margin:14px 0; }
@@ -1021,7 +1028,7 @@
       if (!plantillaSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a PLANTILLA spreadsheet to a user to begin.' : 'No PLANTILLA spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
-        return;
+        return false;
       }
       status.textContent = 'Loading records...';
       body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr>';
@@ -1044,9 +1051,11 @@
         const rowCount = Math.max(rawValues.length, displayValues.length);
         plantillaRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawValues[index] || [], displayValues[index] || [], index + 9)).filter(record => record.vcode);
         renderPlantillaTable();
+        return true;
       } catch (error) {
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
         body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
       }
     }
     function renderPlantillaTable() {
@@ -1096,7 +1105,7 @@
       const section = title => `<h3 class="drawer-section-title">${escapeHtml(title)}</h3>`;
       const statusOptions = [...new Set([...plantillaStatuses, record.status].filter(Boolean))];
       document.querySelector('#record-drawer-title').textContent = record.memberName || record.vcode;
-      document.querySelector('#record-drawer-fields').innerHTML = `${field('VCODE', record.vcode, true)}${field('FULL NAME', record.memberName, true)}${field('EMPLOC', record.emploc, true)}${field('OUTLET', record.outlet, true)}${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address)}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div><button class="primary-button" type="submit">Update record</button></form>`;
+      document.querySelector('#record-drawer-fields').innerHTML = `${field('VCODE', record.vcode, true)}${field('FULL NAME', record.memberName, true)}${field('EMPLOC', record.emploc, true)}${field('OUTLET', record.outlet, true)}${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address)}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div></div><button class="primary-button" type="submit">Update record</button><div class="record-update-progress" aria-live="polite"><span data-progress-label>Ready to update</span><span data-progress-value>0%</span><progress max="100" value="0" aria-label="Record update progress"></progress></div></form>`;
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
@@ -1104,8 +1113,18 @@
         event.preventDefault();
         const form = event.currentTarget;
         const button = form.querySelector('button[type="submit"]');
+        const progress = form.querySelector('progress');
+        const progressLabel = form.querySelector('[data-progress-label]');
+        const progressValue = form.querySelector('[data-progress-value]');
+        const setProgress = (value, label) => {
+          progress.value = value;
+          progressValue.textContent = `${value}%`;
+          progressLabel.textContent = label;
+        };
         button.disabled = true;
         button.textContent = 'Updating...';
+        form.querySelectorAll('input:not([type="hidden"]), select').forEach(input => { input.disabled = true; });
+        setProgress(10, 'Validating changes');
         (async () => {
           try {
             const vcode = form.elements.vcode.value.trim();
@@ -1113,6 +1132,7 @@
             const status = form.elements.status.value;
             if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
+            setProgress(25, 'Saving record');
             if (currentUser?.role !== 'admin' || previewedUser) {
               await callSheetsFunction('update-plantilla', {
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
@@ -1140,12 +1160,28 @@
                 })
               });
             }
-            await loadPlantillaRecords();
-            openRecordDrawer(vcode);
-            notify(`Updated VCODE ${vcode}.`);
+            setProgress(75, 'Record saved; refreshing table');
+            notify(`Record ${vcode} updated successfully.`);
+            setProgress(90, 'Loading latest spreadsheet data');
+            const refreshed = await loadPlantillaRecords();
+            if (refreshed && plantillaRecords.some(record => record.vcode === vcode)) {
+              openRecordDrawer(vcode);
+              const refreshedForm = document.querySelector('#update-record-form');
+              refreshedForm.querySelector('progress').value = 100;
+              refreshedForm.querySelector('[data-progress-value]').textContent = '100%';
+              refreshedForm.querySelector('[data-progress-label]').textContent = 'Update complete';
+            } else {
+              button.disabled = false;
+              button.textContent = 'Update record';
+              form.querySelectorAll('input:not([type="hidden"]), select').forEach(input => { input.disabled = false; });
+              setProgress(100, 'Saved; table refresh failed');
+              notify('The record was saved, but the table did not refresh. Use Refresh to reload it.');
+            }
           } catch (error) {
             button.disabled = false;
             button.textContent = 'Update record';
+            form.querySelectorAll('input:not([type="hidden"]), select').forEach(input => { input.disabled = false; });
+            setProgress(0, 'Update failed');
             notify(error?.message || 'The record could not be updated.');
           }
         })();
