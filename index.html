@@ -103,12 +103,14 @@
     .header-welcome strong { overflow:hidden; color:#1b4953; font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
     .header-welcome-meta { display:flex; align-items:center; gap:8px; color:#789399; font-size:9px; }
     .header-welcome-meta span + span { padding-left:8px; border-left:1px solid rgba(53,139,143,.16); font-variant-numeric:tabular-nums; }
+    #welcome-name { color:#365d65; font-weight:700; }
     .topbar-logout { width:34px; height:34px; flex:0 0 34px; display:grid; place-items:center; border:1px solid rgba(53,139,143,.16); border-radius:11px; color:#55777f; background:rgba(255,255,255,.62); }
     .topbar-logout:hover { color:#bd655b; background:white; }
     .topbar-logout svg { width:17px; height:17px; }
     .breadcrumbs { color:#799298; font-size:11px; }
     .breadcrumbs strong { color:#2c5862; font-weight:700; }
     .topbar-right { display:flex; align-items:center; gap:10px; }
+    .topbar-right .header-welcome { margin-left:4px; }
     .client-label { color:#789197; font-size:11px; }
     .client-select { height: 39px; max-width: 190px; padding: 0 34px 0 12px; border: 1px solid rgba(53,139,143,.19); border-radius: 10px; color:#265761; background:rgba(255,255,255,.72); font-size:11px; font-weight:700; }
     .client-badge { padding:6px 0; border:0; border-radius:0; color:#265761; background:transparent; font-size:10px; font-weight:700; }
@@ -302,11 +304,11 @@
       .main { padding:16px 17px 34px; }
       .topbar { margin-bottom:12px; gap:8px; }
       .topbar-left { gap:8px; }
-      .topbar-brand { display:none; }
+      .topbar-brand { display:inline-flex; }
       .header-welcome { padding-left:8px; }
       .header-welcome strong { font-size:11px; }
-      .topbar-right { gap:7px; }
-      .client-label, .status-pill { display:none; }
+      .topbar-right { flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+      .status-pill { display:none; }
       .client-select { max-width:112px; height:36px; padding:0 22px 0 8px; font-size:10px; }
       .utility-button { min-height:36px; padding:0 9px; font-size:10px; }
       .bubble-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 7px; }
@@ -340,14 +342,14 @@
       .client-select { max-width:125px; padding-right:22px; padding-left:9px; }
       .client-badge { max-width:86px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .utility-button { padding:0 8px; font-size:10px; }
-      .topbar-profile span { display:none; }
       .topbar-avatar { width:29px; height:29px; }
       .topbar { gap:4px; }
       .topbar-right { gap:4px; }
       .client-select { max-width:90px; padding-left:7px; }
       .utility-button { min-height:34px; padding:0 6px; font-size:9px; }
       .header-welcome strong { font-size:10px; }
-      #topbar-date { display:none; }
+      .header-welcome-meta { gap:4px; font-size:8px; }
+      .header-welcome-meta span + span { padding-left:4px; }
       .bubble-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .bubble-button { width:100%; max-width:none; }
       .bubble-name { font-size:10px; }
@@ -417,8 +419,8 @@
       </aside>
       <section class="main">
         <header class="topbar">
-          <div class="topbar-left"><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button></div>
+          <div class="topbar-left"><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
@@ -970,7 +972,8 @@
       if (!welcomeUser) return;
       const hour = now.getHours();
       const greeting = hour >= 5 && hour < 12 ? 'Good morning' : hour >= 12 && hour < 17 ? 'Good afternoon' : 'Good evening';
-      document.querySelector('#welcome-greeting').textContent = `${greeting}, ${welcomeUser.displayName}`;
+      document.querySelector('#welcome-greeting').textContent = `${greeting},`;
+      document.querySelector('#welcome-name').textContent = welcomeUser.displayName;
     }
     function renderBubbles() {
       content.querySelectorAll('.bubble-grid').forEach(element => element.remove());
