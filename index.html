@@ -229,9 +229,9 @@
     .plantilla-actions { display:flex; align-items:center; gap:8px; }
     .plantilla-status { min-height:17px; margin:0 0 9px; color:#66828c; font-size:11px; }
     .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(0,0,0,.12); border-radius:15px; background:rgba(255,255,255,.9); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
-    .plantilla-table { width:100%; min-width:960px; border-collapse:separate; border-spacing:0; text-align:left; }
-    .plantilla-table th { position:sticky; top:0; z-index:2; padding:15px 12px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
-    .plantilla-table td { padding:13px 12px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.4; vertical-align:middle; }
+    .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
+    .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
+    .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
     .plantilla-empty { color:#80979c !important; text-align:center; }
     .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
     .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
@@ -240,6 +240,7 @@
     .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
     .record-drawer h2 { margin:10px 40px 8px 0; font:800 20px 'Roboto Mono',monospace; }
     .record-drawer-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
+    .drawer-field.address-field { grid-column:1 / -1; }
     .drawer-section-title { grid-column:1 / -1; margin:13px 0 0; padding:9px 11px; border-left:4px solid #128f91; border-radius:0 8px 8px 0; color:#125e62; background:rgba(102,209,208,.28); font-size:12px; font-weight:800; letter-spacing:.06em; }
     .drawer-field { min-width:0; padding:8px 9px; border:0; border-radius:0; background:transparent; }
     .drawer-field.primary { background:transparent; }
@@ -393,8 +394,8 @@
         <p class="sub">Choose your username and a new password to continue.</p>
         <form id="password-update-form">
           <div class="field"><label for="default-update-username">Username</label><input id="default-update-username" name="username" required minlength="3" maxlength="40" autocomplete="username"></div>
-          <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="10" autocomplete="new-password"></div>
-          <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
+          <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}" title="Use at least 8 letters and numbers." autocomplete="new-password"></div>
+          <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}" title="Use at least 8 letters and numbers." autocomplete="new-password"></div>
           <button id="password-update-submit" class="primary-button" type="submit">Save username and password</button>
         </form>
         <p id="password-update-error" class="login-error hidden" role="alert"></p>
@@ -447,9 +448,9 @@
         <label class="dialog-label" for="account-username">Username</label>
         <input id="account-username" name="username" required minlength="3" maxlength="40" autocomplete="username">
         <label class="dialog-label" for="account-new-password">New password</label>
-        <input id="account-new-password" name="newPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Leave blank to keep current password">
+        <input id="account-new-password" name="newPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}" title="Use at least 8 letters and numbers." autocomplete="new-password" placeholder="Leave blank to keep current password">
         <label class="dialog-label" for="account-confirm-password">Confirm new password</label>
-        <input id="account-confirm-password" name="confirmPassword" type="password" minlength="10" autocomplete="new-password" placeholder="Repeat the new password">
+        <input id="account-confirm-password" name="confirmPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}" title="Use at least 8 letters and numbers." autocomplete="new-password" placeholder="Repeat the new password">
         <p id="account-feedback" class="auth-feedback" role="status"></p>
         <button id="account-save" class="primary-button" type="submit">Save account changes</button>
       </form>
@@ -499,7 +500,7 @@
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
         <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="new-sheet-url">User's assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
-        <label class="dialog-label" for="new-default-password">Set initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="10" autocomplete="new-password" placeholder="User changes this at first sign-in"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-3.1 3.7M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.4 6 9.5 6c1.2 0 2.3-.2 3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
+        <label class="dialog-label" for="new-default-password">Initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="8" pattern="\\d{8,}" title="Use at least 8 digits for a default account password." autocomplete="new-password" placeholder="Default account: 8 digits; active account: 8 letters and numbers"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6s-3.4 6-9.5 6c-1.2 0-2.3-.2-3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
         <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -1108,11 +1109,11 @@
     function openRecordDrawer(vcode) {
       const record = plantillaRecords.find(item => item.vcode === vcode);
       if (!record) return notify(`No loaded record matches VCODE ${vcode}.`);
-      const field = (label, value, primary = false) => `<div class="drawer-field${primary ? ' primary' : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
+      const field = (label, value, primary = false, extraClass = '') => `<div class="drawer-field${primary ? ' primary' : ''}${extraClass ? ` ${extraClass}` : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       const section = title => `<h3 class="drawer-section-title">${escapeHtml(title)}</h3>`;
       const statusOptions = [...new Set([...plantillaStatuses, record.status].filter(Boolean))];
       document.querySelector('#record-drawer-title').textContent = record.memberName || record.vcode;
-      document.querySelector('#record-drawer-fields').innerHTML = `${field('VCODE', record.vcode, true)}${field('FULL NAME', record.memberName, true)}${field('EMPLOC', record.emploc, true)}${field('OUTLET', record.outlet, true)}${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address)}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div></div><button class="primary-button" type="submit">Update record</button><div class="record-update-progress" aria-live="polite"><span data-progress-label>Ready to update</span><span data-progress-value>0%</span><progress max="100" value="0" aria-label="Record update progress"></progress></div></form>`;
+      document.querySelector('#record-drawer-fields').innerHTML = `${field('VCODE', record.vcode, true)}${field('FULL NAME', record.memberName, true)}${field('EMPLOC', record.emploc, true)}${field('OUTLET', record.outlet, true)}${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address, false, 'address-field')}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div></div><button class="primary-button" type="submit">Update record</button><div class="record-update-progress" aria-live="polite"><span data-progress-label>Ready to update</span><span data-progress-value>0%</span><progress max="100" value="0" aria-label="Record update progress"></progress></div></form>`;
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
@@ -1517,6 +1518,20 @@
       passwordInput.type = isVisible ? 'text' : 'password';
       setPasswordToggleState(document.querySelector('#admin-password-toggle'), isVisible);
     });
+    const newUserStatus = document.querySelector('#new-user-status');
+    const newUserPassword = document.querySelector('#new-default-password');
+    function updateInitialPasswordRule() {
+      const isDefault = newUserStatus.value === 'default';
+      newUserPassword.pattern = isDefault ? '[0-9]{8,}' : '(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}';
+      newUserPassword.title = isDefault
+        ? 'Use at least 8 digits for a default account password.'
+        : 'Use at least 8 letters and numbers.';
+      newUserPassword.placeholder = isDefault
+        ? 'Default account: at least 8 digits'
+        : 'At least 8 letters and numbers';
+    }
+    newUserStatus.addEventListener('change', updateInitialPasswordRule);
+    updateInitialPasswordRule();
     document.querySelector('#login-password-toggle').addEventListener('click', () => {
       const passwordInput = document.querySelector('#login-password');
       const isVisible = passwordInput.type === 'password';
@@ -1712,6 +1727,7 @@
           const passwordMessage = result.temporaryPassword ? `Temporary password: ${result.temporaryPassword}.` : 'Password set by admin.';
           document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;
           form.reset();
+          updateInitialPasswordRule();
           await renderRoster();
         } catch (error) {
           document.querySelector('#admin-account-feedback').textContent = error.message || 'Could not create account.';

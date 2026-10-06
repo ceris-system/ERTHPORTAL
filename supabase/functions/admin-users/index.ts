@@ -24,9 +24,8 @@ function usernameEmail(username: string) {
 }
 
 function createTemporaryPassword() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
-  const values = crypto.getRandomValues(new Uint8Array(20));
-  return Array.from(values, value => alphabet[value % alphabet.length]).join('');
+  const values = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(values, value => String(value % 10)).join('');
 }
 
 async function findProfile(adminClient: ReturnType<typeof createClient>, id: string) {
@@ -85,7 +84,9 @@ Deno.serve(async request => {
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
         throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       }
-      if (newPassword && newPassword.length < 10) throw new Error('New password must be at least 10 characters.');
+      if (newPassword && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(newPassword)) {
+        throw new Error('New password must be at least 8 characters and include both letters and numbers.');
+      }
       if (completingDefaultAccount && !newPassword) throw new Error('Choose a new password to activate this account.');
 
       if (username !== actor.username) {
@@ -191,6 +192,12 @@ Deno.serve(async request => {
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
 
       const temporaryPassword = defaultPassword || createTemporaryPassword();
+      if (status === 'default' && !/^\d{8,}$/.test(temporaryPassword)) {
+        throw new Error('A default account password must contain at least 8 digits only.');
+      }
+      if (status !== 'default' && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(temporaryPassword)) {
+        throw new Error('Active or inactive accounts need an initial password of at least 8 characters with both letters and numbers.');
+      }
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
         email: usernameEmail(username),
         password: temporaryPassword,
