@@ -236,13 +236,13 @@
     .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
     .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
     .drawer-backdrop.open { visibility:visible; opacity:1; }
-    .record-drawer { position:fixed; z-index:9; top:0; right:0; width:min(780px,94vw); height:100dvh; overflow:auto; padding:36px 27px; border-left:1px solid rgba(255,255,255,.9); color:var(--ink); background:linear-gradient(150deg,rgba(250,255,254,.96),rgba(218,243,241,.94)); box-shadow:-20px 0 65px rgba(20,68,77,.2); backdrop-filter:blur(28px); clip-path:inset(0 0 0 100%); visibility:hidden; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s linear .35s; }
+    .record-drawer { position:fixed; z-index:9; top:0; right:0; width:min(560px,88vw); height:100dvh; overflow:auto; padding:26px 20px; border-left:1px solid rgba(255,255,255,.9); color:var(--ink); background:linear-gradient(150deg,rgba(250,255,254,.96),rgba(218,243,241,.94)); box-shadow:-20px 0 65px rgba(20,68,77,.2); backdrop-filter:blur(28px); clip-path:inset(0 0 0 100%); visibility:hidden; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s linear .35s; }
     .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
     .record-drawer h2 { margin:10px 40px 8px 0; font:800 20px 'Roboto Mono',monospace; }
     .record-drawer-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
     .drawer-section-title { grid-column:1 / -1; margin:13px 0 0; padding:9px 11px; border-left:4px solid #128f91; border-radius:0 8px 8px 0; color:#125e62; background:rgba(102,209,208,.28); font-size:12px; font-weight:800; letter-spacing:.06em; }
-    .drawer-field { min-width:0; padding:10px 11px; border:0; border-radius:8px; background:rgba(255,255,255,.48); }
-    .drawer-field.primary { background:rgba(255,255,255,.78); }
+    .drawer-field { min-width:0; padding:8px 9px; border:0; border-radius:0; background:transparent; }
+    .drawer-field.primary { background:transparent; }
     .drawer-field span,.drawer-field strong { display:block; }
     .drawer-field span { margin-bottom:6px; color:#52737a; font-size:10px; font-weight:800; text-transform:uppercase; }
     .drawer-field strong { color:#173f48; font-size:12px; font-weight:700; }
@@ -252,8 +252,9 @@
     .drawer-update .field { min-width:0; margin:0; }
     .drawer-update label { color:#294f58; font-size:11px; font-weight:800; }
     .drawer-update input, .drawer-update select { width:100%; min-height:42px; padding:0 10px; border:1px solid #c6dcda; border-radius:9px; color:#142f35; background:rgba(255,255,255,.9); font-size:12px; }
-    .drawer-update .primary-button { width:auto; min-width:145px; min-height:42px; padding:0 16px; margin-top:12px; }
-    .record-update-progress { display:grid; grid-template-columns:1fr auto; align-items:center; gap:7px 12px; margin-top:13px; color:#315f66; font-size:11px; font-weight:700; }
+    .drawer-update .primary-button { display:block; width:auto; min-width:145px; min-height:42px; padding:0 16px; margin:12px auto 0; }
+    .record-update-progress { display:none; grid-template-columns:1fr auto; align-items:center; gap:7px 12px; margin-top:13px; color:#315f66; font-size:11px; font-weight:700; }
+    .record-update-progress.is-visible { display:grid; }
     .record-update-progress progress { grid-column:1 / -1; width:100%; height:9px; overflow:hidden; border:0; border-radius:999px; background:#dcebe8; accent-color:#128f91; }
     .record-update-progress progress::-webkit-progress-bar { border-radius:999px; background:#dcebe8; }
     .record-update-progress progress::-webkit-progress-value { border-radius:999px; background:linear-gradient(90deg,#128f91,#66d1d0); transition:width .25s ease; }
@@ -324,11 +325,11 @@
       .step h3, .step p { font-size:9px; }
       .alert-heading h2 { font-size:15px; }
       .module-footer { flex-direction:column; }
-      .record-drawer { width:min(620px,96vw); padding:32px 20px; }
+      .record-drawer { width:min(480px,94vw); padding:26px 17px; }
       .record-drawer-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media(max-width:480px) {
-      .record-drawer { width:100vw; padding:32px 16px; }
+      .record-drawer { width:94vw; padding:26px 15px; }
       .record-drawer-fields { grid-template-columns:minmax(0,1fr); }
     }
     @media(max-width:390px) {
@@ -416,7 +417,7 @@
       <section class="main">
         <header class="topbar">
           <div class="topbar-left"><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="manage-users" class="utility-button hidden" type="button">Add Users</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
@@ -974,12 +975,7 @@
       content.querySelectorAll('.bubble-grid').forEach(element => element.remove());
       const section = document.createElement('section');
       section.className = 'dashboard-picker';
-      section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><div style="display:flex;align-items:center;gap:12px;">${currentUser?.role === 'admin' ? '<button id="dashboard-add-user" class="secondary-button" type="button">+ Add User</button>' : ''}<span class="picker-count">11</span></div></div><div class="bubble-grid"></div>`;
-      section.querySelector('#dashboard-add-user')?.addEventListener('click', () => {
-        document.querySelector('#admin-account-feedback').textContent = '';
-        renderRoster();
-        usersDialog.showModal();
-      });
+      section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><div style="display:flex;align-items:center;gap:12px;"><span class="picker-count">11</span></div></div><div class="bubble-grid"></div>`;
       const grid = section.querySelector('.bubble-grid');
       dashboards.forEach((name, index) => {
         const sourceCount = getDashboardSources(name).length;
@@ -1131,6 +1127,7 @@
           progress.value = value;
           progressValue.textContent = `${value}%`;
           progressLabel.textContent = label;
+          form.querySelector('.record-update-progress').classList.toggle('is-visible', value > 0);
         };
         button.disabled = true;
         button.textContent = 'Updating...';
@@ -1185,7 +1182,7 @@
               button.disabled = false;
               button.textContent = 'Update record';
               form.querySelectorAll('input:not([type="hidden"]), select').forEach(input => { input.disabled = false; });
-              setProgress(100, 'Saved; table refresh failed');
+              setProgress(0, 'Saved; table refresh failed');
               notify('The record was saved, but the table did not refresh. Use Refresh to reload it.');
             }
           } catch (error) {
