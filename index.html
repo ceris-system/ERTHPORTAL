@@ -186,6 +186,10 @@
     .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
     .user-form-actions .primary-button { margin-top:0; }
+    .roster-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:18px; color:#55757b; font-size:11px; }
+    .roster-bulk-actions label { display:flex; align-items:center; gap:6px; margin-right:auto; }
+    .roster-bulk-actions input, .roster-table input[type="checkbox"] { width:auto; min-height:0; accent-color:var(--teal); }
+    .roster-bulk-actions select { width:auto; min-height:34px; }
     .roster-wrap { max-height:230px; overflow:auto; margin-top:20px; border:1px solid rgba(53,139,143,.15); border-radius:11px; background:rgba(255,255,255,.48); }
     .roster-table { width:100%; border-collapse:collapse; font-size:10px; text-align:left; }
     .roster-table th { position:sticky; top:0; padding:9px 10px; color:#6c898f; background:#edf8f6; font-size:9px; }
@@ -194,6 +198,7 @@
     .roster-photo img { width:100%; height:100%; object-fit:cover; }
     .remove-user { border:0; color:#b7685e; background:none; font-size:10px; }
     .roster-actions { display:flex; align-items:center; gap:9px; }
+    .roster-table select { min-width:100px; min-height:31px; padding:0 6px; font-size:10px; }
     .edit-user { padding:5px 8px; border:1px solid rgba(53,139,143,.17); border-radius:7px; color:#287176; background:rgba(255,255,255,.7); font-size:9px; }
     .user-source-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
     .source-link { padding:15px; border:1px solid rgba(255,255,255,.94); border-radius:14px; color:#286068; background:rgba(255,255,255,.68); box-shadow:0 8px 22px rgba(37,101,112,.1); font-size:11px; font-weight:700; text-decoration:none; transition:transform .2s,background .2s; }
@@ -367,19 +372,20 @@
         <form id="login-form">
           <div class="field"><label for="login-username">Username</label><input id="login-username" name="username" required autocomplete="username" placeholder="Your username"></div>
           <div class="field"><label for="login-password">Password</label><div class="password-field"><input id="login-password" name="password" type="password" required autocomplete="current-password" placeholder="Your password"><button class="password-toggle" id="login-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6a16 16 0 0 1-3.1 3.7M6.2 6.3C3.8 7.8 2.5 12 2.5 12s3.4 6 9.5 6c1.2 0 2.3-.2 3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div></div>
-          <div class="login-options"><span></span><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
+          <div class="login-options"><label class="remember"><input id="remember-me" type="checkbox"> Remember username</label><button class="text-button" id="forgot-password-button" type="button">Forgot password?</button></div>
           <button class="primary-button" id="login-submit" type="submit">Sign in</button>
         </form>
         <p id="login-error" class="login-error hidden" role="alert"></p>
         <p class="login-note">Your administrator creates your account and provides your first password.</p>
       </section>
       <section id="password-update-panel" class="login-card hidden" aria-labelledby="password-update-title">
-        <h2 id="password-update-title">Update your password</h2>
-        <p class="sub">A temporary password was detected. Choose a new password to continue.</p>
+        <h2 id="password-update-title">Finish setting up your account</h2>
+        <p class="sub">Choose your username and a new password to continue.</p>
         <form id="password-update-form">
+          <div class="field"><label for="default-update-username">Username</label><input id="default-update-username" name="username" required minlength="3" maxlength="40" autocomplete="username"></div>
           <div class="field"><label for="new-password">New password</label><input id="new-password" name="newPassword" type="password" required minlength="10" autocomplete="new-password"></div>
           <div class="field"><label for="confirm-password">Confirm new password</label><input id="confirm-password" name="confirmPassword" type="password" required minlength="10" autocomplete="new-password"></div>
-          <button id="password-update-submit" class="primary-button" type="submit">Update password</button>
+          <button id="password-update-submit" class="primary-button" type="submit">Save username and password</button>
         </form>
         <p id="password-update-error" class="login-error hidden" role="alert"></p>
       </section>
@@ -490,7 +496,12 @@
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add User</button></div>
       </form>
       <p id="admin-account-feedback" class="auth-feedback" role="status"></p>
-      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+      <div class="roster-bulk-actions">
+        <label><input id="select-all-users" type="checkbox"> Select all</label>
+        <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
+        <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
+      </div>
+      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
       <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
     </section>
   </dialog>
@@ -593,6 +604,8 @@
     const openDashboardUrl = document.querySelector('#open-dashboard-url');
     const profileAvatar = document.querySelector('#profile-avatar');
     const topbarAvatar = document.querySelector('#topbar-avatar');
+    const rememberMeCheckbox = document.querySelector('#remember-me');
+    const rememberedUsernameKey = 'erthportal-remembered-username';
     const GOOGLE_OAUTH_CLIENT_ID = window.ERTHPORTAL_GOOGLE_CLIENT_ID || '230478655927-ec1pbf2ocbidhsd0his09j92rcqrmae8.apps.googleusercontent.com';
     const GOOGLE_SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email';
     const SUPABASE_URL = (window.ERTHPORTAL_SUPABASE_URL || 'https://myjsiiltqnsgzrwdjwki.supabase.co').replace(/\/$/, '');
@@ -604,6 +617,35 @@
     let supabaseRefreshToken = '';
     let supabaseRefreshPromise = null;
     let portalProfile = null;
+
+    try {
+      const rememberedUsername = localStorage.getItem(rememberedUsernameKey);
+      if (rememberedUsername) {
+        document.querySelector('#login-username').value = rememberedUsername;
+        rememberMeCheckbox.checked = true;
+      }
+    } catch (storageError) {
+      console.error('Could not load the remembered username.', storageError);
+      rememberMeCheckbox.disabled = true;
+    }
+
+    function saveRememberedUsername(username) {
+      try {
+        if (rememberMeCheckbox.checked) localStorage.setItem(rememberedUsernameKey, username);
+        else localStorage.removeItem(rememberedUsernameKey);
+      } catch (storageError) {
+        console.error('Could not save the remembered username.', storageError);
+        notify('Could not save the remembered username in this browser.');
+      }
+    }
+    rememberMeCheckbox.addEventListener('change', () => {
+      if (rememberMeCheckbox.checked) {
+        const username = document.querySelector('#login-username').value.trim().toLowerCase();
+        if (username) saveRememberedUsername(username);
+      } else {
+        saveRememberedUsername('');
+      }
+    });
 
     function readJSON(key, fallback) {
       try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
@@ -1186,15 +1228,23 @@
 
     async function renderRoster() {
       const body = document.querySelector('#user-roster');
-      body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">Loading accounts...</td></tr>';
+      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
         body.innerHTML = users.map(user => {
           const tempPassword = rosterPasswordMap.get(user.username);
           const isVisible = !!rosterPasswordVisible[user.username] && tempPassword;
           const passwordCell = tempPassword ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace;letter-spacing:.04em;">${isVisible ? escapeHtml(tempPassword) : '••••••••'}</span><button class="edit-user" type="button" data-view-password="${escapeHtml(user.username)}" aria-label="${isVisible ? 'Hide' : 'View'} password for ${escapeHtml(user.username)}">${isVisible ? 'Hide Password' : 'View Password'}</button></div>` : '<span class="plantilla-empty">No temp password</span>';
-          return `<tr><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><span class="account-state">${escapeHtml(user.status)}</span></td><td>${passwordCell}</td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}" data-status="${user.status === 'inactive' ? 'active' : 'inactive'}">${user.status === 'inactive' ? 'Activate' : 'Deactivate'}</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
+          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
         }).join('');
+        const selectAll = document.querySelector('#select-all-users');
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+        body.querySelectorAll('[data-select-user]').forEach(checkbox => checkbox.addEventListener('change', () => {
+          const checkboxes = [...body.querySelectorAll('[data-select-user]')];
+          selectAll.checked = checkboxes.length > 0 && checkboxes.every(item => item.checked);
+          selectAll.indeterminate = checkboxes.some(item => item.checked) && !selectAll.checked;
+        }));
         body.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
           try {
@@ -1217,7 +1267,8 @@
         body.querySelectorAll('[data-set-status]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
           try {
-            await callAdminFunction('set-status', { username: button.dataset.setStatus, status: button.dataset.status });
+            const status = button.closest('tr').querySelector('[data-user-status]').value;
+            await callAdminFunction('set-status', { username: button.dataset.setStatus, status });
             await renderRoster();
           } catch (error) {
             document.querySelector('#admin-account-feedback').textContent = error.message;
@@ -1240,7 +1291,7 @@
           }
         }));
       } catch (error) {
-        body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
       }
     }
 
@@ -1289,6 +1340,7 @@
       const username = document.querySelector('#login-username').value.trim().toLowerCase();
       const password = document.querySelector('#login-password').value;
       if (!username || !password) return;
+      saveRememberedUsername(username);
       button.disabled = true;
       button.textContent = 'Signing in...';
       error.classList.add('hidden');
@@ -1315,7 +1367,7 @@
             supabaseAccessToken = '';
             supabaseRefreshToken = '';
             portalProfile = null;
-            throw new Error('Account deactivated. Contact the portal administrator.');
+            throw new Error('Account locked. Please contact the administrator to restore access.');
           }
           if (portalProfile.sheet_url) {
             try {
@@ -1334,6 +1386,7 @@
             photo: portalProfile.photo_url || ''
           };
           if (portalProfile.status === 'default') {
+            document.querySelector('#default-update-username').value = portalProfile.username;
             showLoginPanel('password-update-panel');
           } else {
             await loadDashboardAssignments();
@@ -1360,6 +1413,7 @@
       const form = event.currentTarget;
       const error = document.querySelector('#password-update-error');
       const button = document.querySelector('#password-update-submit');
+      const username = form.elements.username.value.trim().toLowerCase();
       const newPassword = form.elements.newPassword.value;
       if (newPassword !== form.elements.confirmPassword.value) {
         error.textContent = 'The passwords do not match.';
@@ -1371,9 +1425,11 @@
       error.classList.add('hidden');
       (async () => {
         try {
-          await supabaseRequest('/auth/v1/user', { method: 'PUT', body: JSON.stringify({ password: newPassword }) }, supabaseAccessToken);
-          await callAdminFunction('activate-default', { username: portalProfile.username });
+          const result = await callAdminFunction('update-own-account', { username, newPassword });
+          saveRememberedUsername(result.username);
           portalProfile.status = 'active';
+          portalProfile.username = result.username;
+          currentUser.username = result.username;
           await loadDashboardAssignments();
           form.reset();
           currentUser.photo = '';
@@ -1386,13 +1442,23 @@
           error.classList.remove('hidden');
         } finally {
           button.disabled = false;
-          button.textContent = 'Update password';
+          button.textContent = 'Save username and password';
         }
       })();
     });
     document.querySelector('#forgot-password-button').addEventListener('click', () => {
       const error = document.querySelector('#login-error');
-      error.textContent = 'Contact your portal administrator. They can issue a temporary password for your username.';
+      const enteredUsername = document.querySelector('#login-username').value.trim();
+      const username = window.prompt('Enter your portal username so you can give it to your administrator:', enteredUsername);
+      if (username === null) return;
+      const normalizedUsername = username.trim().toLowerCase();
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(normalizedUsername)) {
+        error.textContent = 'Enter your valid portal username, then ask your administrator to issue a temporary password.';
+        error.classList.remove('hidden');
+        return;
+      }
+      document.querySelector('#login-username').value = normalizedUsername;
+      error.textContent = `Ask your administrator to reset @${normalizedUsername} and give you the one-time temporary password. Sign in with it, then choose your username and new password.`;
       error.classList.remove('hidden');
     });
     function setPasswordToggleState(button, isVisible) {
@@ -1447,6 +1513,15 @@
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
+      try {
+        const rememberedUsername = localStorage.getItem(rememberedUsernameKey);
+        if (rememberedUsername) {
+          document.querySelector('#login-username').value = rememberedUsername;
+          rememberMeCheckbox.checked = true;
+        }
+      } catch (storageError) {
+        console.error('Could not restore the remembered username after sign-out.', storageError);
+      }
       document.querySelector('#login-password').type = 'password';
       setPasswordToggleState(document.querySelector('#login-password-toggle'), false);
       showLoginPanel('login-card');
@@ -1456,6 +1531,32 @@
       document.querySelector('#admin-account-feedback').textContent = '';
       renderRoster();
       usersDialog.showModal();
+    });
+    document.querySelector('#select-all-users').addEventListener('change', event => {
+      const checked = event.currentTarget.checked;
+      document.querySelectorAll('#user-roster [data-select-user]').forEach(checkbox => { checkbox.checked = checked; });
+      event.currentTarget.indeterminate = false;
+    });
+    document.querySelector('#apply-bulk-user-status').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const usernames = [...document.querySelectorAll('#user-roster [data-select-user]:checked')]
+        .map(checkbox => checkbox.dataset.selectUser);
+      const feedback = document.querySelector('#admin-account-feedback');
+      if (!usernames.length) {
+        feedback.textContent = 'Select at least one account to change its status.';
+        return;
+      }
+      button.disabled = true;
+      try {
+        const status = document.querySelector('#bulk-user-status').value;
+        const result = await callAdminFunction('bulk-set-status', { usernames, status });
+        feedback.textContent = `Set ${result.usernames.length} account${result.usernames.length === 1 ? '' : 's'} to ${result.status}.`;
+        await renderRoster();
+      } catch (error) {
+        feedback.textContent = error.message || 'Could not update the selected account statuses.';
+      } finally {
+        button.disabled = false;
+      }
     });
     document.querySelector('#manage-account').addEventListener('click', () => {
       const form = document.querySelector('#account-form');
@@ -1487,6 +1588,7 @@
           const result = await callAdminFunction('update-own-account', { username, newPassword });
           currentUser.username = result.username;
           if (portalProfile) portalProfile.username = result.username;
+          saveRememberedUsername(result.username);
           accountDialog.close();
           if (!previewedUser) {
             renderProfile(currentUser);

@@ -78,13 +78,15 @@ Deno.serve(async request => {
     }
 
     if (body.action === 'update-own-account') {
-      if (actor.status !== 'active') throw new Error('Only active accounts can change account settings.');
+      const completingDefaultAccount = actor.status === 'default';
+      if (actor.status !== 'active' && !completingDefaultAccount) throw new Error('Only active accounts can change account settings.');
       const username = String(body.username || '').trim().toLowerCase();
       const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
         throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       }
       if (newPassword && newPassword.length < 10) throw new Error('New password must be at least 10 characters.');
+      if (completingDefaultAccount && !newPassword) throw new Error('Choose a new password to activate this account.');
 
       if (username !== actor.username) {
         const { data: existing, error: existingError } = await adminClient.from('profiles')
@@ -111,12 +113,19 @@ Deno.serve(async request => {
         const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, authChanges);
         if (updateError) {
           if (username !== actor.username) {
-            await adminClient.from('profiles').update({ username: actor.username }).eq('id', user.id);
+            const { error: rollbackError } = await adminClient.from('profiles')
+              .update({ username: actor.username })
+              .eq('id', user.id);
+            if (rollbackError) throw new Error('Account update failed, and the old username could not be restored. Contact the administrator.');
           }
           throw new Error(updateError.message || 'Could not update account settings.');
         }
       }
-      return respond({ username, passwordUpdated: !!newPassword });
+      if (completingDefaultAccount) {
+        const { error: statusError } = await adminClient.from('profiles').update({ status: 'active' }).eq('id', user.id);
+        if (statusError) throw new Error('Credentials were changed, but the account could not be activated. Contact the administrator.');
+      }
+      return respond({ username, passwordUpdated: !!newPassword, status: completingDefaultAccount ? 'active' : actor.status });
     }
 
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);
@@ -208,6 +217,42 @@ Deno.serve(async request => {
       return respond({ user: profile, temporaryPassword: defaultPassword ? defaultPassword : temporaryPassword });
     }
 
+    if (body.action === 'bulk-set-status') {
+      const status = String(body.status || '');
+      const submitted = body.usernames;
+      if (!['active', 'inactive', 'default'].includes(status)) throw new Error('Choose active, inactive, or default status.');
+      if (!Array.isArray(submitted) || submitted.length < 1 || submitted.length > 200) {
+        throw new Error('Select between 1 and 200 accounts.');
+      }
+      const usernames = [...new Set(submitted.map((value: unknown) => {
+        if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(value.trim())) {
+          throw new Error('The selected account list is invalid.');
+        }
+        return value.trim().toLowerCase();
+      }))];
+      const { data: targets, error: targetsError } = await adminClient.from('profiles')
+        .select('id, username, role, status')
+        .in('username', usernames);
+      if (targetsError) throw new Error('Could not load the selected accounts.');
+      if (!targets || targets.length !== usernames.length) throw new Error('One or more selected accounts no longer exist. Refresh the list and try again.');
+
+      if (status !== 'active') {
+        const { count, error: countError } = await adminClient.from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'admin')
+          .eq('status', 'active');
+        if (countError) throw new Error('Could not verify active administrator count.');
+        const selectedActiveAdmins = targets.filter(target => target.role === 'admin' && target.status === 'active').length;
+        if ((count || 0) - selectedActiveAdmins < 1) {
+          throw new Error('The bulk change would remove the last active administrator.');
+        }
+      }
+
+      const { error: updateError } = await adminClient.from('profiles').update({ status }).in('username', usernames);
+      if (updateError) throw new Error('Could not update the selected account statuses.');
+      return respond({ status, usernames });
+    }
+
     const targetUsername = String(body.username || '').trim().toLowerCase();
     const { data: target, error: targetError } = await adminClient.from('profiles')
       .select('id, username, display_name, google_email, client_name, role, status')
@@ -226,8 +271,8 @@ Deno.serve(async request => {
 
     if (body.action === 'set-status') {
       const status = body.status;
-      if (!['active', 'inactive'].includes(status)) throw new Error('Choose active or inactive status.');
-      if (status === 'inactive') await protectLastAdmin(adminClient, target);
+      if (!['active', 'inactive', 'default'].includes(status)) throw new Error('Choose active, inactive, or default status.');
+      if (status !== 'active') await protectLastAdmin(adminClient, target);
       const { error } = await adminClient.from('profiles').update({ status }).eq('id', target.id);
       if (error) throw new Error('Could not update account status.');
       return respond({ username: target.username, status });

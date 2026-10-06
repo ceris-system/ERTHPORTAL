@@ -4,7 +4,7 @@
 
 GitHub Pages hosts the frontend. Supabase Free provides username/password authentication, account profiles/status, and protected Edge Functions. Google Sheets remains the employee-data source. Users access assigned PLANTILLA sheets through the `google-sheets-api` Edge Function, which authenticates to Google as a server-side service account; users do not need to authorize Google individually.
 
-Account passwords are managed by Supabase Auth and are never stored in the profiles table or GitHub. Admins create accounts and receive a one-time temporary password to share privately. New/reset accounts have `default` status and must change that password before continuing. `inactive` accounts cannot sign in.
+Account passwords are managed by Supabase Auth and are never stored in the profiles table or GitHub. Admins create accounts and receive a one-time temporary password to share privately. New/reset accounts have `default` status and must choose a username and new password before continuing. `inactive` accounts cannot sign in; the login page directs locked users to the administrator.
 
 ## Supabase Setup
 
@@ -21,9 +21,9 @@ Account passwords are managed by Supabase Auth and are never stored in the profi
 5. Paste your live values into the page config in `index.html` using the global variables `window.ERTHPORTAL_SUPABASE_URL` and `window.ERTHPORTAL_SUPABASE_ANON_KEY` before the app script runs. The anon/publishable key is public and safe to include with RLS enabled; never use the service-role key. `window.ERTHPORTAL_GOOGLE_CLIENT_ID` is only needed if an administrator uses the optional personal-sheet connection flow. You can also define these values before `index.html` loads in a hosted environment if you prefer to keep the values outside the source file.
 6. Publish the updated frontend and `supabase` folder to GitHub Pages.
 
-Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives a temporary password and must replace it at next sign-in.
+Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives a temporary password and must choose a username and replacement password at next sign-in. Users can also update their own username in **My Account**. The login page can remember a username on the current device, but never stores a password. “Forgot password?” asks for the username and explains that the administrator must issue a temporary password; password recovery is not allowed from a username alone.
 
-Admins add users from the dashboard's **Add User** control. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
+Admins add users from the dashboard's **Add User** control. From the account list, administrators can set an individual status or select multiple accounts and bulk-apply `active`, `inactive`, or `default` status. Setting `default` requires the user to set a username and password on next sign-in. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
 
 ## Google Sheets service account setup
 
