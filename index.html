@@ -150,14 +150,16 @@
     .picker-heading { display:flex; align-items:center; gap:14px; margin:12px 0 11px; }
     .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'DM Sans',sans-serif; }
     .picker-heading p { margin:4px 0 0; color:#718b92; font-size:12px; }
-    .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:3px 9px; }
-    .bubble-button { min-width:0; display:inline-flex; align-items:center; gap:4px; padding:4px 2px; border:0; border-radius:4px; color:#52747b; background:transparent; cursor:pointer; transition:color .16s,transform .16s; }
-    .bubble-button:hover { color:#087e84; background:transparent; transform:translateY(-1px); }
-    .bubble-button:active { transform:translateY(0); }
+    .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:5px 11px; }
+    .bubble-button { position:relative; width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#087e84; background:radial-gradient(circle at 31% 22%,#fff 0 7%,rgba(255,255,255,.95) 15%,rgba(194,242,236,.88) 46%,rgba(72,173,180,.72) 82%,rgba(255,255,255,.88) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 0 -4px 7px rgba(35,122,136,.28),0 3px 0 rgba(47,130,140,.32),0 7px 10px rgba(24,83,96,.19); cursor:pointer; transform:translateY(0) translateZ(0); transition:transform .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s; }
+    .bubble-button::before { content:''; position:absolute; top:5px; left:9px; width:17px; height:6px; border-radius:50%; background:rgba(255,255,255,.96); filter:blur(2px); transform:rotate(-25deg); }
+    .bubble-button:hover,.bubble-button:focus-visible { z-index:2; }
+    .bubble-button:hover { transform:translateY(-3px) scale(1.07); box-shadow:inset 0 2px 4px white,inset 0 -5px 8px rgba(35,122,136,.3),0 4px 0 rgba(47,130,140,.3),0 11px 15px rgba(24,83,96,.24); }
+    .bubble-button:active { transform:translateY(2px) scale(.96); box-shadow:inset 0 2px 5px rgba(35,122,136,.25),0 1px 0 rgba(47,130,140,.25),0 3px 5px rgba(24,83,96,.16); }
     .bubble-button:focus-visible { outline:2px solid #168c8c; outline-offset:2px; }
-    .bubble-icon { width:16px; height:16px; flex:0 0 16px; display:grid; place-items:center; color:#168c8c; }
-    .bubble-icon svg { width:15px; height:15px; }
-    .bubble-name { min-width:0; max-width:100%; color:inherit; font-size:9px; font-weight:700; line-height:1.2; text-align:left; overflow-wrap:anywhere; }
+    .bubble-button::after { position:absolute; z-index:3; top:calc(100% + 7px); left:50%; width:max-content; max-width:min(220px,70vw); padding:6px 9px; border-radius:5px; color:#fff; background:#234e56; box-shadow:0 4px 12px rgba(16,68,81,.2); content:attr(data-tooltip); font-size:10px; font-weight:700; line-height:1.3; text-align:center; white-space:normal; pointer-events:none; opacity:0; visibility:hidden; transform:translate(-50%,-3px); transition:opacity .14s,transform .14s,visibility .14s; }
+    .bubble-button:hover::after,.bubble-button:focus-visible::after { opacity:1; visibility:visible; transform:translate(-50%,0); }
+    .bubble-emoji { position:relative; z-index:1; display:block; font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif; font-size:20px; line-height:1; filter:drop-shadow(0 1px 1px rgba(16,87,98,.2)); }
     .liquid-dialog { width:min(520px,calc(100vw - 28px)); max-width:none; max-height:min(88vh,850px); overflow:visible; padding:0; border:1px solid rgba(255,255,255,.9); border-radius:24px; color:var(--ink); background:transparent; box-shadow:0 28px 90px rgba(16,68,81,.27); }
     .liquid-dialog::backdrop { background:rgba(22,57,68,.27); backdrop-filter:blur(9px); }
     .liquid-dialog[open] { animation:pop-in .26s cubic-bezier(.18,.8,.28,1.12) both; }
@@ -312,7 +314,7 @@
       .client-select { max-width:112px; height:36px; padding:0 22px 0 8px; font-size:10px; }
       .utility-button { min-height:36px; padding:0 9px; font-size:10px; }
       .picker-heading { align-items:flex-start; flex-direction:column; gap:6px; }
-      .bubble-grid { width:100%; flex:none; justify-content:flex-start; gap:3px 9px; }
+      .bubble-grid { width:100%; flex:none; justify-content:center; gap:5px 11px; }
       .dialog-panel { padding:25px 20px; }
       .client-select { max-width:158px; height:36px; font-size:10px; }
       .welcome-line { align-items:flex-start; flex-direction:column; gap:9px; }
@@ -591,6 +593,7 @@
       '<path d="m5 12 4 4L19 6"/>',
       '<path d="M4 19a8 8 0 1 1 16 0M12 11v4l3 2M12 3v2"/>'
     ];
+    const dashboardEmojis = ['🗂️', '📊', '📄', '🔢', '🏢', '👥', '⚖️', '⚠️', '⛔', '✅', '📉'];
     const dashboardLinksPrefix = 'aquahr:preview-links:';
     let currentUser = null;
     let previewedUser = null;
@@ -1138,8 +1141,9 @@
         button.className = 'bubble-button';
         const adminCanEdit = currentUser?.role === 'admin' && !previewedUser;
         button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
-        button.title = sourceCount ? `${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} connected` : 'No spreadsheet connected';
-        button.innerHTML = `<span class="bubble-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><span class="bubble-name">${escapeHtml(name)}</span>`;
+        button.dataset.tooltip = name;
+        button.title = name;
+        button.innerHTML = `<span class="bubble-emoji" aria-hidden="true">${dashboardEmojis[index]}</span>`;
         button.addEventListener('click', () => openUserDashboard(name));
         grid.append(button);
       });
