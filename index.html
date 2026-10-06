@@ -1309,10 +1309,11 @@
       saveCurrentView('dashboard', 'VCODE MASTERLIST');
       const savedSheetUrl = getDashboardSources('VCODE MASTERLIST')[0] || '';
       vcodeSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><p id="vcode-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-search" class="plantilla-search" type="search" aria-label="Search VCODE records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off"><p id="vcode-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
       document.querySelector('#vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
       document.querySelector('#vcode-refresh').addEventListener('click', loadVcodeRecords);
       document.querySelector('#vcode-home').addEventListener('click', showHome);
+      document.querySelector('#vcode-search').addEventListener('input', renderVcodeTable);
       loadVcodeRecords();
     }
     async function loadVcodeRecords() {
@@ -1364,12 +1365,24 @@
       const status = document.querySelector('#vcode-status');
       const body = document.querySelector('#vcode-table-body');
       if (!status || !body) return;
-      status.textContent = `${vcodeRecords.length} record${vcodeRecords.length === 1 ? '' : 's'} loaded`;
+      const search = document.querySelector('#vcode-search')?.value.trim().toLocaleLowerCase() || '';
+      const filteredRecords = search
+        ? vcodeRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
+        : vcodeRecords;
+      const totalHc = filteredRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'} loaded`;
       if (!vcodeRecords.length) {
         body.innerHTML = '<tr><td colspan="5" class="plantilla-empty">No rows with a VCODE were found from row 3 onward.</td></tr>';
         return;
       }
-      body.innerHTML = vcodeRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-vcode-masterlist="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
+      if (!filteredRecords.length) {
+        body.innerHTML = '<tr><td colspan="5" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-vcode-masterlist="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
       body.querySelectorAll('[data-view-vcode-masterlist]').forEach(button => button.addEventListener('click', () => openVcodeDrawer(button.dataset.viewVcodeMasterlist)));
     }
     function openVcodeDrawer(vcode) {
