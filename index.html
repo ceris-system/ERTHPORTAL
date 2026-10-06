@@ -147,23 +147,17 @@
     .step.red { --step:#ff646c; --wash:rgba(255,192,193,.77); }
     .alert-footer { margin-top:13px; padding:9px 12px; border:1px solid rgba(90,138,255,.24); border-radius:9px; color:#274f85; background:rgba(219,231,255,.57); text-align:center; font-size:10px; font-weight:600; }
     .dashboard-picker { margin-top:0; }
-    .picker-heading { display:flex; align-items:end; justify-content:space-between; gap:16px; margin:12px 0 11px; }
-    .picker-heading h2 { margin:0; font:800 17px/1.25 'DM Sans',sans-serif; }
+    .picker-heading { display:flex; align-items:center; gap:14px; margin:12px 0 11px; }
+    .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'DM Sans',sans-serif; }
     .picker-heading p { margin:4px 0 0; color:#718b92; font-size:12px; }
-    .picker-count { color:#779298; font-size:12px; white-space:nowrap; }
-    .bubble-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:12px; }
-    .bubble-button { position:relative; min-width:0; min-height:100px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; overflow:visible; padding:12px 9px; border:1px solid rgba(255,255,255,.95); border-radius:14px; color:#28565f; background:rgba(255,255,255,.64); box-shadow:0 5px 16px rgba(26,94,103,.07),inset 0 1px 0 white; cursor:pointer; transition:transform .2s,border-color .2s,box-shadow .2s,background .2s; }
-    .bubble-button:hover { z-index:1; transform:translateY(-2px); border-color:rgba(35,157,153,.38); background:rgba(255,255,255,.9); box-shadow:0 10px 22px rgba(26,94,103,.12),inset 0 1px 0 white; }
+    .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:3px 9px; }
+    .bubble-button { min-width:0; display:inline-flex; align-items:center; gap:4px; padding:4px 2px; border:0; border-radius:4px; color:#52747b; background:transparent; cursor:pointer; transition:color .16s,transform .16s; }
+    .bubble-button:hover { color:#087e84; background:transparent; transform:translateY(-1px); }
     .bubble-button:active { transform:translateY(0); }
-    .bubble-icon { position:relative; isolation:isolate; width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; overflow:hidden; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#087e84; background:radial-gradient(circle at 31% 22%,#fff 0 7%,rgba(255,255,255,.95) 15%,rgba(194,242,236,.88) 46%,rgba(72,173,180,.72) 82%,rgba(255,255,255,.88) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 0 -4px 7px rgba(35,122,136,.28),0 3px 0 rgba(47,130,140,.32),0 7px 10px rgba(24,83,96,.19); transform:translateY(0) translateZ(0); transition:transform .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s; }
-    .bubble-icon::before { content:''; position:absolute; z-index:-1; top:4px; left:7px; width:16px; height:6px; border-radius:50%; background:rgba(255,255,255,.96); filter:blur(2px); transform:rotate(-25deg); }
-    .bubble-icon svg { width:21px; height:21px; filter:drop-shadow(0 1px 0 rgba(255,255,255,.95)) drop-shadow(0 2px 2px rgba(16,87,98,.28)); }
-    .bubble-button:hover .bubble-icon { transform:translateY(-3px) scale(1.09) rotateY(12deg); box-shadow:inset 0 2px 4px white,inset 0 -5px 8px rgba(35,122,136,.3),0 4px 0 rgba(47,130,140,.3),0 11px 15px rgba(24,83,96,.24); }
-    .bubble-button:active .bubble-icon { transform:translateY(2px) scale(.96); box-shadow:inset 0 2px 5px rgba(35,122,136,.25),0 1px 0 rgba(47,130,140,.25),0 3px 5px rgba(24,83,96,.16); }
-    .bubble-name { min-width:0; max-width:100%; color:#28535c; text-align:center; font-size:11px; font-weight:800; line-height:1.25; overflow-wrap:anywhere; }
-    .bubble-meta { color:#81999e; text-align:center; font-size:9px; font-weight:600; }
-    .bubble-state { position:absolute; z-index:2; top:10px; right:11px; width:8px; height:8px; border:1px solid white; border-radius:50%; background:#d4a354; box-shadow:0 0 0 3px rgba(212,163,84,.15); }
-    .bubble-state.connected { background:#40b58e; box-shadow:0 0 0 3px rgba(64,181,142,.15); }
+    .bubble-button:focus-visible { outline:2px solid #168c8c; outline-offset:2px; }
+    .bubble-icon { width:16px; height:16px; flex:0 0 16px; display:grid; place-items:center; color:#168c8c; }
+    .bubble-icon svg { width:15px; height:15px; }
+    .bubble-name { min-width:0; max-width:100%; color:inherit; font-size:9px; font-weight:700; line-height:1.2; text-align:left; overflow-wrap:anywhere; }
     .liquid-dialog { width:min(520px,calc(100vw - 28px)); max-width:none; max-height:min(88vh,850px); overflow:visible; padding:0; border:1px solid rgba(255,255,255,.9); border-radius:24px; color:var(--ink); background:transparent; box-shadow:0 28px 90px rgba(16,68,81,.27); }
     .liquid-dialog::backdrop { background:rgba(22,57,68,.27); backdrop-filter:blur(9px); }
     .liquid-dialog[open] { animation:pop-in .26s cubic-bezier(.18,.8,.28,1.12) both; }
@@ -289,9 +283,7 @@
     .menu-toggle { display:none; width:38px; height:38px; place-items:center; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.75); }
     .menu-toggle svg { width:19px; height:19px; }
     @media(max-width:1000px) {
-      .bubble-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
       .steps { grid-template-columns:repeat(5,minmax(0,1fr)); row-gap:28px; }
-      .bubble-grid { grid-template-columns:repeat(6,minmax(0,1fr)); }
       .step:nth-child(4), .step:nth-child(5) { margin-top:0; }
       .step { min-height:142px; }
     }
@@ -319,11 +311,8 @@
       .status-pill { display:none; }
       .client-select { max-width:112px; height:36px; padding:0 22px 0 8px; font-size:10px; }
       .utility-button { min-height:36px; padding:0 9px; font-size:10px; }
-      .bubble-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 7px; }
-      .bubble-button { width:100%; max-width:none; padding:9px; gap:7px; }
-      .bubble-icon { width:34px; height:34px; flex-basis:34px; }
-      .bubble-name { font-size:10px; }
-      .bubble-state { top:12px; right:12px; bottom:auto; }
+      .picker-heading { align-items:flex-start; flex-direction:column; gap:6px; }
+      .bubble-grid { width:100%; flex:none; justify-content:flex-start; gap:3px 9px; }
       .dialog-panel { padding:25px 20px; }
       .client-select { max-width:158px; height:36px; font-size:10px; }
       .welcome-line { align-items:flex-start; flex-direction:column; gap:9px; }
@@ -358,10 +347,6 @@
       .header-welcome strong { font-size:10px; }
       .header-welcome-meta { gap:4px; font-size:8px; }
       .header-welcome-meta span + span { padding-left:4px; }
-      .bubble-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-      .bubble-button { width:100%; max-width:none; }
-      .bubble-name { font-size:10px; }
-      .bubble-state { top:12px; right:12px; bottom:auto; }
       .plantilla-toolbar { align-items:flex-start; flex-direction:column; }
       .plantilla-actions { width:100%; flex-wrap:wrap; }
       .plantilla-actions button { flex:1; }
@@ -614,6 +599,13 @@
     let toastTimer;
     let topbarClockTimer = null;
     let welcomeUser = null;
+    let authUserId = '';
+    let idleLogoutTimer = null;
+    let lastActivityAt = 0;
+    let lastActivityPersistedAt = 0;
+    let sessionStorageWarningShown = false;
+    const portalSessionStorageKey = 'erthportal:session';
+    const portalIdleTimeoutMs = 30 * 60 * 1000;
 
     const loginPage = document.querySelector('#login-page');
     const dashboardPage = document.querySelector('#dashboard');
@@ -691,6 +683,79 @@
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
     }
+    function savePortalSession() {
+      if (!supabaseAccessToken || !authUserId) return true;
+      try {
+        const previous = JSON.parse(sessionStorage.getItem(portalSessionStorageKey) || '{}');
+        sessionStorage.setItem(portalSessionStorageKey, JSON.stringify({
+          accessToken: supabaseAccessToken,
+          refreshToken: supabaseRefreshToken,
+          userId: authUserId,
+          lastActivityAt,
+          view: previous.view || 'home',
+          dashboard: previous.dashboard || ''
+        }));
+        return true;
+      } catch (storageError) {
+        console.error('Could not save the portal session for this tab.', storageError);
+        if (!sessionStorageWarningShown) {
+          sessionStorageWarningShown = true;
+          notify('This browser could not preserve your session in this tab. Refreshing may sign you out.');
+        }
+        return false;
+      }
+    }
+    function clearPortalSession() {
+      try {
+        sessionStorage.removeItem(portalSessionStorageKey);
+      } catch (storageError) {
+        console.error('Could not clear the saved portal session.', storageError);
+      }
+      clearTimeout(idleLogoutTimer);
+      idleLogoutTimer = null;
+      authUserId = '';
+      lastActivityAt = 0;
+      lastActivityPersistedAt = 0;
+    }
+    function saveCurrentView(view, dashboard = '') {
+      if (!supabaseAccessToken || !authUserId) return;
+      try {
+        sessionStorage.setItem(portalSessionStorageKey, JSON.stringify({
+          accessToken: supabaseAccessToken,
+          refreshToken: supabaseRefreshToken,
+          userId: authUserId,
+          lastActivityAt,
+          view,
+          dashboard
+        }));
+      } catch (storageError) {
+        console.error('Could not save the current portal page.', storageError);
+      }
+    }
+    function startIdleLogoutTimer() {
+      clearTimeout(idleLogoutTimer);
+      if (!lastActivityAt) lastActivityAt = Date.now();
+      const remaining = portalIdleTimeoutMs - (Date.now() - lastActivityAt);
+      if (remaining <= 0) {
+        signOutPortal('You were signed out after 30 minutes of inactivity.');
+        return;
+      }
+      idleLogoutTimer = window.setTimeout(() => {
+        signOutPortal('You were signed out after 30 minutes of inactivity.');
+      }, remaining);
+    }
+    function recordPortalActivity() {
+      if (!currentUser || !supabaseAccessToken) return;
+      lastActivityAt = Date.now();
+      startIdleLogoutTimer();
+      if (lastActivityAt - lastActivityPersistedAt >= 10000) {
+        lastActivityPersistedAt = lastActivityAt;
+        savePortalSession();
+      }
+    }
+    ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach(eventName => {
+      document.addEventListener(eventName, recordPortalActivity, { passive: true });
+    });
     function portalAuthEmail(username) {
       return `${String(username).trim().toLowerCase()}@accounts.erthportal.invalid`;
     }
@@ -705,15 +770,93 @@
           });
           const result = await response.json();
           if (!response.ok) {
+            clearPortalSession();
             supabaseAccessToken = '';
             supabaseRefreshToken = '';
             throw new Error('Your session expired. Sign in again.');
           }
           supabaseAccessToken = result.access_token;
           supabaseRefreshToken = result.refresh_token || supabaseRefreshToken;
+          savePortalSession();
         })().finally(() => { supabaseRefreshPromise = null; });
       }
       await supabaseRefreshPromise;
+    }
+    async function loadPortalProfile(userId) {
+      const profileFilter = `&id=eq.${encodeURIComponent(userId)}`;
+      let profiles;
+      try {
+        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+      } catch (profileError) {
+        if (!/column .* does not exist|could not find the .* column/i.test(profileError.message || '')) throw profileError;
+        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+      }
+      return profiles?.[0] || null;
+    }
+    async function restorePortalSession() {
+      let saved;
+      try {
+        saved = JSON.parse(sessionStorage.getItem(portalSessionStorageKey) || 'null');
+      } catch (storageError) {
+        console.error('Could not read the saved portal session.', storageError);
+        clearPortalSession();
+        return;
+      }
+      if (!saved) return;
+      if (!saved.accessToken || !saved.refreshToken || !saved.userId || !Number.isFinite(saved.lastActivityAt)) {
+        clearPortalSession();
+        return;
+      }
+      supabaseAccessToken = saved.accessToken;
+      supabaseRefreshToken = saved.refreshToken;
+      authUserId = saved.userId;
+      lastActivityAt = saved.lastActivityAt;
+      if (Date.now() - lastActivityAt >= portalIdleTimeoutMs) {
+        signOutPortal('Your session expired after 30 minutes of inactivity. Please sign in again.');
+        return;
+      }
+      try {
+        portalProfile = await loadPortalProfile(authUserId);
+        if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
+        if (portalProfile.status === 'inactive') {
+          signOutPortal('Account locked. Please contact the administrator to restore access.');
+          return;
+        }
+        currentUser = {
+          username: portalProfile.username,
+          displayName: portalProfile.display_name,
+          client: portalProfile.client_name,
+          role: portalProfile.role,
+          photo: portalProfile.photo_url || ''
+        };
+        lastActivityPersistedAt = lastActivityAt;
+        startIdleLogoutTimer();
+        await loadDashboardAssignments();
+        renderProfile(currentUser);
+        if (portalProfile.status === 'default') {
+          document.querySelector('#default-update-username').value = portalProfile.username;
+          showLoginPanel('password-update-panel');
+          savePortalSession();
+          return;
+        }
+        loginPage.classList.add('hidden');
+        dashboardPage.classList.remove('hidden');
+        if (saved.view === 'plantilla') showPlantilla();
+        else if (saved.view === 'dashboard' && dashboards.includes(saved.dashboard) && saved.dashboard !== 'PLANTILLA') showClientDashboard(saved.dashboard);
+        else showHome();
+        savePortalSession();
+      } catch (restoreError) {
+        console.error('Could not restore the portal session.', restoreError);
+        clearPortalSession();
+        supabaseAccessToken = '';
+        supabaseRefreshToken = '';
+        authUserId = '';
+        portalProfile = null;
+        currentUser = null;
+        const error = document.querySelector('#login-error');
+        error.textContent = 'Your saved session could not be restored. Please sign in again.';
+        error.classList.remove('hidden');
+      }
     }
     async function supabaseRequest(path, options = {}, accessToken = '') {
       if (SUPABASE_URL.includes('YOUR_PROJECT_REF') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
@@ -986,7 +1129,7 @@
       content.querySelectorAll('.bubble-grid').forEach(element => element.remove());
       const section = document.createElement('section');
       section.className = 'dashboard-picker';
-      section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><div style="display:flex;align-items:center;gap:12px;"><span class="picker-count">11</span></div></div><div class="bubble-grid"></div>`;
+      section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><div class="bubble-grid"></div></div>`;
       const grid = section.querySelector('.bubble-grid');
       dashboards.forEach((name, index) => {
         const sourceCount = getDashboardSources(name).length;
@@ -994,15 +1137,16 @@
         button.type = 'button';
         button.className = 'bubble-button';
         const adminCanEdit = currentUser?.role === 'admin' && !previewedUser;
-        const bubbleMeta = sourceCount ? (adminCanEdit ? `${sourceCount} SOURCE${sourceCount === 1 ? '' : 'S'}` : 'OPEN') : (adminCanEdit ? 'ADD URL' : 'NO LINK');
         button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
-        button.innerHTML = `<span class="bubble-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><span class="bubble-name">${escapeHtml(name)}</span><span class="bubble-meta">${bubbleMeta}</span><span class="bubble-state ${sourceCount ? 'connected' : ''}" aria-hidden="true"></span>`;
+        button.title = sourceCount ? `${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} connected` : 'No spreadsheet connected';
+        button.innerHTML = `<span class="bubble-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><span class="bubble-name">${escapeHtml(name)}</span>`;
         button.addEventListener('click', () => openUserDashboard(name));
         grid.append(button);
       });
       content.prepend(section);
     }
     function showHome() {
+      saveCurrentView('home');
       const client = getActiveClient();
       document.querySelector('#sidebar-client').textContent = client;
       document.querySelector('#assigned-client').textContent = client;
@@ -1024,6 +1168,7 @@
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
     function showPlantilla() {
+      saveCurrentView('plantilla');
       const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
@@ -1092,6 +1237,7 @@
       body.querySelectorAll('[data-view-vcode]').forEach(button => button.addEventListener('click', () => openRecordDrawer(button.dataset.viewVcode)));
     }
     function showClientDashboard(name) {
+      saveCurrentView('dashboard', name);
       const index = dashboards.indexOf(name);
       const sourceCount = getDashboardSources(name).length;
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode(name));
@@ -1407,18 +1553,15 @@
           });
           supabaseAccessToken = session.access_token;
           supabaseRefreshToken = session.refresh_token || '';
-          const profileFilter = `&id=eq.${encodeURIComponent(session.user.id)}`;
-          let profiles;
-          try {
-            profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
-          } catch (profileError) {
-            if (!/column .* does not exist|could not find the .* column/i.test(profileError.message || '')) throw profileError;
-            profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
-          }
-          portalProfile = profiles?.[0] || null;
+          authUserId = session.user.id;
+          lastActivityAt = Date.now();
+          lastActivityPersistedAt = lastActivityAt;
+          savePortalSession();
+          portalProfile = await loadPortalProfile(authUserId);
           if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
           if (portalProfile.status === 'inactive') {
             await supabaseRequest('/auth/v1/logout', { method: 'POST' }, supabaseAccessToken).catch(() => {});
+            clearPortalSession();
             supabaseAccessToken = '';
             supabaseRefreshToken = '';
             portalProfile = null;
@@ -1440,6 +1583,7 @@
             role: portalProfile.role,
             photo: portalProfile.photo_url || ''
           };
+          startIdleLogoutTimer();
           if (portalProfile.status === 'default') {
             document.querySelector('#default-update-username').value = portalProfile.username;
             showLoginPanel('password-update-panel');
@@ -1451,8 +1595,10 @@
             showHome();
           }
         } catch (loginError) {
+          clearPortalSession();
           supabaseAccessToken = '';
           supabaseRefreshToken = '';
+          authUserId = '';
           portalProfile = null;
           currentUser = null;
           error.textContent = loginError?.message || 'Sign-in failed.';
@@ -1568,8 +1714,17 @@
       reader.readAsDataURL(file);
     });
     document.querySelector('#logout-button').addEventListener('click', () => {
+      signOutPortal();
+    });
+    function signOutPortal(message = '') {
       const accessToken = supabaseAccessToken;
-      if (accessToken) supabaseRequest('/auth/v1/logout', { method: 'POST' }, accessToken).catch(() => {});
+      if (accessToken) {
+        fetch(`${SUPABASE_URL}/auth/v1/logout`, {
+          method: 'POST',
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` }
+        }).catch(error => console.warn('Could not notify Supabase of sign-out.', error));
+      }
+      clearPortalSession();
       currentUser = null;
       previewedUser = null;
       googleAccessToken = '';
@@ -1579,6 +1734,7 @@
       supabaseRefreshToken = '';
       portalProfile = null;
       dashboardAssignments = {};
+      welcomeUser = null;
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
       document.querySelector('#login-form').reset();
@@ -1594,7 +1750,8 @@
       document.querySelector('#login-password').type = 'password';
       setPasswordToggleState(document.querySelector('#login-password-toggle'), false);
       showLoginPanel('login-card');
-    });
+      if (message) notify(message);
+    }
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
     document.querySelector('#manage-users').addEventListener('click', () => {
       document.querySelector('#admin-account-feedback').textContent = '';
@@ -1846,6 +2003,7 @@
     [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close();
     }));
+    restorePortalSession();
   </script>
 </body>
 </html>

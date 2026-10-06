@@ -23,6 +23,8 @@ Account passwords are managed by Supabase Auth and are never stored in the profi
 
 Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.erthportal.invalid`; users sign in with their username and password, not that generated address. Admins reset passwords by username; the user receives an 8-digit temporary password and must choose a username and replacement password at next sign-in. New passwords must be at least 8 alphanumeric characters and contain both letters and numbers. Users can also update their own username in **My Account**. The login page can remember a username on the current device, but never stores a password. “Forgot password?” asks for the username and explains that the administrator must issue a temporary password; password recovery is not allowed from a username alone.
 
+An authenticated portal session is retained only in the current browser tab so refreshing the page restores the signed-in user and last-open dashboard. Closing the tab ends that browser session. The portal automatically signs users out after 30 minutes without activity.
+
 Admins add users from the dashboard's **Add User** control. From the account list, administrators can set an individual status or select multiple accounts and bulk-apply `active`, `inactive`, or `default` status. Setting `default` requires the user to set a username and password on next sign-in. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
 
 ## Google Sheets service account setup
