@@ -433,7 +433,7 @@
         <p class="workspace-label">CLIENT</p>
         <div class="workspace-card"><span class="workspace-dot"></span><div><strong id="sidebar-client">Client 01</strong><span id="sidebar-role">Client access</span></div></div>
         <div class="sidebar-bottom">
-          <div class="connection-chip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3.5 19h17L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span>Dashboard links are saved separately for each client. Live data is not connected.</span></div>
+          <div class="connection-chip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3 3.5 19h17L12 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9v4m0 3h.01" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg><span>Spreadsheet links are saved per user. Supported dashboards load live data.</span></div>
           <div class="profile"><div class="profile-avatar" id="profile-avatar">HR</div><div class="profile-info"><strong id="profile-name">Preview user</strong><span id="profile-username">User preview</span></div></div>
         </div>
       </aside>
@@ -544,7 +544,7 @@
   <div id="drawer-backdrop" class="drawer-backdrop"></div>
   <aside id="record-drawer" class="record-drawer" aria-labelledby="record-drawer-title" aria-hidden="true">
     <button id="close-record-drawer" class="dialog-close" type="button" aria-label="Close record drawer">×</button>
-    <span class="dialog-kicker">PLANTILLA RECORD</span>
+    <span id="record-drawer-kicker" class="dialog-kicker">PLANTILLA RECORD</span>
     <h2 id="record-drawer-title">Position details</h2>
     <div id="record-drawer-fields" class="record-drawer-fields"></div>
   </aside>
@@ -945,7 +945,7 @@
         loginPage.classList.add('hidden');
         dashboardPage.classList.remove('hidden');
         if (saved.view === 'plantilla') showPlantilla();
-        else if (saved.view === 'dashboard' && dashboards.includes(saved.dashboard) && saved.dashboard !== 'PLANTILLA') showClientDashboard(saved.dashboard);
+        else if (saved.view === 'dashboard' && dashboards.includes(saved.dashboard) && saved.dashboard !== 'PLANTILLA') openUserDashboard(saved.dashboard);
         else showHome();
         savePortalSession();
       } catch (restoreError) {
@@ -1279,6 +1279,8 @@
     const plantillaHeaders = ['VCODE', 'EMPLOC', "MEMBER'S NAME", 'POSITION', 'OUTLET', 'HC', 'SEPARATION DATE', 'STATUS', 'VIEW'];
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
+    let vcodeRecords = [];
+    let vcodeSpreadsheetId = '';
     function showPlantilla() {
       saveCurrentView('plantilla');
       const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
@@ -1295,6 +1297,84 @@
       document.querySelector('#plantilla-refresh').addEventListener('click', loadPlantillaRecords);
       document.querySelector('#plantilla-home').addEventListener('click', showHome);
       loadPlantillaRecords();
+    }
+    function showVcodeMasterlist() {
+      saveCurrentView('dashboard', 'VCODE MASTERLIST');
+      const savedSheetUrl = getDashboardSources('VCODE MASTERLIST')[0] || '';
+      vcodeSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><p id="vcode-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
+      document.querySelector('#vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
+      document.querySelector('#vcode-refresh').addEventListener('click', loadVcodeRecords);
+      document.querySelector('#vcode-home').addEventListener('click', showHome);
+      loadVcodeRecords();
+    }
+    async function loadVcodeRecords() {
+      const status = document.querySelector('#vcode-status');
+      const body = document.querySelector('#vcode-table-body');
+      if (!status || !body) return;
+      if (!vcodeSpreadsheetId) {
+        status.textContent = currentUser?.role === 'admin' ? 'Assign a VCODE MASTERLIST spreadsheet to a user to begin.' : 'No VCODE MASTERLIST spreadsheet is assigned to your account. Contact your administrator.';
+        body.innerHTML = `<tr><td colspan="5" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+      status.textContent = 'Loading records...';
+      body.innerHTML = '<tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr>';
+      try {
+        let displayValues;
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          const result = await callSheetsFunction('read-vcode', previewedUser ? { targetUsername: previewedUser.username } : {});
+          displayValues = result.displayValues || [];
+        } else {
+          const range = encodeURIComponent('VCODE!A3:N');
+          const result = await sheetsApiRequest(`spreadsheets/${vcodeSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+          displayValues = result.values || [];
+        }
+        vcodeRecords = displayValues.map((row, index) => ({
+          rowNumber: index + 3,
+          vcode: String(row[0] || '').trim(),
+          outlet: String(row[1] || '').trim(),
+          position: String(row[3] || '').trim(),
+          area: String(row[4] || '').trim(),
+          restday: String(row[5] || '').trim(),
+          schedule: String(row[6] || '').trim(),
+          designation: String(row[7] || '').trim(),
+          penalty: String(row[8] || '').trim(),
+          coordinator: String(row[9] || '').trim(),
+          hrco: String(row[10] || '').trim(),
+          hc: String(row[11] || '').trim(),
+          chain: String(row[12] || '').trim(),
+          city: String(row[13] || '').trim()
+        })).filter(record => record.vcode);
+        renderVcodeTable();
+        return true;
+      } catch (error) {
+        status.textContent = error?.message || 'Could not load VCODE records.';
+        body.innerHTML = `<tr><td colspan="5" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function renderVcodeTable() {
+      const status = document.querySelector('#vcode-status');
+      const body = document.querySelector('#vcode-table-body');
+      if (!status || !body) return;
+      status.textContent = `${vcodeRecords.length} record${vcodeRecords.length === 1 ? '' : 's'} loaded`;
+      if (!vcodeRecords.length) {
+        body.innerHTML = '<tr><td colspan="5" class="plantilla-empty">No rows with a VCODE were found from row 3 onward.</td></tr>';
+        return;
+      }
+      body.innerHTML = vcodeRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-vcode-masterlist="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
+      body.querySelectorAll('[data-view-vcode-masterlist]').forEach(button => button.addEventListener('click', () => openVcodeDrawer(button.dataset.viewVcodeMasterlist)));
+    }
+    function openVcodeDrawer(vcode) {
+      const record = vcodeRecords.find(item => item.vcode === vcode);
+      if (!record) return notify(`No loaded VCODE record matches ${vcode}.`);
+      const field = (label, value, primary = false) => `<div class="drawer-field${primary ? ' primary' : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
+      document.querySelector('#record-drawer-kicker').textContent = 'VCODE MASTERLIST RECORD';
+      document.querySelector('#record-drawer-title').textContent = record.vcode;
+      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode, true)}${field('OUTLET', record.outlet, true)}${field('POSITION', record.position, true)}</div><h3 class="drawer-section-title">VIEW DETAILS</h3>${field('HC', record.hc)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('SCHEDULE', record.schedule)}${field('DESIGNATION', record.designation)}${field('PENALTY', record.penalty)}${field('COORDINATOR', record.coordinator)}${field('HRCO', record.hrco)}${field('CHAIN', record.chain)}${field('CITY', record.city)}`;
+      document.querySelector('#record-drawer').classList.add('open');
+      document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
+      document.querySelector('#drawer-backdrop').classList.add('open');
     }
     async function loadPlantillaRecords() {
       const status = document.querySelector('#plantilla-status');
@@ -1380,6 +1460,7 @@
       const field = (label, value, primary = false, extraClass = '') => `<div class="drawer-field${primary ? ' primary' : ''}${extraClass ? ` ${extraClass}` : ''}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       const section = title => `<h3 class="drawer-section-title">${escapeHtml(title)}</h3>`;
       const statusOptions = [...new Set([...plantillaStatuses, record.status].filter(Boolean))];
+      document.querySelector('#record-drawer-kicker').textContent = 'PLANTILLA RECORD';
       document.querySelector('#record-drawer-title').textContent = record.memberName || record.vcode;
       document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('EMPLOC', record.emploc, true)}${field('VCODE', record.vcode, true)}${field('OUTLET', record.outlet, true)}</div>${section('EMPLOYEE DETAILS')}${field('CONTACT NO.', record.contactNo)}${field('BIRTHDAY', record.birthday)}${field('AGE', record.age)}${field('CIVIL STATUS', record.civilStatus)}${field('ATAM NO.', record.atamNo)}${field('COORDINATOR', record.coordinator)}${field('ADDRESS', record.address, false, 'address-field')}${section('BENEFITS NO.')}${field('SSS NO.', record.sssNo)}${field('PHILHEALTH NO.', record.philhealthNo)}${field('PAGIBIG NO.', record.pagibigNo)}${section('OTHER INFORMATION')}${field('RATE', record.rate)}${field('AREA', record.area)}${field('RESTDAY', record.restday)}${field('DATE HIRED', record.dateHired)}${field('DESIGNATION', record.designation)}<form id="update-record-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="update-rate">RATE</label><input id="update-rate" name="rate" type="number" step="any" required value="${escapeHtml(record.rate)}"></div><div class="field"><label for="update-separation-date">DATE SEPARATION</label><input id="update-separation-date" name="separationDate" type="date" value="${escapeHtml(record.separationDateInput)}"></div><div class="field"><label for="update-status">STATUS</label><select id="update-status" name="status" required><option value=""${record.status ? '' : ' selected'} disabled>Choose status</option>${statusOptions.map(status => `<option value="${escapeHtml(status)}"${status === record.status ? ' selected' : ''}>${escapeHtml(status)}</option>`).join('')}</select></div></div><button class="primary-button" type="submit">Update record</button><div class="record-update-progress" aria-live="polite"><span data-progress-label>Ready to update</span><span data-progress-value>0%</span><progress max="100" value="0" aria-label="Record update progress"></progress></div></form>`;
       document.querySelector('#record-drawer').classList.add('open');
@@ -1492,6 +1573,7 @@
     }
     function openUserDashboard(name) {
       if (name === 'PLANTILLA') showPlantilla();
+      else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else showClientDashboard(name);
     }
     async function openDashboardEditor(name) {
@@ -1510,7 +1592,7 @@
       clientUsers.forEach(user => {
         const option = document.createElement('option');
         option.value = user.username;
-        option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name}`;
+        option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name} · ${user.status}`;
         userSelect.append(option);
       });
       if (!clientUsers.length) return notify('Add a user account before assigning a spreadsheet URL.');

@@ -25,7 +25,9 @@ Usernames are mapped to internal Supabase Auth addresses ending in `@accounts.er
 
 An authenticated portal session is retained only in the current browser tab so refreshing the page restores the signed-in user and last-open dashboard. Closing the tab ends that browser session. The portal automatically signs users out after 30 minutes without activity.
 
-Admins add users from the dashboard's **Add User** control. From the account list, administrators can set an individual status or select multiple accounts and bulk-apply `active`, `inactive`, or `default` status. Setting `default` requires the user to set a username and password on next sign-in. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
+Admins add users from the dashboard's **Add User** control. From the account list, administrators can set an individual status or select multiple accounts and bulk-apply `active`, `inactive`, or `default` status. Setting `default` requires the user to set a username and password on next sign-in. Changing a user to `inactive` does not remove or change their spreadsheet assignments; those URLs remain saved and become usable again if the account is reactivated. Deleting the account removes its assignments. The initial password is set by the admin, and dashboard spreadsheet URLs are assigned per user from each dashboard's **Assign spreadsheet URL to user** action. The assignment migration and updated Edge Function must be deployed for these per-user URLs to sync across devices.
+
+The **VCODE MASTERLIST** dashboard reads the assigned spreadsheet's `VCODE` tab starting at row 3. Its table shows VCODE (A), Outlet (B), Position (D), and HC (L); **View** opens a read-only side drawer with Area (E), Restday (F), Schedule (G), Designation (H), Penalty (I), Coordinator (J), HRCO (K), Chain (M), and City (N).
 
 ## Google Sheets service account setup
 

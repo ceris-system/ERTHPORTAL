@@ -84,6 +84,7 @@ async function googleRequest(path: string, options: RequestInit = {}) {
 
 async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, actor: any, body: any) {
   if (actor.status !== 'active') throw new Error('This account is inactive.');
+  const dashboardName = body.action === 'read-vcode' ? 'VCODE MASTERLIST' : 'PLANTILLA';
   let target = actor;
   const targetUsername = String(body.targetUsername || '').trim().toLowerCase();
   if (actor.role === 'admin' && targetUsername && targetUsername !== actor.username) {
@@ -100,12 +101,12 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
     .select('sheet_urls')
     .eq('user_id', target.id)
-    .eq('dashboard_name', 'PLANTILLA')
+    .eq('dashboard_name', dashboardName)
     .maybeSingle();
-  if (assignmentError) throw new Error('Could not load the PLANTILLA assignment.');
+  if (assignmentError) throw new Error(`Could not load the ${dashboardName} assignment.`);
 
-  const urls = assignment?.sheet_urls?.length ? assignment.sheet_urls : (target.sheet_url ? [target.sheet_url] : []);
-  if (!urls.length) throw new Error('No PLANTILLA spreadsheet is assigned to this account. Ask the administrator to assign one.');
+  const urls = assignment?.sheet_urls?.length ? assignment.sheet_urls : (dashboardName === 'PLANTILLA' && target.sheet_url ? [target.sheet_url] : []);
+  if (!urls.length) throw new Error(`No ${dashboardName} spreadsheet is assigned to this account. Ask the administrator to assign one.`);
 
   const selectedUrl = String(body.spreadsheetUrl || urls[0]).trim();
   let parsed: URL;
@@ -127,6 +128,12 @@ async function readPlantilla(spreadsheetId: string) {
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
   ]);
   return { rawValues: raw.values || [], displayValues: display.values || [] };
+}
+
+async function readVcode(spreadsheetId: string) {
+  const range = encodeURIComponent('VCODE!A3:N');
+  const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return { displayValues: result.values || [] };
 }
 
 function dateSerial(value: unknown) {
@@ -157,10 +164,11 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
     const spreadsheetId = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
+    if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
 
     const vcode = String(body.vcode || '').trim();
     const rate = Number(body.rate);
