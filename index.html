@@ -794,6 +794,23 @@
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
     }
+    function filterRowsByClient(rawValues = [], displayValues = [], clientName, clientColumnIndex) {
+      const activeClient = String(clientName || '').trim();
+      if (!activeClient || activeClient === 'My spreadsheets') return { rawValues, displayValues };
+      const rowCount = Math.max(rawValues.length, displayValues.length);
+      const keptRaw = [];
+      const keptDisplay = [];
+      for (let index = 0; index < rowCount; index += 1) {
+        const rawRow = rawValues[index] || [];
+        const displayRow = displayValues[index] || [];
+        const clientValue = String(displayRow[clientColumnIndex] ?? rawRow[clientColumnIndex] ?? '').trim();
+        if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+          keptRaw.push(rawRow);
+          keptDisplay.push(displayRow);
+        }
+      }
+      return { rawValues: keptRaw, displayValues: keptDisplay };
+    }
     function savePortalSession() {
       if (!supabaseAccessToken || !authUserId) return true;
       try {
@@ -1437,7 +1454,10 @@
         let rawValues;
         let displayValues;
         if (currentUser?.role !== 'admin' || previewedUser) {
-          const result = await callSheetsFunction('read-vacancy', previewedUser ? { targetUsername: previewedUser.username } : {});
+          const result = await callSheetsFunction('read-vacancy', {
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
           vacancyDeployers = result.deployers || [];
@@ -1453,6 +1473,9 @@
           displayValues = displayResult.values || [];
           vacancyDeployers = (deployerResult.values || []).flat().map(value => String(value || '').trim()).filter(Boolean);
         }
+        const clientFiltered = filterRowsByClient(rawValues, displayValues, getActiveClient(), 1);
+        rawValues = clientFiltered.rawValues;
+        displayValues = clientFiltered.displayValues;
         const rowCount = Math.max(rawValues.length, displayValues.length);
         vacancyRecords = Array.from({ length: rowCount }, (_, index) => {
           const raw = rawValues[index] || [];
@@ -1604,7 +1627,10 @@
         let rawValues;
         let displayValues;
         if (currentUser?.role !== 'admin' || previewedUser) {
-          const result = await callSheetsFunction('read-hr-emploc', previewedUser ? { targetUsername: previewedUser.username } : {});
+          const result = await callSheetsFunction('read-hr-emploc', {
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
@@ -1616,8 +1642,26 @@
           rawValues = rawResult.values || [];
           displayValues = displayResult.values || [];
         }
-        const rowCount = Math.max(rawValues.length, displayValues.length);
-        hrEmplocRecords = Array.from({ length: rowCount }, (_, index) => {
+        const activeClient = getActiveClient();
+        const clientRange = encodeURIComponent('G1N!B9:B');
+        const clientResult = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
+        const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
+        const rowCount = Math.max(rawValues.length, displayValues.length, clientValues.length);
+        const keptRaw = [];
+        const keptDisplay = [];
+        for (let index = 0; index < rowCount; index += 1) {
+          const rawRow = rawValues[index] || [];
+          const displayRow = displayValues[index] || [];
+          const clientValue = String(clientValues[index] || '').trim();
+          if (!activeClient || activeClient === 'My spreadsheets' || clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+            keptRaw.push(rawRow);
+            keptDisplay.push(displayRow);
+          }
+        }
+        rawValues = keptRaw;
+        displayValues = keptDisplay;
+        const finalRowCount = Math.max(rawValues.length, displayValues.length);
+        hrEmplocRecords = Array.from({ length: finalRowCount }, (_, index) => {
           const raw = rawValues[index] || [];
           const display = displayValues[index] || [];
           const value = column => String(display[column] ?? '').trim();

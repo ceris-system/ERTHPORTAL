@@ -143,16 +143,36 @@ async function readVcode(spreadsheetId: string) {
   return { displayValues: result.values || [] };
 }
 
-async function readVacancy(spreadsheetId: string) {
+async function readVacancy(spreadsheetId: string, clientName = '') {
   const range = encodeURIComponent('VACANCY!B5:AF');
-  const [raw, display, deployers] = await Promise.all([
+  const clientRange = encodeURIComponent('VACANCY!C5:C');
+  const [raw, display, clientValues, deployers] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`),
     readDeployers(spreadsheetId)
   ]);
+  const activeClient = String(clientName || '').trim();
+  const rowCount = Math.max(raw.values?.length || 0, display.values?.length || 0);
+  const filteredRaw: unknown[][] = [];
+  const filteredDisplay: unknown[][] = [];
+  if (activeClient && activeClient !== 'My spreadsheets') {
+    for (let index = 0; index < rowCount; index += 1) {
+      const rawRow = raw.values?.[index] || [];
+      const displayRow = display.values?.[index] || [];
+      const clientValue = String(clientValues.values?.[index]?.[0] ?? displayRow[1] ?? rawRow[1] ?? '').trim();
+      if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+        filteredRaw.push(rawRow);
+        filteredDisplay.push(displayRow);
+      }
+    }
+  } else {
+    filteredRaw.push(...(raw.values || []));
+    filteredDisplay.push(...(display.values || []));
+  }
   return {
-    rawValues: raw.values || [],
-    displayValues: display.values || [],
+    rawValues: filteredRaw,
+    displayValues: filteredDisplay,
     deployers
   };
 }
@@ -163,13 +183,33 @@ async function readDeployers(spreadsheetId: string) {
   return (result.values || []).flat().map((value: unknown) => String(value || '').trim()).filter(Boolean);
 }
 
-async function readHrEmploc(spreadsheetId: string) {
+async function readHrEmploc(spreadsheetId: string, clientName = '') {
   const range = encodeURIComponent('G1N!G9:AC');
-  const [raw, display] = await Promise.all([
+  const clientRange = encodeURIComponent('G1N!B9:B');
+  const [raw, display, clientValues] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`)
   ]);
-  return { rawValues: raw.values || [], displayValues: display.values || [] };
+  const activeClient = String(clientName || '').trim();
+  const rowCount = Math.max(raw.values?.length || 0, display.values?.length || 0);
+  const filteredRaw: unknown[][] = [];
+  const filteredDisplay: unknown[][] = [];
+  if (activeClient && activeClient !== 'My spreadsheets') {
+    for (let index = 0; index < rowCount; index += 1) {
+      const rawRow = raw.values?.[index] || [];
+      const displayRow = display.values?.[index] || [];
+      const clientValue = String(clientValues.values?.[index]?.[0] ?? displayRow[0] ?? rawRow[0] ?? '').trim();
+      if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+        filteredRaw.push(rawRow);
+        filteredDisplay.push(displayRow);
+      }
+    }
+  } else {
+    filteredRaw.push(...(raw.values || []));
+    filteredDisplay.push(...(display.values || []));
+  }
+  return { rawValues: filteredRaw, displayValues: filteredDisplay };
 }
 
 function dateSerial(value: unknown) {
@@ -203,10 +243,12 @@ Deno.serve(async request => {
     if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
     const spreadsheetId = await getAssignedSheet(adminClient, actor, body);
 
+    const clientName = String(body.clientName || actor.client_name || body.client || '').trim();
+
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
-    if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId));
-    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId));
+    if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientName));
+    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientName));
 
     if (body.action === 'update-vacancy') {
       const vcode = String(body.vcode || '').trim();
