@@ -279,7 +279,9 @@
     .drawer-update-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
     .drawer-update .field { min-width:0; margin:0; }
     .drawer-update label { color:#294f58; font-size:11px; font-weight:800; }
-    .drawer-update input, .drawer-update select { width:100%; min-height:42px; padding:0 10px; border:1px solid #c6dcda; border-radius:9px; color:#142f35; background:rgba(255,255,255,.9); font-size:12px; }
+    .drawer-update input, .drawer-update select, .drawer-update textarea { width:100%; min-height:42px; padding:0 10px; border:1px solid #c6dcda; border-radius:9px; color:#142f35; background:rgba(255,255,255,.9); font:12px 'Roboto Mono',monospace; }
+    .drawer-update textarea { min-height:84px; padding:10px; resize:vertical; }
+    .drawer-date-display { display:block; margin-top:4px; color:#52737a; font-size:9px; font-weight:700; }
     .drawer-update .primary-button { display:block; width:auto; min-width:145px; min-height:42px; padding:0 16px; margin:12px auto 0; }
     .record-update-progress { display:none; grid-template-columns:1fr auto; align-items:center; gap:7px 12px; margin-top:13px; color:#315f66; font-size:11px; font-weight:700; }
     .record-update-progress.is-visible { display:grid; }
@@ -1287,6 +1289,11 @@
     let plantillaRecords = [];
     let vcodeRecords = [];
     let vcodeSpreadsheetId = '';
+    let vacancyRecords = [];
+    let vacancyDeployers = [];
+    let vacancySpreadsheetId = '';
+    let hrEmplocRecords = [];
+    let hrEmplocSpreadsheetId = '';
     function showPlantilla() {
       saveCurrentView('plantilla');
       const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
@@ -1395,6 +1402,313 @@
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
+    }
+    function showVacancyMonitoring() {
+      saveCurrentView('dashboard', 'VACANCY MONITORING');
+      const savedSheetUrl = getDashboardSources('VACANCY MONITORING')[0] || '';
+      vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      const isDirectAdmin = currentUser?.role === 'admin' && !previewedUser;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
+      document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
+        try {
+          await authorizeGoogleSheets();
+          notify('Google Sheets authorized.');
+          loadVacancyRecords();
+        } catch (error) { notify(error?.message || 'Google Sheets authorization failed.'); }
+      });
+      document.querySelector('#vacancy-refresh').addEventListener('click', loadVacancyRecords);
+      document.querySelector('#vacancy-home').addEventListener('click', showHome);
+      document.querySelector('#vacancy-search').addEventListener('input', renderVacancyTable);
+      loadVacancyRecords();
+    }
+    async function loadVacancyRecords() {
+      const status = document.querySelector('#vacancy-status');
+      const body = document.querySelector('#vacancy-table-body');
+      if (!status || !body) return;
+      if (!vacancySpreadsheetId) {
+        status.textContent = currentUser?.role === 'admin' ? 'Assign a VACANCY MONITORING spreadsheet to a user to begin.' : 'No VACANCY MONITORING spreadsheet is assigned to your account. Contact your administrator.';
+        body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+      status.textContent = 'Loading records...';
+      body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr>';
+      try {
+        let rawValues;
+        let displayValues;
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          const result = await callSheetsFunction('read-vacancy', previewedUser ? { targetUsername: previewedUser.username } : {});
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+          vacancyDeployers = result.deployers || [];
+        } else {
+          const range = encodeURIComponent('VACANCY!B5:AF');
+          const deployerRange = encodeURIComponent('Deployer!A2:A');
+          const [rawResult, displayResult, deployerResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
+            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${deployerRange}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          rawValues = rawResult.values || [];
+          displayValues = displayResult.values || [];
+          vacancyDeployers = (deployerResult.values || []).flat().map(value => String(value || '').trim()).filter(Boolean);
+        }
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        vacancyRecords = Array.from({ length: rowCount }, (_, index) => {
+          const raw = rawValues[index] || [];
+          const display = displayValues[index] || [];
+          const value = column => String(display[column] ?? '').trim();
+          const rawValue = column => raw[column] ?? display[column] ?? '';
+          return {
+            rowNumber: index + 5,
+            vcode: value(0),
+            outlet: value(5),
+            position: value(6),
+            hc: value(7),
+            vacantDate: displaySheetDate(rawValue(13)),
+            vacantDateInput: inputSheetDate(rawValue(13)),
+            aging: value(16),
+            lastName: value(9),
+            firstName: value(10),
+            middleName: value(11),
+            contactNumber: value(12),
+            dateOnboard: displaySheetDate(rawValue(14)),
+            dateOnboardInput: inputSheetDate(rawValue(14)),
+            reliever: value(19),
+            hrcoRemarks: value(21),
+            coordinator: value(28),
+            deployedBy: value(30)
+          };
+        }).filter(record => record.vcode);
+        renderVacancyTable();
+        return true;
+      } catch (error) {
+        status.textContent = error?.message || 'Could not load vacancy records.';
+        body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function renderVacancyTable() {
+      const status = document.querySelector('#vacancy-status');
+      const body = document.querySelector('#vacancy-table-body');
+      if (!status || !body) return;
+      const search = document.querySelector('#vacancy-search')?.value.trim().toLocaleLowerCase() || '';
+      const filteredRecords = search
+        ? vacancyRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
+        : vacancyRecords;
+      status.textContent = `${filteredRecords.length} of ${vacancyRecords.length} records loaded`;
+      if (!vacancyRecords.length) {
+        body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">No rows with a VCODE were found from row 5 onward.</td></tr>';
+        return;
+      }
+      if (!filteredRecords.length) {
+        body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td><button class="view-row-button" type="button" data-view-vacancy="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
+      body.querySelectorAll('[data-view-vacancy]').forEach(button => button.addEventListener('click', () => openVacancyDrawer(button.dataset.viewVacancy)));
+    }
+    function openVacancyDrawer(vcode) {
+      const record = vacancyRecords.find(item => item.vcode === vcode);
+      if (!record) return notify(`No loaded vacancy record matches VCODE ${vcode}.`);
+      const field = (label, value) => `<div class="drawer-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
+      const optionList = (values, selected) => `<option value="">Choose...</option>${[...new Set([...values, selected].filter(Boolean))].map(value => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('')}`;
+      const directAdmin = currentUser?.role === 'admin' && !previewedUser;
+      document.querySelector('#record-drawer-kicker').textContent = 'VACANCY RECORD';
+      document.querySelector('#record-drawer-title').textContent = record.position || record.vcode;
+      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode)}${field('OUTLET', record.outlet)}${field('POSITION', record.position)}</div><h3 class="drawer-section-title">VACANCY DETAILS</h3>${field('HC', record.hc)}${field('AGING', record.aging)}<form id="vacancy-update-form" class="drawer-update"><h3>UPDATE RECORD</h3><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><div class="drawer-update-fields"><div class="field"><label for="vacancy-date-vacant">DATE OF VACANT</label><input id="vacancy-date-vacant" name="vacantDate" type="date" value="${escapeHtml(record.vacantDateInput)}"><small class="drawer-date-display" data-date-display-for="vacantDate">${escapeHtml(record.vacantDate || '-')}</small></div><div class="field"><label for="vacancy-last-name">LASTNAME</label><input id="vacancy-last-name" name="lastName" value="${escapeHtml(record.lastName)}"></div><div class="field"><label for="vacancy-first-name">FIRST NAME</label><input id="vacancy-first-name" name="firstName" value="${escapeHtml(record.firstName)}"></div><div class="field"><label for="vacancy-middle-name">MIDDLE NAME</label><input id="vacancy-middle-name" name="middleName" value="${escapeHtml(record.middleName)}"></div><div class="field"><label for="vacancy-contact-number">CONTACT NUMBER</label><input id="vacancy-contact-number" name="contactNumber" value="${escapeHtml(record.contactNumber)}"></div><div class="field"><label for="vacancy-date-onboard">DATE ONBOARD</label><input id="vacancy-date-onboard" name="dateOnboard" type="date" value="${escapeHtml(record.dateOnboardInput)}"><small class="drawer-date-display" data-date-display-for="dateOnboard">${escapeHtml(record.dateOnboard || '-')}</small></div><div class="field"><label for="vacancy-reliever">RELIEVER</label><input id="vacancy-reliever" name="reliever" value="${escapeHtml(record.reliever)}"></div><div class="field"><label for="vacancy-coordinator">COORDINATOR</label><select id="vacancy-coordinator" name="coordinator">${optionList(vacancyDeployers, record.coordinator)}</select></div><div class="field"><label for="vacancy-deployed-by">DEPLOYED BY</label><select id="vacancy-deployed-by" name="deployedBy">${optionList(vacancyDeployers, record.deployedBy)}</select></div><div class="field" style="grid-column:1/-1"><label for="vacancy-hrco-remarks">HRCO REMARKS</label><textarea id="vacancy-hrco-remarks" name="hrcoRemarks" rows="3">${escapeHtml(record.hrcoRemarks)}</textarea></div></div>${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update record</button></form>`;
+      document.querySelectorAll('[data-date-display-for]').forEach(display => {
+        const input = document.querySelector(`#vacancy-update-form [name="${display.dataset.dateDisplayFor}"]`);
+        input.addEventListener('input', () => { display.textContent = input.value ? displaySheetDate(input.value) : '-'; });
+      });
+      document.querySelector('#record-drawer').classList.add('open');
+      document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
+      document.querySelector('#drawer-backdrop').classList.add('open');
+      document.querySelector('#vacancy-update-form').addEventListener('submit', event => {
+        event.preventDefault();
+        submitVacancyUpdate(event.currentTarget, record.vcode);
+      });
+    }
+    async function submitVacancyUpdate(form, vcode) {
+      const button = form.querySelector('button[type="submit"]');
+      const values = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true;
+      button.textContent = 'Updating...';
+      form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = true; });
+      try {
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          await callSheetsFunction('update-vacancy', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
+        } else {
+          if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
+          const range = encodeURIComponent('VACANCY!B5:B');
+          const result = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+          const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 5 : 0).filter(Boolean);
+          if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
+          if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
+          const row = matches[0];
+          await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
+            method: 'POST',
+            body: JSON.stringify({ valueInputOption: 'RAW', data: [
+              { range: `VACANCY!K${row}:N${row}`, values: [[values.lastName, values.firstName, values.middleName, values.contactNumber]] },
+              { range: `VACANCY!O${row}`, values: [[sheetDateSerial(values.vacantDate)]] },
+              { range: `VACANCY!P${row}`, values: [[sheetDateSerial(values.dateOnboard)]] },
+              { range: `VACANCY!U${row}`, values: [[values.reliever]] },
+              { range: `VACANCY!W${row}`, values: [[values.hrcoRemarks]] },
+              { range: `VACANCY!AD${row}`, values: [[values.coordinator]] },
+              { range: `VACANCY!AF${row}`, values: [[values.deployedBy]] }
+            ] })
+          });
+        }
+        notify(`Vacancy record ${vcode} updated.`);
+        const refreshed = await loadVacancyRecords();
+        if (refreshed && vacancyRecords.some(record => record.vcode === vcode)) openVacancyDrawer(vcode);
+        else notify('The vacancy record was saved, but the table did not refresh. Use Refresh to reload it.');
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Update record';
+        form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = false; });
+        notify(error?.message || 'Could not update the vacancy record.');
+      }
+    }
+    function showHrEmplocMonitoring() {
+      saveCurrentView('dashboard', 'HR EMPLOC MONITORING');
+      const savedSheetUrl = getDashboardSources('HR EMPLOC MONITORING')[0] || '';
+      hrEmplocSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      const isDirectAdmin = currentUser?.role === 'admin' && !previewedUser;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off"><p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
+      document.querySelector('#hr-emploc-assign-sheet')?.addEventListener('click', () => openDashboardEditor('HR EMPLOC MONITORING'));
+      document.querySelector('#hr-emploc-authorize-google')?.addEventListener('click', async () => {
+        try {
+          await authorizeGoogleSheets();
+          notify('Google Sheets authorized.');
+          loadHrEmplocRecords();
+        } catch (error) { notify(error?.message || 'Google Sheets authorization failed.'); }
+      });
+      document.querySelector('#hr-emploc-refresh').addEventListener('click', loadHrEmplocRecords);
+      document.querySelector('#hr-emploc-home').addEventListener('click', showHome);
+      document.querySelector('#hr-emploc-search').addEventListener('input', renderHrEmplocTable);
+      loadHrEmplocRecords();
+    }
+    async function loadHrEmplocRecords() {
+      const status = document.querySelector('#hr-emploc-status');
+      const body = document.querySelector('#hr-emploc-table-body');
+      if (!status || !body) return;
+      if (!hrEmplocSpreadsheetId) {
+        status.textContent = currentUser?.role === 'admin' ? 'Assign an HR EMPLOC MONITORING spreadsheet to a user to begin.' : 'No HR EMPLOC MONITORING spreadsheet is assigned to your account. Contact your administrator.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+      status.textContent = 'Loading records...';
+      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr>';
+      try {
+        let rawValues;
+        let displayValues;
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          const result = await callSheetsFunction('read-hr-emploc', previewedUser ? { targetUsername: previewedUser.username } : {});
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+        } else {
+          const range = encodeURIComponent('G1N!G9:AC');
+          const [rawResult, displayResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          rawValues = rawResult.values || [];
+          displayValues = displayResult.values || [];
+        }
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        hrEmplocRecords = Array.from({ length: rowCount }, (_, index) => {
+          const raw = rawValues[index] || [];
+          const display = displayValues[index] || [];
+          const value = column => String(display[column] ?? '').trim();
+          const onboardDate = raw[15] ?? display[15] ?? '';
+          return {
+            rowNumber: index + 9,
+            vcode: value(0),
+            fullName: value(4),
+            hrcoRemarks: value(5),
+            onboardDate: displaySheetDate(onboardDate),
+            aging: value(17),
+            hc: value(19),
+            position: value(21),
+            outlet: value(22)
+          };
+        }).filter(record => record.vcode);
+        renderHrEmplocTable();
+        return true;
+      } catch (error) {
+        status.textContent = error?.message || 'Could not load HR EMPLOC records.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function renderHrEmplocTable() {
+      const status = document.querySelector('#hr-emploc-status');
+      const body = document.querySelector('#hr-emploc-table-body');
+      if (!status || !body) return;
+      const search = document.querySelector('#hr-emploc-search')?.value.trim().toLocaleLowerCase() || '';
+      const filteredRecords = search
+        ? hrEmplocRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
+        : hrEmplocRecords;
+      status.textContent = `${filteredRecords.length} of ${hrEmplocRecords.length} records loaded`;
+      if (!hrEmplocRecords.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows with a VCODE were found from row 9 onward.</td></tr>';
+        return;
+      }
+      if (!filteredRecords.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.onboardDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-hr-emploc="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
+      body.querySelectorAll('[data-view-hr-emploc]').forEach(button => button.addEventListener('click', () => openHrEmplocDrawer(button.dataset.viewHrEmploc)));
+    }
+    function openHrEmplocDrawer(vcode) {
+      const record = hrEmplocRecords.find(item => item.vcode === vcode);
+      if (!record) return notify(`No loaded HR EMPLOC record matches VCODE ${vcode}.`);
+      const field = (label, value) => `<div class="drawer-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
+      const directAdmin = currentUser?.role === 'admin' && !previewedUser;
+      document.querySelector('#record-drawer-kicker').textContent = 'HR EMPLOC RECORD';
+      document.querySelector('#record-drawer-title').textContent = record.fullName || record.vcode;
+      document.querySelector('#record-drawer-fields').innerHTML = `<div class="record-summary">${field('VCODE', record.vcode)}${field('MEMBERS NAME', record.fullName)}</div><h3 class="drawer-section-title">REMARKS</h3><form id="hr-emploc-update-form" class="drawer-update"><div class="field"><label for="hr-emploc-remarks">HRCO REMARKS</label><textarea id="hr-emploc-remarks" name="hrcoRemarks" rows="5">${escapeHtml(record.hrcoRemarks)}</textarea></div><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}">${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update remarks</button></form>`;
+      document.querySelector('#record-drawer').classList.add('open');
+      document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
+      document.querySelector('#drawer-backdrop').classList.add('open');
+      document.querySelector('#hr-emploc-update-form').addEventListener('submit', event => {
+        event.preventDefault();
+        submitHrEmplocUpdate(event.currentTarget, record.vcode);
+      });
+    }
+    async function submitHrEmplocUpdate(form, vcode) {
+      const button = form.querySelector('button[type="submit"]');
+      const values = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true;
+      button.textContent = 'Updating...';
+      form.querySelectorAll('textarea').forEach(input => { input.disabled = true; });
+      try {
+        if (currentUser?.role !== 'admin' || previewedUser) {
+          await callSheetsFunction('update-hr-emploc', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
+        } else {
+          if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
+          const range = encodeURIComponent('G1N!G9:G');
+          const result = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+          const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
+          if (!matches.length) throw new Error(`No G1N row found for VCODE ${vcode}.`);
+          if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no changes were made.`);
+          await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values:batchUpdate`, {
+            method: 'POST',
+            body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!L${matches[0]}`, values: [[values.hrcoRemarks]] }] })
+          });
+        }
+        notify(`HRCO remarks for VCODE ${vcode} updated.`);
+        const refreshed = await loadHrEmplocRecords();
+        if (refreshed && hrEmplocRecords.some(record => record.vcode === vcode)) openHrEmplocDrawer(vcode);
+        else notify('HRCO remarks were saved, but the table did not refresh. Use Refresh to reload it.');
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = 'Update remarks';
+        form.querySelectorAll('textarea').forEach(input => { input.disabled = false; });
+        notify(error?.message || 'Could not update HRCO remarks.');
+      }
     }
     async function loadPlantillaRecords() {
       const status = document.querySelector('#plantilla-status');
@@ -1606,6 +1920,8 @@
     function openUserDashboard(name) {
       if (name === 'PLANTILLA') showPlantilla();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
+      else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
+      else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
       else showClientDashboard(name);
     }
     async function openDashboardEditor(name) {
@@ -2154,8 +2470,7 @@
           dashboardDialog.close();
           if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
-            if (selectedDashboard === 'PLANTILLA') showPlantilla();
-            else showClientDashboard(selectedDashboard);
+            openUserDashboard(selectedDashboard);
           }
           notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for @${username} / ${selectedDashboard}.`);
         } catch (error) {

@@ -84,7 +84,14 @@ async function googleRequest(path: string, options: RequestInit = {}) {
 
 async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, actor: any, body: any) {
   if (actor.status !== 'active') throw new Error('This account is inactive.');
-  const dashboardName = body.action === 'read-vcode' ? 'VCODE MASTERLIST' : 'PLANTILLA';
+  const dashboardNameByAction: Record<string, string> = {
+    'read-vcode': 'VCODE MASTERLIST',
+    'read-vacancy': 'VACANCY MONITORING',
+    'update-vacancy': 'VACANCY MONITORING',
+    'read-hr-emploc': 'HR EMPLOC MONITORING',
+    'update-hr-emploc': 'HR EMPLOC MONITORING'
+  };
+  const dashboardName = dashboardNameByAction[body.action] || 'PLANTILLA';
   let target = actor;
   const targetUsername = String(body.targetUsername || '').trim().toLowerCase();
   if (actor.role === 'admin' && targetUsername && targetUsername !== actor.username) {
@@ -136,6 +143,35 @@ async function readVcode(spreadsheetId: string) {
   return { displayValues: result.values || [] };
 }
 
+async function readVacancy(spreadsheetId: string) {
+  const range = encodeURIComponent('VACANCY!B5:AF');
+  const [raw, display, deployers] = await Promise.all([
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
+    readDeployers(spreadsheetId)
+  ]);
+  return {
+    rawValues: raw.values || [],
+    displayValues: display.values || [],
+    deployers
+  };
+}
+
+async function readDeployers(spreadsheetId: string) {
+  const range = encodeURIComponent('Deployer!A2:A');
+  const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return (result.values || []).flat().map((value: unknown) => String(value || '').trim()).filter(Boolean);
+}
+
+async function readHrEmploc(spreadsheetId: string) {
+  const range = encodeURIComponent('G1N!G9:AC');
+  const [raw, display] = await Promise.all([
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+  ]);
+  return { rawValues: raw.values || [], displayValues: display.values || [] };
+}
+
 function dateSerial(value: unknown) {
   if (!value) return '';
   const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -164,11 +200,74 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
     const spreadsheetId = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
+    if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId));
+    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId));
+
+    if (body.action === 'update-vacancy') {
+      const vcode = String(body.vcode || '').trim();
+      if (!vcode) throw new Error('VCODE is required.');
+      const textFields = ['lastName', 'firstName', 'middleName', 'contactNumber', 'reliever', 'hrcoRemarks', 'coordinator', 'deployedBy'];
+      const updates: Record<string, unknown> = {};
+      for (const field of textFields) {
+        const value = body[field] === undefined || body[field] === null ? '' : String(body[field]).trim();
+        if (value.length > 500) throw new Error(`${field} cannot exceed 500 characters.`);
+        updates[field] = value;
+      }
+      const vacantDate = dateSerial(body.vacantDate);
+      const dateOnboard = dateSerial(body.dateOnboard);
+      const deployerValues = await readDeployers(spreadsheetId);
+      if (updates.coordinator && !deployerValues.includes(String(updates.coordinator))) {
+        throw new Error('Choose a Coordinator from the Deployer sheet options.');
+      }
+      if (updates.deployedBy && !deployerValues.includes(String(updates.deployedBy))) {
+        throw new Error('Choose a Deployed By value from the Deployer sheet options.');
+      }
+      const vcodeRange = encodeURIComponent('VACANCY!B5:B');
+      const values = await googleRequest(`spreadsheets/${spreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
+      const matches = (values.values || []).flat().map((value: unknown, index: number) => String(value).trim() === vcode ? index + 5 : 0).filter(Boolean);
+      if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
+      if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
+      const row = matches[0];
+      await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          valueInputOption: 'RAW',
+          data: [
+            { range: `VACANCY!K${row}:N${row}`, values: [[updates.lastName, updates.firstName, updates.middleName, updates.contactNumber]] },
+            { range: `VACANCY!O${row}`, values: [[vacantDate]] },
+            { range: `VACANCY!P${row}`, values: [[dateOnboard]] },
+            { range: `VACANCY!U${row}`, values: [[updates.reliever]] },
+            { range: `VACANCY!W${row}`, values: [[updates.hrcoRemarks]] },
+            { range: `VACANCY!AD${row}`, values: [[updates.coordinator]] },
+            { range: `VACANCY!AF${row}`, values: [[updates.deployedBy]] }
+          ]
+        })
+      });
+      return respond({ vcode, updated: true });
+    }
+
+    if (body.action === 'update-hr-emploc') {
+      const vcode = String(body.vcode || '').trim();
+      const hrcoRemarks = String(body.hrcoRemarks || '').trim();
+      if (!vcode) throw new Error('VCODE is required.');
+      if (hrcoRemarks.length > 500) throw new Error('HRCO Remarks cannot exceed 500 characters.');
+      const vcodeRange = encodeURIComponent('G1N!G9:G');
+      const values = await googleRequest(`spreadsheets/${spreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
+      const matches = (values.values || []).flat().map((value: unknown, index: number) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
+      if (!matches.length) throw new Error(`No G1N row found for VCODE ${vcode}.`);
+      if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no changes were made.`);
+      const row = matches[0];
+      await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!L${row}`, values: [[hrcoRemarks]] }] })
+      });
+      return respond({ vcode, updated: true });
+    }
 
     const vcode = String(body.vcode || '').trim();
     const rate = Number(body.rate);

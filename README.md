@@ -29,6 +29,10 @@ Admins add users from the dashboard's **Add User** control. From the account lis
 
 The **VCODE MASTERLIST** dashboard reads the assigned spreadsheet's `VCODE` tab starting at row 3. Its table shows VCODE (A), Outlet (B), Position (D), and HC (L); **View** opens a read-only side drawer with Area (E), Restday (F), Schedule (G), Designation (H), Penalty (I), Coordinator (J), HRCO (K), Chain (M), and City (N).
 
+**VACANCY MONITORING** reads the assigned `VACANCY` tab from row 5, displays VCODE (B), Outlet (G), Position (H), HC (I), Date of Vacant (O), and Aging (R), and uses VCODE as the unique update key. Its drawer edits Date of Vacant (O), Lastname (K), First Name (L), Middle Name (M), Contact Number (N), Date Onboard (P), Reliever (U), HRCO Remarks (W), Coordinator (AD), and Deployed By (AF). Coordinator and Deployed By choices come from `Deployer!A2:A`. **HR EMPLOC MONITORING** reads `G1N` from row 9 and displays VCODE (G), Fullname (K), Position (AB), Onboard Date (V), Aging (X), Outlet (AC), and HC (Z); its drawer updates only HRCO Remarks (L), matched by VCODE. Dates use date inputs when editable and display in uppercase month-day-year format.
+
+After changing `google-sheets-api`, deploy the updated function with `supabase functions deploy google-sheets-api` from the repository root for the new dashboard reads and writes to work.
+
 ## Google Sheets service account setup
 
 To make assigned PLANTILLA sheets plug-and-play for users, configure the service account once:
