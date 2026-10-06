@@ -262,14 +262,14 @@
     .record-drawer { position:fixed; z-index:9; top:0; right:0; width:min(560px,88vw); height:100dvh; overflow:auto; padding:26px 20px; border-left:1px solid rgba(255,255,255,.9); color:var(--ink); background:linear-gradient(150deg,rgba(250,255,254,.96),rgba(218,243,241,.94)); box-shadow:-20px 0 65px rgba(20,68,77,.2); backdrop-filter:blur(28px); clip-path:inset(0 0 0 100%); visibility:hidden; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s linear .35s; }
     .record-drawer.open { clip-path:inset(0); visibility:visible; transition:clip-path .35s cubic-bezier(.2,.75,.25,1),visibility 0s; }
     .record-drawer > .dialog-kicker { display:inline-block !important; }
-    .record-drawer h2 { width:fit-content; max-width:100%; padding:5px 7px; margin:8px 40px 8px 0; border-radius:3px; color:#1b4953; background:rgba(102,209,208,.14); font:800 20px 'Roboto Mono',monospace; overflow-wrap:anywhere; }
+    .record-drawer h2 { width:fit-content; max-width:100%; padding:5px 0; margin:8px 40px 8px 0; color:#1b4953; background:transparent; font:800 20px 'Roboto Mono',monospace; overflow-wrap:anywhere; }
     .record-drawer h2.single-line-title { width:calc(100% - 40px); font-size:clamp(12px,2.8vw,16px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .record-drawer-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:10px; }
     .record-summary { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,max-content)); gap:6px; max-width:100%; }
-    .record-summary .drawer-field { max-width:100%; padding:5px 8px; border-radius:2px; background:rgba(102,209,208,.17); }
+    .record-summary .drawer-field { max-width:100%; padding:5px 8px; border-radius:2px; background:transparent; }
     .record-summary .drawer-field strong { white-space:nowrap; }
     .drawer-field.address-field { grid-column:1 / -1; }
-    .drawer-section-title { grid-column:1 / -1; margin:9px 0 0; padding:7px 9px; border-left:4px solid #128f91; border-radius:0 8px 8px 0; color:#125e62; background:rgba(102,209,208,.28); font-size:12px; font-weight:800; letter-spacing:.06em; }
+    .drawer-section-title { grid-column:1 / -1; margin:9px 0 0; padding:7px 9px; border-left:4px solid #128f91; color:#125e62; background:transparent; font-size:12px; font-weight:800; letter-spacing:.06em; }
     .drawer-field { min-width:0; padding:5px 7px; border:0; border-radius:0; background:transparent; }
     .drawer-field.primary { background:transparent; }
     .drawer-field span,.drawer-field strong { display:block; }
@@ -1676,7 +1676,7 @@
             const rawRow = rawValues[index] || [];
             const displayRow = displayValues[index] || [];
             const clientValue = String(clientValues[index] || '').trim();
-            if (!activeClient || activeClient === 'My spreadsheets' || clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+            if (clientValue.toLocaleLowerCase() === activeClient.trim().toLocaleLowerCase()) {
               keptRaw.push(rawRow);
               keptDisplay.push(displayRow);
             }

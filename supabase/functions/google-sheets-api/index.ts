@@ -96,7 +96,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const targetUsername = String(body.targetUsername || '').trim().toLowerCase();
   if (actor.role === 'admin' && targetUsername && targetUsername !== actor.username) {
     const { data, error } = await adminClient.from('profiles')
-      .select('id, username, role, status, sheet_url')
+      .select('id, username, role, status, sheet_url, client_name')
       .eq('username', targetUsername)
       .single();
     if (error || !data || data.role === 'admin') throw new Error('The previewed user was not found.');
@@ -125,7 +125,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     try { return new URL(value).pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] === match[1]; }
     catch { return false; }
   })) throw new Error('That spreadsheet is not assigned to this account.');
-  return match[1];
+  return { spreadsheetId: match[1], clientName: String(target.client_name || '').trim() };
 }
 
 async function readPlantilla(spreadsheetId: string) {
@@ -184,6 +184,8 @@ async function readDeployers(spreadsheetId: string) {
 }
 
 async function readHrEmploc(spreadsheetId: string, clientName = '') {
+  const activeClient = String(clientName || '').trim();
+  if (!activeClient) throw new Error('A client name is required to load HR EMPLOC records.');
   const range = encodeURIComponent('G1N!G9:AC');
   const clientRange = encodeURIComponent('G1N!B9:B');
   const [raw, display, clientValues] = await Promise.all([
@@ -191,23 +193,17 @@ async function readHrEmploc(spreadsheetId: string, clientName = '') {
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`)
   ]);
-  const activeClient = String(clientName || '').trim();
   const rowCount = Math.max(raw.values?.length || 0, display.values?.length || 0);
   const filteredRaw: unknown[][] = [];
   const filteredDisplay: unknown[][] = [];
-  if (activeClient && activeClient !== 'My spreadsheets') {
-    for (let index = 0; index < rowCount; index += 1) {
-      const rawRow = raw.values?.[index] || [];
-      const displayRow = display.values?.[index] || [];
-      const clientValue = String(clientValues.values?.[index]?.[0] ?? displayRow[0] ?? rawRow[0] ?? '').trim();
-      if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
-        filteredRaw.push(rawRow);
-        filteredDisplay.push(displayRow);
-      }
+  for (let index = 0; index < rowCount; index += 1) {
+    const rawRow = raw.values?.[index] || [];
+    const displayRow = display.values?.[index] || [];
+    const clientValue = String(clientValues.values?.[index]?.[0] ?? '').trim();
+    if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+      filteredRaw.push(rawRow);
+      filteredDisplay.push(displayRow);
     }
-  } else {
-    filteredRaw.push(...(raw.values || []));
-    filteredDisplay.push(...(display.values || []));
   }
   return { rawValues: filteredRaw, displayValues: filteredDisplay };
 }
@@ -234,16 +230,14 @@ Deno.serve(async request => {
     const { data: { user }, error: authError } = await adminClient.auth.getUser(authorization.slice(7));
     if (authError || !user) return respond({ error: 'Your session is invalid or expired.' }, 401);
     const { data: actor, error: profileError } = await adminClient.from('profiles')
-      .select('id, username, role, status, sheet_url')
+      .select('id, username, role, status, sheet_url, client_name')
       .eq('id', user.id)
       .single();
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
     if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
-    const spreadsheetId = await getAssignedSheet(adminClient, actor, body);
-
-    const clientName = String(body.clientName || actor.client_name || body.client || '').trim();
+    const { spreadsheetId, clientName } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
