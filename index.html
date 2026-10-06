@@ -247,7 +247,10 @@
     .plantilla-toolbar h1 { margin:0; font:800 20px/1.2 'Roboto Mono',monospace; }
     .plantilla-toolbar p { margin:5px 0 0; color:#718b92; font-size:9px; }
     .plantilla-actions { display:flex; align-items:center; gap:8px; }
-    .plantilla-status { min-height:17px; margin:0 0 9px; color:#66828c; font-size:11px; }
+    .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
+    .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
+    .plantilla-search:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.12); outline:0; }
+    .plantilla-status { min-height:17px; margin:0; color:#66828c; font-size:11px; }
     .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(0,0,0,.12); border-radius:15px; background:rgba(255,255,255,.9); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
@@ -377,6 +380,9 @@
       .plantilla-toolbar { align-items:flex-start; flex-direction:column; }
       .plantilla-actions { width:100%; flex-wrap:wrap; }
       .plantilla-actions button { flex:1; }
+      .plantilla-table-tools { align-items:stretch; flex-direction:column; }
+      .plantilla-search { width:100%; }
+      .plantilla-status { margin-bottom:0; }
       .plantilla-connect-dialog .dialog-panel { padding:25px 20px; }
       .step h3, .step p { font-size:9px; }
     }
@@ -1287,7 +1293,7 @@
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       const adminOwnsSheet = currentUser?.role === 'admin' && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><p id="plantilla-status" class="plantilla-status" role="status"></p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
@@ -1296,6 +1302,7 @@
       });
       document.querySelector('#plantilla-refresh').addEventListener('click', loadPlantillaRecords);
       document.querySelector('#plantilla-home').addEventListener('click', showHome);
+      document.querySelector('#plantilla-search').addEventListener('input', renderPlantillaTable);
       loadPlantillaRecords();
     }
     function showVcodeMasterlist() {
@@ -1417,12 +1424,24 @@
       const status = document.querySelector('#plantilla-status');
       const body = document.querySelector('#plantilla-table-body');
       if (!status || !body) return;
-      status.textContent = `${plantillaRecords.length} record${plantillaRecords.length === 1 ? '' : 's'} loaded`;
+      const search = document.querySelector('#plantilla-search')?.value.trim().toLocaleLowerCase() || '';
+      const filteredRecords = search
+        ? plantillaRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
+        : plantillaRecords;
+      const totalHc = filteredRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
       if (!plantillaRecords.length) {
         body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">No rows with a VCODE were found from row 9 onward.</td></tr>';
         return;
       }
-      body.innerHTML = plantillaRecords.map(record => {
+      if (!filteredRecords.length) {
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRecords.map(record => {
         const cells = [record.vcode, record.emploc, record.memberName, record.position, record.outlet, record.hc, record.separationDate, record.status];
         return `<tr>${cells.map(value => `<td>${escapeHtml(value || '-')}</td>`).join('')}<td><button class="view-row-button" type="button" data-view-vcode="${escapeHtml(record.vcode)}">View</button></td></tr>`;
       }).join('');
