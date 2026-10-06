@@ -12,7 +12,7 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script type="importmap">
     {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}
   </script>
@@ -29,7 +29,7 @@
       --shadow: 0 22px 65px rgba(24, 82, 95, .13);
     }
     * { box-sizing: border-box; }
-    body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); font-family: 'DM Sans', sans-serif; background: var(--paper); }
+    body { margin: 0; min-width: 320px; min-height: 100vh; color: var(--ink); font-family: 'Roboto Mono', monospace; background: var(--paper); }
     button, select, input { font: inherit; }
     button, select { cursor: pointer; }
     button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid rgba(27, 164, 164, .38); outline-offset: 3px; }
@@ -48,7 +48,7 @@
     .eyebrow { display: inline-flex; align-items: center; gap: 8px; color: #168c8c; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
     .intro .eyebrow { color:#b8eeea; }
     .eyebrow::before { content:''; width: 7px; height: 7px; border-radius: 50%; background: #ed9365; box-shadow: 0 0 0 4px rgba(237,147,101,.15); }
-    .intro h1 { max-width: 650px; margin: 28px 0 18px; font: 800 clamp(30px, 3.5vw, 46px)/1.12 'DM Sans', sans-serif; letter-spacing: -.035em; }
+    .intro h1 { max-width: 650px; margin: 28px 0 18px; font: 800 clamp(30px, 3.5vw, 46px)/1.12 'Roboto Mono', monospace; letter-spacing: -.035em; }
     .intro h1 span { display:block; margin-top:14px; color: #87e1d7; font-size:.78em; font-weight:600; letter-spacing:-.025em; }
     .intro-copy { max-width: 470px; color:rgba(255,255,255,.84); font-size:16px; line-height:1.75; }
     .intro-foot { display: flex; align-items: center; gap: 12px; margin-top: 34px; color:rgba(255,255,255,.78); font-size: 12px; }
@@ -57,7 +57,7 @@
     .avatar-stack span:nth-child(2) { background: #e69a60; }
     .avatar-stack span:nth-child(3) { background: #447c90; }
     .login-card { width:calc(100% - 64px); max-width:440px; justify-self:center; align-self:center; padding:clamp(28px,4vw,46px); border:1px solid rgba(255,255,255,.96); border-radius:22px; background:rgba(255,255,255,.96); box-shadow:0 24px 70px rgba(22,67,77,.15),0 3px 12px rgba(22,67,77,.05); }
-    .login-card h2 { margin: 0 0 8px; font: 800 25px 'DM Sans', sans-serif; }
+    .login-card h2 { margin: 0 0 8px; font: 800 25px 'Roboto Mono', monospace; }
     .login-card .sub { margin: 0 0 28px; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .field { display: grid; gap: 8px; margin: 17px 0; }
     .field label { color: #365e68; font-size: 13px; font-weight: 700; }
@@ -152,7 +152,7 @@
     .alert-heading { position:relative; text-align:center; }
     .required-tag { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border:1px solid rgba(238,255,255,.78); border-radius:20px; color:#f4ffff; background:linear-gradient(180deg,#7eabb0,#3d6e78 58%,#315763); box-shadow:inset 0 1px 2px rgba(255,255,255,.78),0 3px 7px rgba(24,72,82,.25); font-size:9px; font-weight:800; letter-spacing:.06em; }
     .required-tag::before { content:''; width:6px; height:6px; border-radius:50%; background:#fff3c6; box-shadow:0 0 7px rgba(255,238,175,.95); }
-    .alert-heading h2 { margin:7px 0 4px; font:800 clamp(14px, 1.35vw, 18px)/1.3 'DM Sans',sans-serif; letter-spacing:.035em; color:#244a53; text-shadow:0 1px rgba(255,255,255,.72); }
+    .alert-heading h2 { margin:7px 0 4px; font:800 clamp(14px, 1.35vw, 18px)/1.3 'Roboto Mono',monospace; letter-spacing:.035em; color:#244a53; text-shadow:0 1px rgba(255,255,255,.72); }
     .alert-heading p { margin:0; color:#426871; font-size:12px; }
     .steps { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:31px; }
     .step { position:relative; min-height:139px; padding:30px 12px 12px; border:1px solid color-mix(in srgb,var(--step) 56%,#fff); border-radius:10px 10px 15px 15px; background:linear-gradient(150deg,rgba(255,255,255,.66),var(--wash) 62%,rgba(255,255,255,.45)); text-align:center; box-shadow:inset 0 1px rgba(255,255,255,.94),inset 0 -2px 5px rgba(42,90,99,.08),0 4px 12px color-mix(in srgb,var(--step) 12%,transparent); transition:transform .2s ease,box-shadow .2s ease,filter .2s ease; }
@@ -170,7 +170,7 @@
     .alert-footer { margin-top:13px; padding:8px 12px; border:1px solid rgba(235,255,255,.72); border-radius:20px; color:#e9f6f4; background:linear-gradient(180deg,rgba(107,153,157,.7),rgba(45,91,99,.74)); box-shadow:inset 0 1px 2px rgba(255,255,255,.52),0 3px 8px rgba(31,76,85,.14); text-align:center; font-size:10px; font-weight:600; }
     .dashboard-picker { margin-top:0; }
     .picker-heading { display:flex; align-items:center; gap:14px; margin:12px 0 11px; }
-    .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'DM Sans',sans-serif; }
+    .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'Roboto Mono',monospace; }
     .picker-heading p { margin:4px 0 0; color:#718b92; font-size:12px; }
     .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:5px 11px; }
     .bubble-button { position:relative; width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#087e84; background:radial-gradient(circle at 31% 22%,#fff 0 7%,rgba(255,255,255,.95) 15%,rgba(194,242,236,.88) 46%,rgba(72,173,180,.72) 82%,rgba(255,255,255,.88) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 0 -4px 7px rgba(35,122,136,.28),0 3px 0 rgba(47,130,140,.32),0 7px 10px rgba(24,83,96,.19); cursor:pointer; transform:translateY(0) translateZ(0); transition:transform .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s; }
@@ -1547,7 +1547,7 @@
         body.innerHTML = users.map(user => {
           const tempPassword = rosterPasswordMap.get(user.username);
           const isVisible = !!rosterPasswordVisible[user.username] && tempPassword;
-          const passwordCell = tempPassword ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace;letter-spacing:.04em;">${isVisible ? escapeHtml(tempPassword) : '••••••••'}</span><button class="edit-user" type="button" data-view-password="${escapeHtml(user.username)}" aria-label="${isVisible ? 'Hide' : 'View'} password for ${escapeHtml(user.username)}">${isVisible ? 'Hide Password' : 'View Password'}</button></div>` : '<span class="plantilla-empty">No temp password</span>';
+          const passwordCell = tempPassword ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-family:'Roboto Mono',monospace;letter-spacing:.04em;">${isVisible ? escapeHtml(tempPassword) : '••••••••'}</span><button class="edit-user" type="button" data-view-password="${escapeHtml(user.username)}" aria-label="${isVisible ? 'Hide' : 'View'} password for ${escapeHtml(user.username)}">${isVisible ? 'Hide Password' : 'View Password'}</button></div>` : '<span class="plantilla-empty">No temp password</span>';
           return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
         }).join('');
         const selectAll = document.querySelector('#select-all-users');
