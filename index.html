@@ -930,6 +930,12 @@
       const clients = getDashboardClientNames(name);
       return clients.length ? clients.join(', ') : getActiveClient();
     }
+    function applyDashboardAssignmentPermissions() {
+      const canAssign = currentUser?.isMasterAdmin && !previewedUser;
+      content.querySelectorAll('[id$="-assign-sheet"], #dashboard-assign-url').forEach(button => {
+        button.classList.toggle('hidden', !canAssign);
+      });
+    }
     function usesAssignedSheetAccess() {
       return currentUser?.role !== 'admin' || !!previewedUser || !currentUser?.isMasterAdmin;
     }
@@ -1717,6 +1723,7 @@
       const adminOwnsSheet = currentUser?.isMasterAdmin && !previewedUser;
       const userCanMarkNewlyHired = (previewedUser?.role || currentUser?.role) === 'user';
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' && !previewedUser ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-duplicate-checker" class="secondary-button" type="button" disabled>DUPLICATE CHECKER</button><button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      applyDashboardAssignmentPermissions();
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
@@ -1829,6 +1836,7 @@
       const savedSheetUrl = getDashboardSources('VCODE MASTERLIST')[0] || '';
       vcodeSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-search" class="plantilla-search" type="search" aria-label="Search VCODE records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off"><p id="vcode-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
+      applyDashboardAssignmentPermissions();
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VCODE MASTERLIST')} · Read-only records from the VCODE sheet`;
       document.querySelector('#vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
       document.querySelector('#vcode-refresh').addEventListener('click', loadVcodeRecords);
@@ -1923,6 +1931,7 @@
       vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      applyDashboardAssignmentPermissions();
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VACANCY MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
       document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
@@ -1946,6 +1955,7 @@
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
       const canApprove = currentUser?.role === 'admin';
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button><button id="approval-confirm" class="secondary-button approval-approve-button" type="button"${canApprove ? '' : ' disabled title="Only Master Admins and Regular Admins can approve records."'}>Approved</button><button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off"><p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr><th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th><th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="8" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Aging (R)</span></div>`;
+      applyDashboardAssignmentPermissions();
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('FOR APPROVAL')} · Source tab: VACANCY`;
       document.querySelector('#approval-assign-sheet')?.addEventListener('click', () => openDashboardEditor('FOR APPROVAL'));
       document.querySelector('#approval-authorize-google')?.addEventListener('click', async () => {
@@ -2321,6 +2331,7 @@
       hrEmplocSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off"><p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
+      applyDashboardAssignmentPermissions();
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('HR EMPLOC MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#hr-emploc-assign-sheet')?.addEventListener('click', () => openDashboardEditor('HR EMPLOC MONITORING'));
       document.querySelector('#hr-emploc-authorize-google')?.addEventListener('click', async () => {
@@ -2566,6 +2577,7 @@
       const sourceCount = sources.length;
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode(name));
       content.innerHTML = `<div class="module-heading"><div><h1>${escapeHtml(name)}</h1><p>CLIENT: ${escapeHtml(getActiveClient())}</p></div><span class="module-index">DASHBOARD ${String(index + 1).padStart(2, '0')} / 11</span></div><section class="empty-module"><div class="empty-inner"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><h2>${escapeHtml(name)} dashboard</h2><p>${sourceCount ? `${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} assigned. This portal dashboard is open; live spreadsheet rows are not yet loaded into the preview.` : `No spreadsheet source is connected for ${escapeHtml(getActiveClient())}. ${currentUser?.role === 'admin' ? 'Assign a spreadsheet URL to a user below.' : 'Ask the administrator to add one.'}`}</p></div></section>${currentUser?.role === 'admin' ? `<button id="dashboard-assign-url" class="primary-button" type="button">Assign spreadsheet URL to user</button>` : ''}<button id="dashboard-home" class="secondary-button" type="button">Home</button>`;
+      applyDashboardAssignmentPermissions();
       content.querySelector('.module-heading p').textContent = `CLIENT: ${getDashboardClientLabel(name)}`;
       if (currentUser?.role !== 'admin' && sourceCount) {
         const links = document.createElement('div');
@@ -2743,7 +2755,7 @@
       else showClientDashboard(name);
     }
     async function openDashboardEditor(name) {
-      if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
+      if (!currentUser?.isMasterAdmin || previewedUser) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
       selectedDashboard = name;
       document.querySelector('#dashboard-dialog-title').textContent = name;
       const userSelect = document.querySelector('#dialog-user-select');

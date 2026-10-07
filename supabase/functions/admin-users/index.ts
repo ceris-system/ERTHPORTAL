@@ -179,6 +179,9 @@ Deno.serve(async request => {
     }
 
     if (body.action === 'get-dashboard-assignment' || body.action === 'set-dashboard-assignment') {
+      if (!actor.is_master_admin) {
+        return respond({ error: 'Only the Master Admin can view or change dashboard spreadsheet assignments.' }, 403);
+      }
       const username = String(body.username || '').trim();
       const dashboardName = String(body.dashboardName || '').trim();
       if (!dashboardNames.has(dashboardName)) throw new Error('Choose a valid dashboard.');
