@@ -21,7 +21,7 @@ function respond(body: unknown, status = 200) {
 }
 
 function usernameEmail(username: string) {
-  return `${username}@${authEmailDomain}`;
+  return `${username.toLowerCase()}@${authEmailDomain}`;
 }
 
 function createTemporaryPassword() {
@@ -99,10 +99,10 @@ Deno.serve(async request => {
     if (body.action === 'update-own-account') {
       const completingDefaultAccount = actor.status === 'default';
       if (actor.status !== 'active' && !completingDefaultAccount) throw new Error('Only active accounts can change account settings.');
-      const username = String(body.username || '').trim().toLowerCase();
+      const username = String(body.username || '').trim();
       const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
       const photoUrl = typeof body.photoUrl === 'string' ? body.photoUrl.trim() : undefined;
-      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(username)) {
         throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       }
       if (photoUrl !== undefined && photoUrl.length > 700_000) throw new Error('Profile photo must be smaller than 512 KB.');
@@ -118,12 +118,13 @@ Deno.serve(async request => {
       if (completingDefaultAccount && !newPassword) throw new Error('Choose a new password to activate this account.');
 
       if (username !== actor.username) {
-        const { data: existing, error: existingError } = await adminClient.from('profiles')
-          .select('id')
-          .eq('username', username)
-          .maybeSingle();
+        const { data: existingProfiles, error: existingError } = await adminClient.from('profiles')
+          .select('id, username');
         if (existingError) throw new Error('Could not check whether that username is available.');
-        if (existing && existing.id !== user.id) throw new Error('That username is already in use.');
+        const existing = existingProfiles?.find((profile: any) =>
+          profile.id !== user.id && String(profile.username).toLowerCase() === username.toLowerCase()
+        );
+        if (existing) throw new Error('That username is already in use.');
 
         const { error: profileError } = await adminClient.from('profiles')
           .update({ username })
@@ -133,7 +134,7 @@ Deno.serve(async request => {
 
       const authChanges: Record<string, unknown> = {};
       if (username !== actor.username) {
-        authChanges.email = usernameEmail(username);
+        if (username.toLowerCase() !== actor.username.toLowerCase()) authChanges.email = usernameEmail(username);
         authChanges.email_confirm = true;
         authChanges.user_metadata = { ...user.user_metadata, username };
       }
@@ -178,7 +179,7 @@ Deno.serve(async request => {
     }
 
     if (body.action === 'get-dashboard-assignment' || body.action === 'set-dashboard-assignment') {
-      const username = String(body.username || '').trim().toLowerCase();
+      const username = String(body.username || '').trim();
       const dashboardName = String(body.dashboardName || '').trim();
       if (!dashboardNames.has(dashboardName)) throw new Error('Choose a valid dashboard.');
       const { data: target, error: targetError } = await adminClient.from('profiles')
@@ -257,7 +258,7 @@ Deno.serve(async request => {
     }
 
     if (body.action === 'create') {
-      const username = String(body.username || '').trim().toLowerCase();
+      const username = String(body.username || '').trim();
       const displayName = String(body.displayName || '').trim();
       const googleEmail = String(body.googleEmail || '').trim().toLowerCase();
       const photoUrl = String(body.photoUrl || '').trim();
@@ -277,7 +278,7 @@ Deno.serve(async request => {
         }))]
         : [];
       const status = ['default', 'active', 'inactive'].includes(String(body.status || '').trim()) ? String(body.status).trim() : 'default';
-      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       if (!displayName) throw new Error('Display name is required.');
       if (role === 'admin' && !actor.is_master_admin) throw new Error('Only the Master Admin can create administrator accounts.');
       if (!actor.is_master_admin && clientNames.some(name => !(actor.client_names || [actor.client_name]).includes(name))) {
@@ -287,6 +288,12 @@ Deno.serve(async request => {
       if (role === 'admin' && (clientNames.length < 1 || clientNames.length > 30)) throw new Error('Choose between 1 and 30 clients for an administrator.');
       if (role === 'admin' && !managedUserIds.length) throw new Error('Select at least one user account for this administrator to manage.');
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
+
+      const { data: existingProfiles, error: existingProfilesError } = await adminClient.from('profiles').select('username');
+      if (existingProfilesError) throw new Error('Could not check whether that username is available.');
+      if (existingProfiles?.some((profile: any) => String(profile.username).toLowerCase() === username.toLowerCase())) {
+        throw new Error('That username is already in use.');
+      }
 
       if (role === 'admin') {
         const { data: managedUsers, error: managedUsersError } = await adminClient.from('profiles')
@@ -330,7 +337,7 @@ Deno.serve(async request => {
         photo_url: photoUrl || '',
         sheet_url: sheetUrl || '',
         google_email: googleEmail || '',
-        client_name: clientNames[0] || clientName,
+        client_name: role === 'admin' ? 'ADMIN' : clientNames[0] || clientName,
         client_names: clientNames,
         managed_user_ids: role === 'admin' ? managedUserIds : null,
         is_master_admin: false,
@@ -355,7 +362,7 @@ Deno.serve(async request => {
         if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(value.trim())) {
           throw new Error('The selected account list is invalid.');
         }
-        return value.trim().toLowerCase();
+        return value.trim();
       }))];
       const { data: targets, error: targetsError } = await adminClient.from('profiles')
         .select('id, username, role, status, is_master_admin, client_name, client_names')
@@ -387,7 +394,7 @@ Deno.serve(async request => {
       return respond({ status, usernames });
     }
 
-    const targetUsername = String(body.username || '').trim().toLowerCase();
+    const targetUsername = String(body.username || '').trim();
     const { data: target, error: targetError } = await adminClient.from('profiles')
       .select('id, username, display_name, google_email, client_name, client_names, is_master_admin, role, status')
       .eq('username', targetUsername)

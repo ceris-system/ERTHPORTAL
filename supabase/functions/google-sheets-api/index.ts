@@ -548,7 +548,7 @@ Deno.serve(async request => {
           updates[field] = dateSerial(body[field]);
           continue;
         }
-        const value = body[field] === undefined || body[field] === null ? '' : String(body[field]).trim();
+        const value = body[field] === undefined || body[field] === null ? '' : String(body[field]).trim().toLocaleUpperCase();
         if (value.length > 500) throw new Error(`${field} cannot exceed 500 characters.`);
         updates[field] = value;
       }
@@ -557,7 +557,7 @@ Deno.serve(async request => {
       if (deployerFields.length) {
         const deployerValues = await readDeployers(spreadsheetId);
         for (const field of deployerFields) {
-          if (!deployerValues.includes(String(updates[field]))) {
+          if (!deployerValues.some(value => value.toLocaleUpperCase() === String(updates[field]))) {
             throw new Error(`Choose ${field === 'coordinator' ? 'a Coordinator' : 'a Deployed By value'} from the Deployer sheet options.`);
           }
         }
@@ -596,7 +596,7 @@ Deno.serve(async request => {
 
     if (body.action === 'update-hr-emploc') {
       const vcode = String(body.vcode || '').trim();
-      const hrcoRemarks = String(body.hrcoRemarks || '').trim();
+      const hrcoRemarks = String(body.hrcoRemarks || '').trim().toLocaleUpperCase();
       if (!vcode) throw new Error('VCODE is required.');
       if (hrcoRemarks.length > 500) throw new Error('HRCO Remarks cannot exceed 500 characters.');
       const vcodeRange = encodeURIComponent('G1N!G9:G');
@@ -619,7 +619,7 @@ Deno.serve(async request => {
 
     const vcode = String(body.vcode || '').trim();
     const rate = Number(body.rate);
-    const status = String(body.status || '').trim();
+    const status = String(body.status || '').trim().toLocaleUpperCase();
     if (!vcode) throw new Error('VCODE is required.');
     if (!Number.isFinite(rate)) throw new Error('Rate must be a number.');
     if (!statuses.has(status)) throw new Error('Choose a valid status.');

@@ -238,9 +238,19 @@
     .duplicate-check-actions { display:flex; justify-content:flex-end; margin-top:16px; }
     .duplicate-check-actions .primary-button { width:auto; min-width:110px; min-height:42px; }
     .inactive-setup-input { margin-bottom:15px; }
-    .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
-    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
-    .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
+    #users-dialog { width:min(1040px,calc(100vw - 28px)); }
+    .user-panel { padding:38px; }
+    .user-dialog-copy { max-width:760px; margin-bottom:26px; font-size:13px; }
+    .user-dialog-panel { padding:8px 4px 4px; }
+    .user-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 24px; padding:8px 2px; }
+    .user-form > label { margin-top:18px; }
+    .user-form > input, .user-form > select, .user-form > .password-field { min-width:0; }
+    .user-form > label[for="new-photo-url"], .user-form #new-photo-url, .user-form #new-photo-file, .user-form > label[for="new-sheet-url"], .user-form #new-sheet-url, .user-form > label[for="new-default-password"], .user-form #new-default-password, .user-form > label[for="new-user-client"], .user-form #new-user-client, .user-form > label[for="new-user-role"], .user-form #new-user-role, .user-form #new-user-admin-client-label, .user-form #new-user-admin-client, .user-form #new-user-client-options, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form #new-admin-managed-users-help, .user-form > label[for="new-user-status"], .user-form #new-user-status { grid-column:1 / -1; }
+    .client-checklist { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:9px; max-height:220px; overflow:auto; padding:13px; border:1px solid rgba(53,139,143,.16); border-radius:14px; background:rgba(255,255,255,.55); }
+    .client-check-option { display:flex; align-items:center; gap:10px; min-height:44px; padding:9px 12px; border:1px solid rgba(53,139,143,.12); border-radius:11px; color:#365e68; background:rgba(255,255,255,.78); font-size:11px; cursor:pointer; }
+    .client-check-option:has(input:checked) { border-color:rgba(22,141,145,.45); background:rgba(225,247,241,.9); box-shadow:0 3px 10px rgba(25,98,105,.07); }
+    .client-check-option input { width:16px !important; min-height:16px !important; flex:0 0 16px; margin:0; padding:0 !important; accent-color:var(--teal); }
+    .user-form-actions { grid-column:1 / -1; display:flex; justify-content:flex-end; gap:12px; margin-top:27px; padding-top:18px; border-top:1px solid rgba(53,139,143,.13); }
     .user-form-actions .primary-button { margin-top:0; }
     .roster-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:18px; color:#55757b; font-size:11px; }
     .roster-bulk-actions label { display:flex; align-items:center; gap:6px; margin-right:auto; }
@@ -256,6 +266,12 @@
     .roster-actions { display:flex; align-items:center; gap:9px; }
     .roster-table select { min-width:100px; min-height:31px; padding:0 6px; font-size:10px; }
     .edit-user { padding:5px 8px; border:1px solid rgba(53,139,143,.17); border-radius:7px; color:#287176; background:rgba(255,255,255,.7); font-size:9px; }
+    @media(max-width:680px) {
+      .user-panel { padding:28px 20px; }
+      .user-form { grid-template-columns:minmax(0,1fr); }
+      .user-form > label, .user-form > input, .user-form > select, .user-form > .password-field, .user-form-actions { grid-column:1 / -1; }
+      .client-checklist { grid-template-columns:minmax(0,1fr); max-height:180px; }
+    }
     .user-source-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
     .source-link { padding:15px; border:1px solid rgba(255,255,255,.94); border-radius:14px; color:#286068; background:rgba(255,255,255,.68); box-shadow:0 8px 22px rgba(37,101,112,.1); font-size:11px; font-weight:700; text-decoration:none; transition:transform .2s,background .2s; }
     .source-link:hover { transform:translateY(-2px); background:white; }
@@ -485,7 +501,7 @@
       <section class="main">
         <header class="topbar">
           <div class="topbar-left"><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="dashboard-refresh" class="utility-button" type="button" aria-label="Refresh dashboard" title="Reload dashboard">Refresh</button><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
@@ -589,14 +605,16 @@
       </div>
       <p id="admin-account-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
       <section id="add-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="add-users-tab">
-        <p class="dialog-copy">Choose the client(s) each account can access. When creating a Regular Admin, also select the existing User accounts it may manage. Only the Master Admin can create Regular Admin accounts.</p>
+        <p class="dialog-copy user-dialog-copy">Choose which clients the account can access. A Regular Admin’s account client label is always <strong>ADMIN</strong>; use the client checkboxes to set its access scope and select the User accounts it may manage. Only the Master Admin can create Regular Admin accounts.</p>
         <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
         <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="new-sheet-url">User's assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="new-default-password">Initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="8" pattern="\\d{8,}" title="Use at least 8 digits for a default account password." autocomplete="new-password" placeholder="Default account: 8 digits; active account: 8 letters and numbers"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6s-3.4 6-9.5 6c-1.2 0-2.3-.2-3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
-        <label class="dialog-label" for="new-user-client">Client name</label><select id="new-user-client" name="clientName" required></select><select id="new-user-clients" name="clientNames" multiple size="4" class="hidden" aria-label="Clients for regular administrator"></select>
+        <label class="dialog-label" for="new-user-client">Client name</label><select id="new-user-client" name="clientName" required></select>
+        <label id="new-user-admin-client-label" class="dialog-label hidden" for="new-user-admin-client">Regular Admin account client name</label><input id="new-user-admin-client" class="hidden" value="ADMIN" readonly>
+        <label id="new-user-client-options-label" class="dialog-label hidden">Clients this Regular Admin can access</label><div id="new-user-client-options" class="client-checklist hidden" role="group" aria-labelledby="new-user-client-options-label"></div>
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
         <label id="new-admin-managed-users-label" class="dialog-label hidden" for="new-admin-managed-users">User accounts this Regular Admin can manage</label><select id="new-admin-managed-users" class="hidden" multiple size="5" aria-label="User accounts this Regular Admin can manage"></select><p id="new-admin-managed-users-help" class="dialog-scope hidden"></p>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
@@ -822,6 +840,14 @@
     const dashboardPage = document.querySelector('#dashboard');
     const content = document.querySelector('#content');
     const toast = document.querySelector('#toast');
+    content.addEventListener('input', event => {
+      if (event.target.matches('.drawer-update input:not([type="hidden"]):not([type="date"]):not([type="number"]), .drawer-update textarea')) {
+        const start = event.target.selectionStart;
+        const end = event.target.selectionEnd;
+        event.target.value = event.target.value.toLocaleUpperCase();
+        if (start !== null && end !== null) event.target.setSelectionRange(start, end);
+      }
+    });
     const dashboardDialog = document.querySelector('#dashboard-dialog');
     const usersDialog = document.querySelector('#users-dialog');
     const previewUserDialog = document.querySelector('#preview-user-dialog');
@@ -865,7 +891,7 @@
     }
     rememberMeCheckbox.addEventListener('change', () => {
       if (rememberMeCheckbox.checked) {
-        const username = document.querySelector('#login-username').value.trim().toLowerCase();
+        const username = document.querySelector('#login-username').value.trim();
         if (username) saveRememberedUsername(username);
       } else {
         saveRememberedUsername('');
@@ -1200,12 +1226,29 @@
       });
     }
     function selectedClientValues(select) {
-      return [...select.selectedOptions].map(option => option.value);
+      if (select instanceof HTMLSelectElement) return [...select.selectedOptions].map(option => option.value);
+      return [...select.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value);
+    }
+    function fillAdminClientCheckboxes(selectedValues = []) {
+      const container = document.querySelector('#new-user-client-options');
+      const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
+      container.replaceChildren(...availableClientOptions.map(clientName => {
+        const label = document.createElement('label');
+        label.className = 'client-check-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'adminClientNames';
+        checkbox.value = clientName;
+        checkbox.checked = selected.has(clientName.toLocaleLowerCase());
+        checkbox.addEventListener('change', fillManagedUserSelect);
+        label.append(checkbox, document.createTextNode(clientName));
+        return label;
+      }));
     }
     function fillManagedUserSelect() {
       const select = document.querySelector('#new-admin-managed-users');
       const selectedIds = new Set([...select.selectedOptions].map(option => option.value));
-      const allowedClients = new Set(selectedClientValues(document.querySelector('#new-user-clients'))
+      const allowedClients = new Set(selectedClientValues(document.querySelector('#new-user-client-options'))
         .map(client => client.toLocaleLowerCase()));
       select.replaceChildren();
       const eligibleUsers = assignableUserProfiles.filter(user => {
@@ -1229,17 +1272,23 @@
     function updateAccountClientControls() {
       const isAdminAccount = document.querySelector('#new-user-role').value === 'admin';
       const singleSelect = document.querySelector('#new-user-client');
-      const multiSelect = document.querySelector('#new-user-clients');
+      const adminClientLabel = document.querySelector('#new-user-admin-client-label');
+      const adminClientInput = document.querySelector('#new-user-admin-client');
+      const clientOptionsLabel = document.querySelector('#new-user-client-options-label');
+      const clientOptions = document.querySelector('#new-user-client-options');
       const managedUsersLabel = document.querySelector('#new-admin-managed-users-label');
       const managedUsersSelect = document.querySelector('#new-admin-managed-users');
       const managedUsersHelp = document.querySelector('#new-admin-managed-users-help');
       singleSelect.classList.toggle('hidden', isAdminAccount);
       singleSelect.required = !isAdminAccount;
-      multiSelect.classList.toggle('hidden', !isAdminAccount);
-      multiSelect.required = isAdminAccount;
+      adminClientLabel.classList.toggle('hidden', !isAdminAccount);
+      adminClientInput.classList.toggle('hidden', !isAdminAccount);
+      clientOptionsLabel.classList.toggle('hidden', !isAdminAccount);
+      clientOptions.classList.toggle('hidden', !isAdminAccount);
       managedUsersLabel.classList.toggle('hidden', !isAdminAccount);
       managedUsersSelect.classList.toggle('hidden', !isAdminAccount);
       managedUsersHelp.classList.toggle('hidden', !isAdminAccount);
+      if (isAdminAccount && !clientOptions.childElementCount) fillAdminClientCheckboxes();
       fillManagedUserSelect();
     }
     function showLoginPanel(panelId) {
@@ -2175,8 +2224,10 @@
         deployedBy: record.deployedBy
       };
       const values = Object.fromEntries(fieldNames
-        .filter(name => String(formData.get(name) ?? '').trim() !== String(originalValues[name] ?? '').trim())
-        .map(name => [name, formData.get(name)]));
+        .map(name => [name, ['vacantDate', 'dateOnboard'].includes(name)
+          ? formData.get(name)
+          : String(formData.get(name) ?? '').trim().toLocaleUpperCase()])
+        .filter(([name, value]) => String(value ?? '').trim() !== String(originalValues[name] ?? '').trim()));
       if (!Object.keys(values).length) {
         notify(`No changes to save for vacancy ${vcode}.`);
         return;
@@ -2204,16 +2255,16 @@
           );
           if (formulaFields.length) throw new Error(`Cannot overwrite a formula in ${formulaFields.map(name => fieldColumns[name]).join(', ')} for VCODE ${vcode}. Change the source data for that formula instead.`);
           const updateValues = {
-            lastName: value => value,
-            firstName: value => value,
-            middleName: value => value,
-            contactNumber: value => value,
+            lastName: value => String(value ?? '').toLocaleUpperCase(),
+            firstName: value => String(value ?? '').toLocaleUpperCase(),
+            middleName: value => String(value ?? '').toLocaleUpperCase(),
+            contactNumber: value => String(value ?? '').toLocaleUpperCase(),
             vacantDate: value => sheetDateSerial(value),
             dateOnboard: value => sheetDateSerial(value),
-            reliever: value => value,
-            hrcoRemarks: value => value,
-            coordinator: value => value,
-            deployedBy: value => value
+            reliever: value => String(value ?? '').toLocaleUpperCase(),
+            hrcoRemarks: value => String(value ?? '').toLocaleUpperCase(),
+            coordinator: value => String(value ?? '').toLocaleUpperCase(),
+            deployedBy: value => String(value ?? '').toLocaleUpperCase()
           };
           const data = Object.entries(values).map(([name, value]) => ({
             range: `VACANCY!${fieldColumns[name]}${row}`,
@@ -2246,7 +2297,7 @@
             record.dateOnboardInput = values[fieldName] || '';
             record.dateOnboard = values[fieldName] ? displaySheetDate(values[fieldName]) : '';
           } else {
-            record[recordKey] = String(values[fieldName] ?? '').trim();
+            record[recordKey] = String(values[fieldName] ?? '').trim().toLocaleUpperCase();
           }
         }
         renderVacancyTable();
@@ -2402,7 +2453,7 @@
     }
     async function submitHrEmplocUpdate(form, vcode) {
       const button = form.querySelector('button[type="submit"]');
-      const values = { vcode, hrcoRemarks: new FormData(form).get('hrcoRemarks') };
+      const values = { vcode, hrcoRemarks: String(new FormData(form).get('hrcoRemarks') || '').trim().toLocaleUpperCase() };
       button.disabled = true;
       button.textContent = 'Updating...';
       form.querySelectorAll('textarea').forEach(input => { input.disabled = true; });
@@ -2873,7 +2924,7 @@
       event.preventDefault();
       const error = document.querySelector('#login-error');
       const button = document.querySelector('#login-submit');
-      const username = document.querySelector('#login-username').value.trim().toLowerCase();
+      const username = document.querySelector('#login-username').value.trim();
       const password = document.querySelector('#login-password').value;
       if (!username || !password) return;
       saveRememberedUsername(username);
@@ -2894,6 +2945,15 @@
           savePortalSession();
           portalProfile = await loadPortalProfile(authUserId);
           if (!portalProfile) throw new Error('This account has no portal profile. Contact the administrator.');
+          if (portalProfile.username !== username) {
+            await supabaseRequest('/auth/v1/logout', { method: 'POST' }, supabaseAccessToken).catch(() => {});
+            clearPortalSession();
+            supabaseAccessToken = '';
+            supabaseRefreshToken = '';
+            authUserId = '';
+            portalProfile = null;
+            throw new Error('Username or password is incorrect. Usernames are case-sensitive.');
+          }
           if (portalProfile.status === 'inactive') {
             await supabaseRequest('/auth/v1/logout', { method: 'POST' }, supabaseAccessToken).catch(() => {});
             clearPortalSession();
@@ -2951,7 +3011,7 @@
       const form = event.currentTarget;
       const error = document.querySelector('#password-update-error');
       const button = document.querySelector('#password-update-submit');
-      const username = form.elements.username.value.trim().toLowerCase();
+      const username = form.elements.username.value.trim();
       const newPassword = form.elements.newPassword.value;
       if (newPassword !== form.elements.confirmPassword.value) {
         error.textContent = 'The passwords do not match.';
@@ -2996,14 +3056,14 @@
         cancelLabel: 'Cancel'
       });
       if (username === null) return;
-      const normalizedUsername = username.trim().toLowerCase();
-      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(normalizedUsername)) {
+      const exactUsername = username.trim();
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(exactUsername)) {
         error.textContent = 'Enter your valid portal username, then ask your administrator to issue a temporary password.';
         error.classList.remove('hidden');
         return;
       }
-      document.querySelector('#login-username').value = normalizedUsername;
-      error.textContent = `Ask your administrator to reset @${normalizedUsername} and give you the one-time temporary password. Sign in with it, then choose your username and new password.`;
+      document.querySelector('#login-username').value = exactUsername;
+      error.textContent = `Ask your administrator to reset @${exactUsername} and give you the one-time temporary password. Sign in with it, then choose your username and new password.`;
       error.classList.remove('hidden');
     });
     function setPasswordToggleState(button, isVisible) {
@@ -3117,6 +3177,7 @@
       if (message) notify(message);
     }
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
+    document.querySelector('#dashboard-refresh').addEventListener('click', () => window.location.reload());
     const userDialogTabs = [...document.querySelectorAll('.user-dialog-tab')];
     function setUserDialogTab(tabId, focusTab = false) {
       const selectedTab = document.getElementById(tabId);
@@ -3148,7 +3209,7 @@
       try {
         await loadClientOptions();
         fillClientSelect(document.querySelector('#new-user-client'));
-        fillClientSelect(document.querySelector('#new-user-clients'));
+        fillAdminClientCheckboxes();
         if (currentUser?.isMasterAdmin) {
           const { users } = await callAdminFunction('list');
           assignableUserProfiles = users.filter(user => user.role === 'user' && !user.is_master_admin);
@@ -3167,7 +3228,6 @@
       usersDialog.showModal();
     });
     document.querySelector('#new-user-role').addEventListener('change', updateAccountClientControls);
-    document.querySelector('#new-user-clients').addEventListener('change', fillManagedUserSelect);
     document.querySelector('#select-all-users').addEventListener('change', event => {
       const checked = event.currentTarget.checked;
       document.querySelectorAll('#user-roster [data-select-user]').forEach(checkbox => { checkbox.checked = checked; });
@@ -3208,7 +3268,7 @@
     document.querySelector('#account-form').addEventListener('submit', event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const username = form.elements.username.value.trim().toLowerCase();
+      const username = form.elements.username.value.trim();
       const photoUrl = form.elements.photoUrl.value.trim();
       const newPassword = form.elements.newPassword.value;
       const confirmPassword = form.elements.confirmPassword.value;
@@ -3297,9 +3357,11 @@
             photoUrl: form.elements.photoUrl.value,
             sheetUrl: assignedSheetUrl,
             defaultPassword: form.elements.defaultPassword.value,
-            clientName: selectedClientValues(document.querySelector('#new-user-client'))[0] || '',
+            clientName: form.elements.role.value === 'admin'
+              ? 'ADMIN'
+              : selectedClientValues(document.querySelector('#new-user-client'))[0] || '',
             clientNames: form.elements.role.value === 'admin'
-              ? selectedClientValues(document.querySelector('#new-user-clients'))
+              ? selectedClientValues(document.querySelector('#new-user-client-options'))
               : selectedClientValues(document.querySelector('#new-user-client')),
             managedUserIds: form.elements.role.value === 'admin'
               ? [...document.querySelector('#new-admin-managed-users').selectedOptions].map(option => option.value)
@@ -3315,7 +3377,7 @@
           document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;
           form.reset();
           fillClientSelect(document.querySelector('#new-user-client'));
-          fillClientSelect(document.querySelector('#new-user-clients'));
+          fillAdminClientCheckboxes();
           document.querySelector('#new-user-role').value = 'user';
           updateAccountClientControls();
           updateInitialPasswordRule();
