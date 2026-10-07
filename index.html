@@ -362,7 +362,6 @@
     .empty-inner h2 { margin:0 0 9px; font:700 17px 'Roboto Mono',monospace; }
     .empty-inner p { margin:0; color:#708b92; font-size:12px; line-height:1.7; }
     .module-footer { display:flex; justify-content:space-between; gap:15px; margin-top:15px; color:#81999e; font-size:10px; }
-    .toast { position:fixed; z-index:10; right:24px; bottom:24px; max-width:min(360px, calc(100vw - 40px)); padding:13px 16px; border:1px solid rgba(255,255,255,.9); border-radius:12px; color:#315b64; background:rgba(255,255,255,.9); box-shadow:0 12px 35px rgba(23,77,87,.15); font-size:12px; line-height:1.5; backdrop-filter:blur(12px); animation:rise .2s both; }
     .menu-toggle { display:none; width:38px; height:38px; place-items:center; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.75); }
     .menu-toggle svg { width:19px; height:19px; }
     @media(max-width:1000px) {
@@ -511,7 +510,6 @@
   <div id="powered-by-badge" class="powered-by-badge" role="group" tabindex="0" aria-label="Powered by ERTH. Drag to move this badge; use arrow keys to reposition it." title="POWERED BY ERTH · Drag to move">
     <span>POWERED BY</span><strong>ERTH</strong>
   </div>
-  <div id="toast" class="toast hidden" role="status"></div>
   <dialog id="preview-user-dialog" class="liquid-dialog" aria-labelledby="preview-user-title">
     <section class="dialog-panel">
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
@@ -747,6 +745,7 @@
     ];
     const dashboardEmojis = ['🗂️', '📊', '📄', '🔢', '🏢', '👥', '⚖️', '⚠️', '⛔', '✅', '📉'];
     const dashboardLinksPrefix = 'aquahr:preview-links:';
+    let notificationQueue = Promise.resolve();
     let currentUser = null;
     let previewedUser = null;
     let dashboardAssignments = {};
@@ -754,7 +753,6 @@
     let availableClientOptions = [];
     let assignableUserProfiles = [];
     let selectedDashboard = dashboards[0];
-    let toastTimer;
     let topbarClockTimer = null;
     let welcomeUser = null;
     let authUserId = '';
@@ -840,7 +838,6 @@
     const loginPage = document.querySelector('#login-page');
     const dashboardPage = document.querySelector('#dashboard');
     const content = document.querySelector('#content');
-    const toast = document.querySelector('#toast');
     content.addEventListener('input', event => {
       if (event.target.matches('.drawer-update input:not([type="hidden"]):not([type="date"]):not([type="number"]), .drawer-update textarea')) {
         const start = event.target.selectionStart;
@@ -1475,10 +1472,19 @@
       dialog.showModal();
     }
     function notify(message) {
-      toast.textContent = message;
-      toast.classList.remove('hidden');
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => toast.classList.add('hidden'), 3600);
+      notificationQueue = notificationQueue.then(async () => {
+        const dialog = document.querySelector('#pop-modal');
+        if (dialog.open) await new Promise(resolve => dialog.addEventListener('close', resolve, { once: true }));
+        await popModal({
+          title: 'Notification',
+          message: String(message),
+          confirmLabel: 'OK',
+          cancelLabel: ''
+        });
+      }).catch(error => {
+        console.error('Could not display the notification modal.', error);
+      });
+      return notificationQueue;
     }
     function popModal({ title, message, confirmLabel = 'Continue', cancelLabel = 'Cancel', inputValue, inputLabel = '' }) {
       const dialog = document.querySelector('#pop-modal');
@@ -1982,7 +1988,13 @@
         const selectedRecords = approvalRecords.filter(record => selectedApprovalRows.has(record.id));
         const vcodes = selectedRecords.map(record => record.vcode);
         if (!vcodes.length) return notify('The selected approval records are no longer available. Refresh the table and try again.');
-        if (!window.confirm(`Approve ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}? Each row will be copied to On Board Database and HR EMPLOC G1N, then deleted from VACANCY.`)) return;
+        const confirmed = await popModal({
+          title: 'Approve selected records?',
+          message: `Approve ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}? Each row will be copied to On Board Database and HR EMPLOC G1N, then deleted from VACANCY.`,
+          confirmLabel: 'Approve',
+          cancelLabel: 'Cancel'
+        });
+        if (!confirmed) return;
         const button = event.currentTarget;
         button.disabled = true;
         button.textContent = 'Transferring...';
