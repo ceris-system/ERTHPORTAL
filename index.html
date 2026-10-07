@@ -1410,6 +1410,32 @@
       progress.max = 100;
       progress.value = percent;
     }
+    function applyNewlyHiredStatuses(rows) {
+      const updatedRows = new Set(rows);
+      plantillaRecords = plantillaRecords.map(record => updatedRows.has(record.rowNumber)
+        ? { ...record, status: 'NEWLY HIRED' }
+        : record);
+      renderPlantillaTable();
+    }
+    function buildPlantillaNewlyHiredUpdates(rows) {
+      const updates = [];
+      if (!rows.length) return updates;
+      let runStart = rows[0];
+      let previousRow = rows[0];
+      const addRun = endRow => updates.push({
+        range: `PLANTILLA!AH${runStart}:AH${endRow}`,
+        values: Array.from({ length: endRow - runStart + 1 }, () => ['NEWLY HIRED'])
+      });
+      for (const row of rows.slice(1)) {
+        if (row !== previousRow + 1) {
+          addRun(previousRow);
+          runStart = row;
+        }
+        previousRow = row;
+      }
+      addRun(previousRow);
+      return updates;
+    }
     function closePopModalProgress() {
       const dialog = document.querySelector('#pop-modal');
       document.querySelector('.pop-modal-actions').classList.remove('hidden');
@@ -1563,27 +1589,40 @@
       button.textContent = 'Updating...';
       let progressOpen = false;
       let updatedCount = 0;
+      let updatedRows = [];
       try {
         await showPopModalProgress();
         progressOpen = true;
-        let pendingRows;
+        document.querySelector('#pop-modal-message').textContent = 'Saving NEWLY HIRED statuses to the spreadsheet...';
+        let eligibleCount;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('fill-plantilla-newly-hired', {
-            preview: true,
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
-          pendingRows = result.pendingRows || [];
+          eligibleCount = result.eligibleCount || 0;
+          updatedCount = result.updatedCount || 0;
+          updatedRows = result.updatedRows || [];
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating PLANTILLA statuses.');
           const range = encodeURIComponent('PLANTILLA!B9:AH');
           const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMULA`);
-          pendingRows = (result.values || []).flatMap((rowValues, index) => {
+          const pendingRows = (result.values || []).flatMap((rowValues, index) => {
             const vcode = String(rowValues[0] ?? '').trim();
             const status = rowValues[32];
             return vcode && (status === undefined || status === null || String(status).trim() === '') ? [index + 9] : [];
           });
+          eligibleCount = pendingRows.length;
+          if (eligibleCount) {
+            const updates = buildPlantillaNewlyHiredUpdates(pendingRows);
+            const writeResult = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
+              method: 'POST',
+              body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
+            });
+            updatedCount = writeResult.totalUpdatedCells ?? eligibleCount;
+            updatedRows = pendingRows.slice(0, updatedCount);
+          }
         }
-        if (!pendingRows.length) {
+        if (!eligibleCount || !updatedCount) {
           closePopModalProgress();
           progressOpen = false;
           await popModal({
@@ -1594,52 +1633,15 @@
           });
           return;
         }
-        const chunks = [];
-        for (let index = 0; index < pendingRows.length; index += 10) chunks.push(pendingRows.slice(index, index + 10));
-        document.querySelector('#pop-modal-message').textContent = 'Please wait while blank cells are filled.';
-        updatePopModalProgress(0, pendingRows.length);
-        for (let index = 0; index < chunks.length; index += 1) {
-          if (usesAssignedSheetAccess()) {
-            const result = await callSheetsFunction('fill-plantilla-newly-hired', {
-              rowNumbers: chunks[index],
-              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
-            });
-            updatedCount += result.updatedCount || 0;
-          } else {
-            const ranges = chunks[index].flatMap(row => [`PLANTILLA!B${row}`, `PLANTILLA!AH${row}`]);
-            const query = ranges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
-            const latest = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchGet?${query}&valueRenderOption=FORMULA`);
-            const updates = chunks[index].flatMap((row, rowIndex) => {
-              const vcode = latest.valueRanges?.[rowIndex * 2]?.values?.[0]?.[0];
-              const status = latest.valueRanges?.[rowIndex * 2 + 1]?.values?.[0]?.[0];
-              return String(vcode ?? '').trim() && (status === undefined || status === null || String(status).trim() === '')
-                ? [{ range: `PLANTILLA!AH${row}`, values: [['NEWLY HIRED']] }]
-                : [];
-            });
-            if (updates.length) {
-              await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
-                method: 'POST',
-                body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
-              });
-            }
-            updatedCount += updates.length;
-          }
-          updatePopModalProgress(updatedCount, pendingRows.length);
-        }
-        const refreshed = await loadPlantillaRecords();
-        if (!refreshed) throw new Error('The statuses were saved, but PLANTILLA could not be refreshed. Use Refresh to reload it.');
-        if (updatedCount < pendingRows.length) {
-          document.querySelector('#pop-modal-progress-percent').textContent = 'Complete';
-          document.querySelector('#pop-modal-progress-bar').value = pendingRows.length
-            ? Math.round(updatedCount / pendingRows.length * 100)
-            : 100;
-        }
+        updatePopModalProgress(updatedCount, eligibleCount);
+        applyNewlyHiredStatuses(updatedRows);
+        void loadPlantillaRecords({ silent: true });
         closePopModalProgress();
         progressOpen = false;
         await popModal({
           title: updatedCount ? 'Update complete' : 'No available cells',
           message: updatedCount
-            ? `${updatedCount} of ${pendingRows.length} eligible cells were marked as NEWLY HIRED. The PLANTILLA table has been refreshed.`
+            ? `${updatedCount} of ${eligibleCount} eligible cells were marked as NEWLY HIRED. The table is refreshing from the spreadsheet.`
             : 'No blank status cells were available to update.',
           confirmLabel: 'Okay',
           cancelLabel: ''
@@ -2173,7 +2175,7 @@
         notify(error?.message || 'Could not update HRCO remarks.');
       }
     }
-    async function loadPlantillaRecords() {
+    async function loadPlantillaRecords({ silent = false } = {}) {
       const status = document.querySelector('#plantilla-status');
       const body = document.querySelector('#plantilla-table-body');
       if (!status || !body) return;
@@ -2182,8 +2184,10 @@
         body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
       }
-      status.textContent = 'Loading records...';
-      body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr>';
+      if (!silent) {
+        status.textContent = 'Loading records...';
+        body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr>';
+      }
       try {
         let rawValues;
         let displayValues;
@@ -2205,6 +2209,10 @@
         renderPlantillaTable();
         return true;
       } catch (error) {
+        if (silent) {
+          notify(`The statuses were saved, but the table could not refresh: ${error?.message || 'Refresh PLANTILLA to reload it.'}`);
+          return false;
+        }
         status.textContent = error?.message || 'Could not load PLANTILLA records.';
         body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;

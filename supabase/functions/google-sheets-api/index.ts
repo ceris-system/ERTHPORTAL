@@ -274,39 +274,45 @@ Deno.serve(async request => {
     if (body.action === 'list-client-options') return respond(await readClientOptions(spreadsheetId));
     if (body.action === 'fill-plantilla-newly-hired') {
       if (targetRole !== 'user') throw new Error('Only User accounts can fill blank PLANTILLA statuses.');
-      if (body.preview === true) {
-        const range = encodeURIComponent('PLANTILLA!B9:AH');
-        const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMULA`);
-        const pendingRows = (result.values || []).flatMap((rowValues: unknown[], index: number) => {
-          const vcode = String(rowValues[0] ?? '').trim();
-          const status = rowValues[32];
-          return vcode && (status === undefined || status === null || String(status).trim() === '') ? [index + 9] : [];
+      const readRanges = ['PLANTILLA!B9:B', 'PLANTILLA!AH9:AH']
+        .map(range => `ranges=${encodeURIComponent(range)}`).join('&');
+      const result = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${readRanges}&valueRenderOption=FORMULA`);
+      const vcodeRows = result.valueRanges?.[0]?.values || [];
+      const statusRows = result.valueRanges?.[1]?.values || [];
+      const pendingRows = Array.from({ length: Math.max(vcodeRows.length, statusRows.length) }, (_, index) => index + 9)
+        .filter((row, index) => {
+          const vcode = String(vcodeRows[index]?.[0] ?? '').trim();
+          const status = statusRows[index]?.[0];
+          return vcode && (status === undefined || status === null || String(status).trim() === '');
         });
-        return respond({ pendingRows });
+      if (!pendingRows.length) return respond({ eligibleCount: 0, updatedCount: 0 });
+
+      const updates: { range: string; values: string[][] }[] = [];
+      let runStart = pendingRows[0];
+      let previousRow = pendingRows[0];
+      for (const row of pendingRows.slice(1)) {
+        if (row !== previousRow + 1) {
+          updates.push({
+            range: `PLANTILLA!AH${runStart}:AH${previousRow}`,
+            values: Array.from({ length: previousRow - runStart + 1 }, () => ['NEWLY HIRED'])
+          });
+          runStart = row;
+        }
+        previousRow = row;
       }
-      if (!Array.isArray(body.rowNumbers) || body.rowNumbers.length < 1 || body.rowNumbers.length > 10) {
-        throw new Error('Provide between 1 and 10 PLANTILLA rows to update.');
-      }
-      const rowNumbers = [...new Set(body.rowNumbers.map((value: unknown) => {
-        if (!Number.isSafeInteger(value) || Number(value) < 9) throw new Error('The selected PLANTILLA rows are invalid.');
-        return Number(value);
-      }))];
-      const ranges = rowNumbers.flatMap(row => [`PLANTILLA!B${row}`, `PLANTILLA!AH${row}`]);
-      const query = ranges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
-      const result = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${query}&valueRenderOption=FORMULA`);
-      const updates = rowNumbers.flatMap((row, index) => {
-        const vcode = result.valueRanges?.[index * 2]?.values?.[0]?.[0];
-        const status = result.valueRanges?.[index * 2 + 1]?.values?.[0]?.[0];
-        if (!String(vcode ?? '').trim() || (status !== undefined && status !== null && String(status).trim() !== '')) return [];
-        return [{ range: `PLANTILLA!AH${row}`, values: [['NEWLY HIRED']] }];
+      updates.push({
+        range: `PLANTILLA!AH${runStart}:AH${previousRow}`,
+        values: Array.from({ length: previousRow - runStart + 1 }, () => ['NEWLY HIRED'])
       });
-      if (updates.length) {
-        await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
-          method: 'POST',
-          body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
-        });
-      }
-      return respond({ updatedCount: updates.length });
+      const writeResult = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
+      });
+      return respond({
+        eligibleCount: pendingRows.length,
+        updatedCount: writeResult.totalUpdatedCells ?? pendingRows.length,
+        updatedRows: pendingRows.slice(0, writeResult.totalUpdatedCells ?? pendingRows.length)
+      });
     }
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
