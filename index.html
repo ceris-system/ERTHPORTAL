@@ -209,6 +209,24 @@
     .user-dialog-tab[aria-selected="true"] { color:#176f74; background:rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(37,101,112,.1); }
     .user-dialog-tab:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
     .user-dialog-panel[hidden] { display:none; }
+    .pop-modal { width:min(440px,calc(100vw - 30px)); border-radius:22px; }
+    .pop-modal-panel { padding:30px; }
+    .pop-modal-message { margin:10px 0 18px; color:#587981; font-size:12px; line-height:1.55; white-space:pre-line; }
+    .pop-modal-input { margin:0 0 15px; }
+    .pop-modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:17px; }
+    .pop-modal-actions button { width:auto; min-width:108px; min-height:42px; padding:0 16px; border-radius:11px; font-size:11px; font-weight:700; }
+    .pop-modal-actions .primary-button { flex:0 0 auto; box-shadow:0 5px 12px rgba(20,143,145,.16); }
+    .pop-modal-actions .secondary-button { color:#286a70; }
+    .pop-modal-progress { margin:18px 0 4px; }
+    .pop-modal-progress-label { display:flex; justify-content:flex-end; margin-bottom:8px; color:#477178; font-size:11px; font-weight:700; }
+    .pop-modal-progress-label span { white-space:nowrap; }
+    .pop-modal-progress-count { display:flex; align-items:baseline; justify-content:center; gap:8px; margin:14px 0 0; color:#245761; font-variant-numeric:tabular-nums; }
+    .pop-modal-progress-count span { color:#477178; font-size:12px; font-weight:700; }
+    .pop-modal-progress-count strong { color:#176c83; font:800 24px/1 'Roboto Mono',monospace; }
+    .pop-modal-progress progress { width:100%; height:10px; overflow:hidden; border:0; border-radius:999px; background:rgba(53,139,143,.13); accent-color:#168c8c; }
+    .pop-modal-progress progress::-webkit-progress-bar { border-radius:999px; background:rgba(53,139,143,.13); }
+    .pop-modal-progress progress::-webkit-progress-value { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); transition:width .2s ease; }
+    .pop-modal-progress progress::-moz-progress-bar { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
     .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
@@ -569,6 +587,23 @@
         <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
       </section>
     </section>
+  </dialog>
+  <dialog id="pop-modal" class="liquid-dialog pop-modal" aria-labelledby="pop-modal-title" aria-describedby="pop-modal-message">
+    <form id="pop-modal-form" class="dialog-panel pop-modal-panel" method="dialog">
+      <span id="pop-modal-kicker" class="dialog-kicker">ERTH PORTAL</span>
+      <h2 id="pop-modal-title">Confirm action</h2>
+      <p id="pop-modal-message" class="pop-modal-message"></p>
+      <input id="pop-modal-input" class="pop-modal-input hidden" type="text" autocomplete="off">
+      <div id="pop-modal-progress" class="pop-modal-progress hidden">
+        <div class="pop-modal-progress-label"><span id="pop-modal-progress-percent">0%</span></div>
+        <progress id="pop-modal-progress-bar" max="100" value="0" aria-label="Update progress"></progress>
+        <div class="pop-modal-progress-count" aria-live="polite"><span>NEWLY HIRED</span><strong id="pop-modal-progress-step">0</strong><span id="pop-modal-progress-total">of 0 cells</span></div>
+      </div>
+      <div class="pop-modal-actions">
+        <button id="pop-modal-cancel" class="secondary-button" type="button" value="cancel">Cancel</button>
+        <button id="pop-modal-confirm" class="primary-button" type="submit" value="confirm">Continue</button>
+      </div>
+    </form>
   </dialog>
   <div id="drawer-backdrop" class="drawer-backdrop"></div>
   <aside id="record-drawer" class="record-drawer" aria-labelledby="record-drawer-title" aria-hidden="true">
@@ -1314,6 +1349,72 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => toast.classList.add('hidden'), 3600);
     }
+    function popModal({ title, message, confirmLabel = 'Continue', cancelLabel = 'Cancel', inputValue, inputLabel = '' }) {
+      const dialog = document.querySelector('#pop-modal');
+      const form = document.querySelector('#pop-modal-form');
+      const input = document.querySelector('#pop-modal-input');
+      const cancel = document.querySelector('#pop-modal-cancel');
+      const hasInput = inputValue !== undefined;
+      document.querySelector('#pop-modal-title').textContent = title;
+      document.querySelector('#pop-modal-message').textContent = message;
+      document.querySelector('#pop-modal-confirm').textContent = confirmLabel;
+      cancel.textContent = cancelLabel;
+      cancel.classList.toggle('hidden', !cancelLabel);
+      input.value = hasInput ? inputValue : '';
+      input.classList.toggle('hidden', !hasInput);
+      input.setAttribute('aria-label', inputLabel || title);
+      document.querySelector('#pop-modal-progress').classList.add('hidden');
+      document.querySelector('.pop-modal-actions').classList.remove('hidden');
+      return new Promise(resolve => {
+        const onClose = () => {
+          dialog.removeEventListener('close', onClose);
+          resolve(dialog.returnValue === 'confirm' ? hasInput ? input.value : true : null);
+        };
+        dialog.addEventListener('close', onClose);
+        dialog.showModal();
+        if (hasInput) input.focus();
+        else document.querySelector('#pop-modal-confirm').focus();
+        form.onsubmit = event => {
+          event.preventDefault();
+          dialog.close('confirm');
+        };
+        cancel.onclick = () => dialog.close('cancel');
+      });
+    }
+    async function showPopModalProgress(total = null) {
+      const dialog = document.querySelector('#pop-modal');
+      document.querySelector('#pop-modal-title').textContent = 'Updating statuses';
+      document.querySelector('#pop-modal-message').textContent = total === null
+        ? 'Checking PLANTILLA for blank status cells...'
+        : 'Please wait while blank cells are filled.';
+      document.querySelector('#pop-modal-input').classList.add('hidden');
+      document.querySelector('#pop-modal-progress').classList.remove('hidden');
+      document.querySelector('.pop-modal-actions').classList.add('hidden');
+      if (total === null) {
+        document.querySelector('#pop-modal-progress-step').textContent = '...';
+        document.querySelector('#pop-modal-progress-total').textContent = 'checking cells';
+        document.querySelector('#pop-modal-progress-percent').textContent = 'Please wait';
+        document.querySelector('#pop-modal-progress-bar').removeAttribute('value');
+      } else {
+        updatePopModalProgress(0, total);
+      }
+      if (!dialog.open) dialog.showModal();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+    function updatePopModalProgress(completed, total) {
+      const percent = total ? Math.round(completed / total * 100) : 100;
+      document.querySelector('#pop-modal-progress-step').textContent = String(completed);
+      document.querySelector('#pop-modal-progress-total').textContent = `of ${total} cells`;
+      document.querySelector('#pop-modal-progress-percent').textContent = `${percent}%`;
+      const progress = document.querySelector('#pop-modal-progress-bar');
+      progress.max = 100;
+      progress.value = percent;
+    }
+    function closePopModalProgress() {
+      const dialog = document.querySelector('#pop-modal');
+      document.querySelector('.pop-modal-actions').classList.remove('hidden');
+      if (dialog.open) dialog.close('complete');
+    }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
     }
@@ -1433,17 +1534,134 @@
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       const adminOwnsSheet = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      const userCanMarkNewlyHired = (previewedUser?.role || currentUser?.role) === 'user';
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' && !previewedUser ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
         document.querySelector('#plantilla-sheet-url').value = plantillaSpreadsheetId ? `https://docs.google.com/spreadsheets/d/${plantillaSpreadsheetId}/edit` : '';
         document.querySelector('#plantilla-connect-dialog').showModal();
       });
+      document.querySelector('#plantilla-newly-hired')?.addEventListener('click', fillBlankPlantillaStatuses);
       document.querySelector('#plantilla-refresh').addEventListener('click', loadPlantillaRecords);
       document.querySelector('#plantilla-home').addEventListener('click', showHome);
       document.querySelector('#plantilla-search').addEventListener('input', renderPlantillaTable);
       loadPlantillaRecords();
+    }
+    async function fillBlankPlantillaStatuses(event) {
+      const button = event.currentTarget;
+      const targetRole = previewedUser?.role || currentUser?.role;
+      if (targetRole !== 'user') return notify('Only User accounts can fill blank PLANTILLA statuses.');
+      if (!await popModal({
+        title: 'Mark blank statuses?',
+        message: 'Set blank status cells to NEWLY HIRED. Existing values stay unchanged.',
+        confirmLabel: 'Fill blanks',
+        cancelLabel: 'Cancel'
+      })) return;
+      button.disabled = true;
+      const previousLabel = button.textContent;
+      button.textContent = 'Updating...';
+      let progressOpen = false;
+      let updatedCount = 0;
+      try {
+        await showPopModalProgress();
+        progressOpen = true;
+        let pendingRows;
+        if (usesAssignedSheetAccess()) {
+          const result = await callSheetsFunction('fill-plantilla-newly-hired', {
+            preview: true,
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
+          pendingRows = result.pendingRows || [];
+        } else {
+          if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating PLANTILLA statuses.');
+          const range = encodeURIComponent('PLANTILLA!B9:AH');
+          const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMULA`);
+          pendingRows = (result.values || []).flatMap((rowValues, index) => {
+            const vcode = String(rowValues[0] ?? '').trim();
+            const status = rowValues[32];
+            return vcode && (status === undefined || status === null || String(status).trim() === '') ? [index + 9] : [];
+          });
+        }
+        if (!pendingRows.length) {
+          closePopModalProgress();
+          progressOpen = false;
+          await popModal({
+            title: 'No available cells',
+            message: 'No blank status cells are available for NEWLY HIRED.',
+            confirmLabel: 'Okay',
+            cancelLabel: ''
+          });
+          return;
+        }
+        const chunks = [];
+        for (let index = 0; index < pendingRows.length; index += 10) chunks.push(pendingRows.slice(index, index + 10));
+        document.querySelector('#pop-modal-message').textContent = 'Please wait while blank cells are filled.';
+        updatePopModalProgress(0, pendingRows.length);
+        for (let index = 0; index < chunks.length; index += 1) {
+          if (usesAssignedSheetAccess()) {
+            const result = await callSheetsFunction('fill-plantilla-newly-hired', {
+              rowNumbers: chunks[index],
+              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+            });
+            updatedCount += result.updatedCount || 0;
+          } else {
+            const ranges = chunks[index].flatMap(row => [`PLANTILLA!B${row}`, `PLANTILLA!AH${row}`]);
+            const query = ranges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
+            const latest = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchGet?${query}&valueRenderOption=FORMULA`);
+            const updates = chunks[index].flatMap((row, rowIndex) => {
+              const vcode = latest.valueRanges?.[rowIndex * 2]?.values?.[0]?.[0];
+              const status = latest.valueRanges?.[rowIndex * 2 + 1]?.values?.[0]?.[0];
+              return String(vcode ?? '').trim() && (status === undefined || status === null || String(status).trim() === '')
+                ? [{ range: `PLANTILLA!AH${row}`, values: [['NEWLY HIRED']] }]
+                : [];
+            });
+            if (updates.length) {
+              await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
+                method: 'POST',
+                body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
+              });
+            }
+            updatedCount += updates.length;
+          }
+          updatePopModalProgress(updatedCount, pendingRows.length);
+        }
+        const refreshed = await loadPlantillaRecords();
+        if (!refreshed) throw new Error('The statuses were saved, but PLANTILLA could not be refreshed. Use Refresh to reload it.');
+        if (updatedCount < pendingRows.length) {
+          document.querySelector('#pop-modal-progress-percent').textContent = 'Complete';
+          document.querySelector('#pop-modal-progress-bar').value = pendingRows.length
+            ? Math.round(updatedCount / pendingRows.length * 100)
+            : 100;
+        }
+        closePopModalProgress();
+        progressOpen = false;
+        await popModal({
+          title: updatedCount ? 'Update complete' : 'No available cells',
+          message: updatedCount
+            ? `${updatedCount} of ${pendingRows.length} eligible cells were marked as NEWLY HIRED. The PLANTILLA table has been refreshed.`
+            : 'No blank status cells were available to update.',
+          confirmLabel: 'Okay',
+          cancelLabel: ''
+        });
+      } catch (error) {
+        const partialMessage = updatedCount
+          ? ` ${updatedCount} of the eligible cells were saved before the error.`
+          : '';
+        if (progressOpen) {
+          closePopModalProgress();
+          progressOpen = false;
+        }
+        await popModal({
+          title: 'Update incomplete',
+          message: `${error?.message || 'Could not fill blank PLANTILLA statuses.'}${partialMessage}`,
+          confirmLabel: 'Okay',
+          cancelLabel: ''
+        });
+      } finally {
+        button.disabled = false;
+        button.textContent = previousLabel;
+      }
     }
     function showVcodeMasterlist() {
       saveCurrentView('dashboard', 'VCODE MASTERLIST');
@@ -2288,7 +2506,12 @@
         }));
         body.querySelectorAll('[data-delete-user]').forEach(button => button.addEventListener('click', async () => {
           const username = button.dataset.deleteUser;
-          if (!window.confirm(`Remove the ${username} portal account?`)) return;
+          if (!await popModal({
+            title: 'Remove user account?',
+            message: `Remove @${username}? This cannot be undone.`,
+            confirmLabel: 'Remove',
+            cancelLabel: 'Cancel'
+          })) return;
           button.disabled = true;
           try {
             await callAdminFunction('delete', { username });
@@ -2463,10 +2686,17 @@
         }
       })();
     });
-    document.querySelector('#forgot-password-button').addEventListener('click', () => {
+    document.querySelector('#forgot-password-button').addEventListener('click', async () => {
       const error = document.querySelector('#login-error');
       const enteredUsername = document.querySelector('#login-username').value.trim();
-      const username = window.prompt('Enter your portal username so you can give it to your administrator:', enteredUsername);
+      const username = await popModal({
+        title: 'Password reset',
+        message: 'Enter your username to give to your administrator:',
+        inputValue: enteredUsername,
+        inputLabel: 'Portal username',
+        confirmLabel: 'Continue',
+        cancelLabel: 'Cancel'
+      });
       if (username === null) return;
       const normalizedUsername = username.trim().toLowerCase();
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(normalizedUsername)) {

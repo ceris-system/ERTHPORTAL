@@ -88,6 +88,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'read-vcode': 'VCODE MASTERLIST',
     'read-vacancy': 'VACANCY MONITORING',
     'update-vacancy': 'VACANCY MONITORING',
+    'fill-plantilla-newly-hired': 'PLANTILLA',
     'read-hr-emploc': 'HR EMPLOC MONITORING',
     'update-hr-emploc': 'HR EMPLOC MONITORING',
     'list-client-options': 'HR EMPLOC MONITORING'
@@ -132,7 +133,12 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const clientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
     .map((value: unknown) => String(value || '').trim())
     .filter((value: string) => value && value !== 'My spreadsheets'))];
-  return { spreadsheetId: match[1], clientName: String(target.client_name || '').trim(), clientNames };
+  return {
+    spreadsheetId: match[1],
+    clientName: String(target.client_name || '').trim(),
+    clientNames,
+    targetRole: target.role
+  };
 }
 
 async function readPlantilla(spreadsheetId: string) {
@@ -259,13 +265,49 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, clientName, clientNames } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, clientName, clientNames, targetRole } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'list-client-options') return respond(await readClientOptions(spreadsheetId));
+    if (body.action === 'fill-plantilla-newly-hired') {
+      if (targetRole !== 'user') throw new Error('Only User accounts can fill blank PLANTILLA statuses.');
+      if (body.preview === true) {
+        const range = encodeURIComponent('PLANTILLA!B9:AH');
+        const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMULA`);
+        const pendingRows = (result.values || []).flatMap((rowValues: unknown[], index: number) => {
+          const vcode = String(rowValues[0] ?? '').trim();
+          const status = rowValues[32];
+          return vcode && (status === undefined || status === null || String(status).trim() === '') ? [index + 9] : [];
+        });
+        return respond({ pendingRows });
+      }
+      if (!Array.isArray(body.rowNumbers) || body.rowNumbers.length < 1 || body.rowNumbers.length > 10) {
+        throw new Error('Provide between 1 and 10 PLANTILLA rows to update.');
+      }
+      const rowNumbers = [...new Set(body.rowNumbers.map((value: unknown) => {
+        if (!Number.isSafeInteger(value) || Number(value) < 9) throw new Error('The selected PLANTILLA rows are invalid.');
+        return Number(value);
+      }))];
+      const ranges = rowNumbers.flatMap(row => [`PLANTILLA!B${row}`, `PLANTILLA!AH${row}`]);
+      const query = ranges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
+      const result = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${query}&valueRenderOption=FORMULA`);
+      const updates = rowNumbers.flatMap((row, index) => {
+        const vcode = result.valueRanges?.[index * 2]?.values?.[0]?.[0];
+        const status = result.valueRanges?.[index * 2 + 1]?.values?.[0]?.[0];
+        if (!String(vcode ?? '').trim() || (status !== undefined && status !== null && String(status).trim() !== '')) return [];
+        return [{ range: `PLANTILLA!AH${row}`, values: [['NEWLY HIRED']] }];
+      });
+      if (updates.length) {
+        await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+          method: 'POST',
+          body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
+        });
+      }
+      return respond({ updatedCount: updates.length });
+    }
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames));
