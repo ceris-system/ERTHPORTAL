@@ -227,6 +227,16 @@
     .pop-modal-progress progress::-webkit-progress-bar { border-radius:999px; background:rgba(53,139,143,.13); }
     .pop-modal-progress progress::-webkit-progress-value { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); transition:width .2s ease; }
     .pop-modal-progress progress::-moz-progress-bar { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); }
+    .duplicate-check-dialog { width:min(920px,calc(100vw - 30px)); }
+    .duplicate-check-panel { padding:28px; }
+    .duplicate-check-summary { margin:0 0 15px; color:#587981; font-size:12px; line-height:1.55; }
+    .duplicate-check-table-wrap { max-height:min(55vh,460px); overflow:auto; border:1px solid rgba(53,139,143,.15); border-radius:11px; background:rgba(255,255,255,.64); }
+    .duplicate-check-table { width:100%; border-collapse:collapse; font-size:11px; text-align:left; }
+    .duplicate-check-table th { position:sticky; top:0; padding:10px 12px; color:#52737a; background:#eaf6f3; font-size:10px; }
+    .duplicate-check-table td { padding:9px 12px; border-top:1px solid rgba(53,139,143,.12); color:#315b64; }
+    .duplicate-check-table td:first-child { font-weight:700; }
+    .duplicate-check-actions { display:flex; justify-content:flex-end; margin-top:16px; }
+    .duplicate-check-actions .primary-button { width:auto; min-width:110px; min-height:42px; }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
     .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
@@ -604,6 +614,20 @@
         <button id="pop-modal-confirm" class="primary-button" type="submit" value="confirm">Continue</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="plantilla-duplicate-dialog" class="liquid-dialog duplicate-check-dialog" aria-labelledby="plantilla-duplicate-title">
+    <section class="dialog-panel duplicate-check-panel">
+      <span class="dialog-kicker">PLANTILLA CHECK</span>
+      <h2 id="plantilla-duplicate-title">Duplicate VCODE found</h2>
+      <p id="plantilla-duplicate-summary" class="duplicate-check-summary"></p>
+      <div class="duplicate-check-table-wrap">
+        <table class="duplicate-check-table">
+          <thead><tr><th scope="col">VCODE</th><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">OUTLET</th><th scope="col">HC</th></tr></thead>
+          <tbody id="plantilla-duplicate-rows"></tbody>
+        </table>
+      </div>
+      <div class="duplicate-check-actions"><button id="plantilla-duplicate-close" class="primary-button" type="button">Okay</button></div>
+    </section>
   </dialog>
   <div id="drawer-backdrop" class="drawer-backdrop"></div>
   <aside id="record-drawer" class="record-drawer" aria-labelledby="record-drawer-title" aria-hidden="true">
@@ -1343,6 +1367,38 @@
         designation: String(value(12)).trim()
       };
     }
+    function showPlantillaDuplicateVcodes(records, { force = false } = {}) {
+      if ((previewedUser?.role || currentUser?.role) !== 'user') return;
+      const groupedRecords = new Map();
+      records.forEach(record => {
+        const vcode = String(record.vcode || '').trim();
+        if (!vcode) return;
+        const key = vcode.toLocaleLowerCase();
+        const group = groupedRecords.get(key) || [];
+        group.push(record);
+        groupedRecords.set(key, group);
+      });
+      const duplicates = [...groupedRecords.values()].filter(group => group.length > 1).flat();
+      plantillaDuplicateVcodes = duplicates;
+      if (!duplicates.length) return;
+
+      const dialog = document.querySelector('#plantilla-duplicate-dialog');
+      if (dialog.open && !force) return;
+      if (dialog.open && force) dialog.close();
+      const duplicateGroups = [...groupedRecords.values()].filter(group => group.length > 1).length;
+      document.querySelector('#plantilla-duplicate-summary').textContent =
+        `Found ${duplicateGroups} duplicate VCODE value${duplicateGroups === 1 ? '' : 's'}. Review the matching records below.`;
+      document.querySelector('#plantilla-duplicate-rows').innerHTML = duplicates.map(record => `
+        <tr>
+          <td>${escapeHtml(record.vcode)}</td>
+          <td>${escapeHtml(record.emploc)}</td>
+          <td>${escapeHtml(record.memberName || '')}</td>
+          <td>${escapeHtml(record.outlet || '')}</td>
+          <td>${escapeHtml(record.hc || '')}</td>
+        </tr>`).join('');
+      document.querySelector('#plantilla-duplicate-close').onclick = () => dialog.close();
+      dialog.showModal();
+    }
     function notify(message) {
       toast.textContent = message;
       toast.classList.remove('hidden');
@@ -1547,6 +1603,7 @@
     const plantillaHeaders = ['VCODE', 'EMPLOC', "MEMBER'S NAME", 'POSITION', 'OUTLET', 'HC', 'SEPARATION DATE', 'STATUS', 'VIEW'];
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
     let plantillaRecords = [];
+    let plantillaDuplicateVcodes = [];
     let vcodeRecords = [];
     let vcodeSpreadsheetId = '';
     let vacancyRecords = [];
@@ -1558,15 +1615,20 @@
       saveCurrentView('plantilla');
       const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.isMasterAdmin && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      plantillaDuplicateVcodes = [];
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       const adminOwnsSheet = currentUser?.isMasterAdmin && !previewedUser;
       const userCanMarkNewlyHired = (previewedUser?.role || currentUser?.role) === 'user';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' && !previewedUser ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' && !previewedUser ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-duplicate-checker" class="secondary-button" type="button" disabled>DUPLICATE CHECKER</button><button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
         document.querySelector('#plantilla-sheet-url').value = plantillaSpreadsheetId ? `https://docs.google.com/spreadsheets/d/${plantillaSpreadsheetId}/edit` : '';
         document.querySelector('#plantilla-connect-dialog').showModal();
+      });
+      document.querySelector('#plantilla-duplicate-checker')?.addEventListener('click', () => {
+        if (plantillaDuplicateVcodes.length) showPlantillaDuplicateVcodes(plantillaRecords, { force: true });
+        else notify('No duplicate VCODEs were found in the latest PLANTILLA check.');
       });
       document.querySelector('#plantilla-newly-hired')?.addEventListener('click', fillBlankPlantillaStatuses);
       document.querySelector('#plantilla-refresh').addEventListener('click', loadPlantillaRecords);
@@ -2205,8 +2267,11 @@
           displayValues = displayResult.values || [];
         }
         const rowCount = Math.max(rawValues.length, displayValues.length);
-        plantillaRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawValues[index] || [], displayValues[index] || [], index + 9)).filter(record => record.vcode);
+        const allRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawValues[index] || [], displayValues[index] || [], index + 9));
+        plantillaRecords = allRecords.filter(record => record.vcode);
         renderPlantillaTable();
+        document.querySelector('#plantilla-duplicate-checker')?.removeAttribute('disabled');
+        if (!silent) showPlantillaDuplicateVcodes(allRecords);
         return true;
       } catch (error) {
         if (silent) {
