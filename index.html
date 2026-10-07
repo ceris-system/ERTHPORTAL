@@ -289,6 +289,8 @@
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
     .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
+    .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
+    .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
     .plantilla-empty { color:#80979c !important; text-align:center; }
     .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
     .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
@@ -1649,6 +1651,9 @@
     let vacancyRecords = [];
     let vacancyDeployers = [];
     let vacancySpreadsheetId = '';
+    let approvalRecords = [];
+    let selectedApprovalRows = new Set();
+    let approvalSpreadsheetId = '';
     let hrEmplocRecords = [];
     let hrEmplocSpreadsheetId = '';
     function showPlantilla() {
@@ -1879,6 +1884,144 @@
       document.querySelector('#vacancy-home').addEventListener('click', showHome);
       document.querySelector('#vacancy-search').addEventListener('input', renderVacancyTable);
       loadVacancyRecords();
+    }
+    function showForApproval() {
+      saveCurrentView('dashboard', 'FOR APPROVAL');
+      const savedSheetUrl = getDashboardSources('FOR APPROVAL')[0] || '';
+      approvalSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
+      approvalRecords = [];
+      selectedApprovalRows = new Set();
+      const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button><button id="approval-confirm" class="secondary-button approval-approve-button" type="button">Approved</button><button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off"><p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr><th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th><th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="8" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Aging (R)</span></div>`;
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('FOR APPROVAL')} · Source tab: VACANCY`;
+      document.querySelector('#approval-assign-sheet')?.addEventListener('click', () => openDashboardEditor('FOR APPROVAL'));
+      document.querySelector('#approval-authorize-google')?.addEventListener('click', async () => {
+        try {
+          await authorizeGoogleSheets();
+          notify('Google Sheets authorized.');
+          loadForApprovalRecords();
+        } catch (error) { notify(error?.message || 'Google Sheets authorization failed.'); }
+      });
+      document.querySelector('#approval-refresh').addEventListener('click', loadForApprovalRecords);
+      document.querySelector('#approval-home').addEventListener('click', showHome);
+      document.querySelector('#approval-search').addEventListener('input', renderForApprovalTable);
+      document.querySelector('#approval-select-all').addEventListener('change', event => {
+        const visibleRecords = getVisibleApprovalRecords();
+        for (const record of visibleRecords) {
+          if (event.currentTarget.checked) selectedApprovalRows.add(record.id);
+          else selectedApprovalRows.delete(record.id);
+        }
+        renderForApprovalTable();
+      });
+      document.querySelector('#approval-confirm').addEventListener('click', () => {
+        if (!selectedApprovalRows.size) return notify('Select at least one row first.');
+        notify('Approval processing has not been configured yet. No spreadsheet changes were made.');
+      });
+      loadForApprovalRecords();
+    }
+    async function loadForApprovalRecords() {
+      const status = document.querySelector('#approval-status');
+      const body = document.querySelector('#approval-table-body');
+      if (!status || !body) return;
+      selectedApprovalRows = new Set();
+      approvalRecords = [];
+      if (!approvalSpreadsheetId) {
+        status.textContent = currentUser?.role === 'admin' ? 'Assign a FOR APPROVAL spreadsheet to a user to begin.' : 'No FOR APPROVAL spreadsheet is assigned to your account. Contact your administrator.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+      status.textContent = 'Loading records...';
+      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading approval records...</td></tr>';
+      try {
+        let rawValues;
+        let displayValues;
+        if (usesAssignedSheetAccess()) {
+          const result = await callSheetsFunction('read-for-approval', {
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+        } else {
+          const range = encodeURIComponent('VACANCY!B5:AL');
+          const [rawResult, displayResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          const filtered = filterRowsByClient(rawResult.values || [], displayResult.values || [], getDashboardClientNames('FOR APPROVAL'), 1);
+          rawValues = filtered.rawValues;
+          displayValues = filtered.displayValues;
+        }
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        approvalRecords = Array.from({ length: rowCount }, (_, index) => {
+          const raw = rawValues[index] || [];
+          const display = displayValues[index] || [];
+          const value = column => String(display[column] ?? '').trim();
+          const rawValue = column => raw[column] ?? display[column] ?? '';
+          const fullName = value(36);
+          return {
+            id: index,
+            client: value(1),
+            vcode: value(0),
+            outlet: value(5),
+            fullName,
+            hc: value(7),
+            vacantDate: displaySheetDate(rawValue(13)),
+            aging: value(16)
+          };
+        }).filter(record => record.vcode);
+        renderForApprovalTable();
+        return true;
+      } catch (error) {
+        status.textContent = error?.message || 'Could not load approval records.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function getVisibleApprovalRecords() {
+      const search = document.querySelector('#approval-search')?.value.trim().toLocaleLowerCase() || '';
+      return search
+        ? approvalRecords.filter(record => [record.client, record.vcode, record.outlet, record.fullName, record.hc, record.vacantDate, record.aging].some(value => String(value).toLocaleLowerCase().includes(search)))
+        : approvalRecords;
+    }
+    function renderApprovalStatus(visibleRecords = getVisibleApprovalRecords()) {
+      const status = document.querySelector('#approval-status');
+      if (!status) return;
+      const totalHc = visibleRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${visibleRecords.length} of ${approvalRecords.length} records · ${selectedApprovalRows.size} selected`;
+    }
+    function renderForApprovalTable() {
+      const body = document.querySelector('#approval-table-body');
+      if (!body) return;
+      const visibleRecords = getVisibleApprovalRecords();
+      renderApprovalStatus(visibleRecords);
+      const selectAll = document.querySelector('#approval-select-all');
+      if (selectAll) {
+        const selectedVisibleCount = visibleRecords.filter(record => selectedApprovalRows.has(record.id)).length;
+        selectAll.checked = visibleRecords.length > 0 && selectedVisibleCount === visibleRecords.length;
+        selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleRecords.length;
+      }
+      if (!approvalRecords.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows with a VCODE were found from row 5 onward.</td></tr>';
+        return;
+      }
+      if (!visibleRecords.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = visibleRecords.map(record => `<tr><td><input type="checkbox" data-approval-row="${record.id}" aria-label="Select ${escapeHtml(record.vcode)}"></td><td>${escapeHtml(record.client || '-')}</td><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td></tr>`).join('');
+      body.querySelectorAll('[data-approval-row]').forEach(checkbox => {
+        checkbox.checked = selectedApprovalRows.has(Number(checkbox.dataset.approvalRow));
+        checkbox.addEventListener('change', event => {
+          const id = Number(event.currentTarget.dataset.approvalRow);
+          if (event.currentTarget.checked) selectedApprovalRows.add(id);
+          else selectedApprovalRows.delete(id);
+          renderForApprovalTable();
+        });
+      });
     }
     async function loadVacancyRecords() {
       const status = document.querySelector('#vacancy-status');
@@ -2415,9 +2558,10 @@
             const status = form.elements.status.value;
             if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
-            setProgress(25, 'Saving record');
+            setProgress(25, usesAssignedSheetAccess() ? 'Saving and checking transfer conditions' : 'Saving record');
+            let updateResult = null;
             if (usesAssignedSheetAccess()) {
-              await callSheetsFunction('update-plantilla', {
+              updateResult = await callSheetsFunction('update-plantilla', {
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
                 vcode,
                 rate: numericRate,
@@ -2443,6 +2587,21 @@
                 })
               });
             }
+            if (updateResult?.inactiveTransfer?.transferred) {
+              setProgress(90, 'Transfer complete; refreshing PLANTILLA');
+              closeRecordDrawer();
+              const refreshed = await loadPlantillaRecords();
+              if (!refreshed) {
+                notify('The transfer completed, but PLANTILLA could not refresh. Use Refresh to reload it.');
+              }
+              await popModal({
+                title: 'Transfer complete',
+                message: `VCODE ${vcode} was copied to the INACTIVE sheet, added to VACANCY column B, and removed from its PLANTILLA row.`,
+                confirmLabel: 'Okay',
+                cancelLabel: ''
+              });
+              return;
+            }
             setProgress(75, 'Record saved; refreshing table');
             notify(`Record ${vcode} updated successfully.`);
             setProgress(90, 'Loading latest spreadsheet data');
@@ -2461,6 +2620,19 @@
               notify('The record was saved, but the table did not refresh. Use Refresh to reload it.');
             }
           } catch (error) {
+            if (/PLANTILLA was updated, but the INACTIVE transfer did not complete:/i.test(error?.message || '')) {
+              await loadPlantillaRecords();
+              if (plantillaRecords.some(record => record.vcode === form.elements.vcode.value.trim())) {
+                openRecordDrawer(form.elements.vcode.value.trim());
+              }
+              await popModal({
+                title: 'Transfer not completed',
+                message: error.message,
+                confirmLabel: 'Okay',
+                cancelLabel: ''
+              });
+              return;
+            }
             button.disabled = false;
             button.textContent = 'Update record';
             form.querySelectorAll('input:not([type="hidden"]), select').forEach(input => { input.disabled = false; });
@@ -2501,6 +2673,7 @@
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
+      else if (name === 'FOR APPROVAL') showForApproval();
       else showClientDashboard(name);
     }
     async function openDashboardEditor(name) {

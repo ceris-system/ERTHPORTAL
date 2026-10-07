@@ -18,6 +18,10 @@ const statuses = new Set([
   'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY',
   'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'
 ]);
+const inactiveTransferStatuses = new Set([
+  'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',
+  'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
+]);
 
 function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers });
@@ -87,6 +91,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const dashboardNameByAction: Record<string, string> = {
     'read-vcode': 'VCODE MASTERLIST',
     'read-vacancy': 'VACANCY MONITORING',
+    'read-for-approval': 'FOR APPROVAL',
     'update-vacancy': 'VACANCY MONITORING',
     'fill-plantilla-newly-hired': 'PLANTILLA',
     'read-hr-emploc': 'HR EMPLOC MONITORING',
@@ -135,10 +140,195 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     .filter((value: string) => value && value !== 'My spreadsheets'))];
   return {
     spreadsheetId: match[1],
+    targetUserId: target.id,
     clientName: String(target.client_name || '').trim(),
     clientNames,
     targetRole: target.role
   };
+}
+
+function spreadsheetIdFromAssignedUrl(value: unknown, label: string) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`No ${label} spreadsheet is assigned.`);
+  let url: URL;
+  try { url = new URL(value.trim()); } catch { throw new Error(`The ${label} spreadsheet URL is invalid.`); }
+  const match = url.hostname === 'docs.google.com' ? url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/) : null;
+  if (!match) throw new Error(`The ${label} URL must be a Google Sheets document link.`);
+  return match[1];
+}
+
+async function transferPlantillaRowToInactive(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string,
+  plantillaSpreadsheetId: string,
+  vcode: string
+) {
+  let inactiveWritten = false;
+  let vacancyWritten = false;
+  let transferStarted = false;
+  try {
+    const sourceMatches = await googleRequest(
+      `spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent('PLANTILLA!B9:B')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const sourceRows = (sourceMatches.values || []).flat();
+    const matchingRows = sourceRows.flatMap((value: unknown, index: number) =>
+      String(value ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (matchingRows.length !== 1) {
+      throw new Error(matchingRows.length ? `VCODE ${vcode} appears more than once in PLANTILLA.` : `VCODE ${vcode} is no longer in PLANTILLA.`);
+    }
+    const sourceRowNumber = matchingRows[0];
+    const [sourceData, sourceState] = await Promise.all([
+      googleRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent(`PLANTILLA!A${sourceRowNumber}:AR${sourceRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+      googleRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent(`PLANTILLA!AG${sourceRowNumber}:AH${sourceRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`)
+    ]);
+    const sourceValues = sourceData.values?.[0] || [];
+    const separationDate = sourceState.values?.[0]?.[0];
+    const status = String(sourceState.values?.[0]?.[1] ?? '').trim().toLocaleUpperCase();
+    const hasSeparationDate = typeof separationDate === 'number'
+      ? Number.isFinite(separationDate) && separationDate > 0
+      : typeof separationDate === 'string' && Number.isFinite(Date.parse(separationDate));
+    if (String(sourceValues[1] ?? '').trim() !== vcode) throw new Error(`PLANTILLA row ${sourceRowNumber} changed while it was being transferred.`);
+    if (!hasSeparationDate || !inactiveTransferStatuses.has(status)) {
+      return { transferred: false, reason: 'not-eligible' };
+    }
+    transferStarted = true;
+
+    const { data: masterAdmin, error: masterAdminError } = await adminClient.from('profiles')
+      .select('id')
+      .eq('is_master_admin', true)
+      .eq('role', 'admin')
+      .eq('status', 'active')
+      .limit(1)
+      .maybeSingle();
+    if (masterAdminError || !masterAdmin) throw new Error('The active Master Admin profile could not be found.');
+    const [inactiveAssignment, vacancyAssignment] = await Promise.all([
+      adminClient.from('dashboard_assignments').select('sheet_urls').eq('user_id', masterAdmin.id).eq('dashboard_name', 'INACTIVE').maybeSingle(),
+      adminClient.from('dashboard_assignments').select('sheet_urls').eq('user_id', targetUserId).eq('dashboard_name', 'VACANCY MONITORING').maybeSingle()
+    ]);
+    if (inactiveAssignment.error) throw new Error('Could not load the Master Admin INACTIVE archive assignment.');
+    if (vacancyAssignment.error) throw new Error('Could not load the user VACANCY assignment.');
+    const inactiveSpreadsheetId = spreadsheetIdFromAssignedUrl(inactiveAssignment.data?.sheet_urls?.[0], 'INACTIVE archive');
+    const vacancySpreadsheetId = spreadsheetIdFromAssignedUrl(vacancyAssignment.data?.sheet_urls?.[0], 'VACANCY');
+
+    const [inactiveMetadata, vacancyMetadata, plantillaMetadata, archivedRowsResult, vacancyVcodes] = await Promise.all([
+      googleRequest(`spreadsheets/${inactiveSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`),
+      googleRequest(`spreadsheets/${vacancySpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`),
+      googleRequest(`spreadsheets/${plantillaSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`),
+      googleRequest(`spreadsheets/${inactiveSpreadsheetId}/values/${encodeURIComponent('INACTIVE!A:AR')}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+      googleRequest(`spreadsheets/${vacancySpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`)
+    ]);
+    const inactiveTab = inactiveMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'INACTIVE');
+    const plantillaTab = plantillaMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'PLANTILLA');
+    if (!inactiveTab) throw new Error('The archive spreadsheet needs a tab named INACTIVE.');
+    if (!plantillaTab) throw new Error('The source spreadsheet needs a tab named PLANTILLA.');
+    if (!vacancyMetadata.sheets?.some((sheet: any) => sheet.properties?.title === 'VACANCY')) {
+      throw new Error('The assigned vacancy spreadsheet needs a tab named VACANCY.');
+    }
+
+    const archivedRows = archivedRowsResult.values || [];
+    const archivedMatches = archivedRows.flatMap((row: unknown[], index: number) =>
+      String(row[1] ?? '').trim() === vcode ? [index + 1] : []
+    );
+    if (archivedMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in the INACTIVE archive.`);
+    if (archivedMatches.length) {
+      const archivedRowResult = await googleRequest(
+        `spreadsheets/${inactiveSpreadsheetId}/values/${encodeURIComponent(`INACTIVE!A${archivedMatches[0]}:AR${archivedMatches[0]}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      const archivedRow = archivedRowResult.values?.[0] || [];
+      const rowsMatch = Array.from({ length: 44 }, (_, index) =>
+        String(archivedRow[index] ?? '') === String(sourceValues[index] ?? '')
+      ).every(Boolean);
+      if (!rowsMatch) throw new Error(`VCODE ${vcode} already exists in INACTIVE with different data; the existing archive row was not overwritten.`);
+    } else {
+      const lastOccupiedRow = archivedRows.reduce((lastRow: number, row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
+      const destinationRow = lastOccupiedRow + 1;
+      const grid = inactiveTab.properties.gridProperties || {};
+      const appendRequests = [];
+      const missingRows = destinationRow - Number(grid.rowCount || 0);
+      const missingColumns = 44 - Number(grid.columnCount || 0);
+      if (missingRows > 0) {
+        appendRequests.push({
+          appendDimension: {
+            sheetId: inactiveTab.properties.sheetId,
+            dimension: 'ROWS',
+            length: missingRows
+          }
+        });
+      }
+      if (missingColumns > 0) {
+        appendRequests.push({
+          appendDimension: {
+            sheetId: inactiveTab.properties.sheetId,
+            dimension: 'COLUMNS',
+            length: missingColumns
+          }
+        });
+      }
+      if (appendRequests.length) {
+        await googleRequest(`spreadsheets/${inactiveSpreadsheetId}:batchUpdate`, {
+          method: 'POST',
+          body: JSON.stringify({ requests: appendRequests })
+        });
+      }
+      await googleRequest(`spreadsheets/${inactiveSpreadsheetId}/values/${encodeURIComponent(`INACTIVE!A${destinationRow}:AR${destinationRow}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [Array.from({ length: 44 }, (_, index) => sourceValues[index] ?? '')] })
+      });
+      inactiveWritten = true;
+    }
+
+    const vacancyMatches = (vacancyVcodes.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 5] : []
+    );
+    if (vacancyMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in VACANCY.`);
+    if (!vacancyMatches.length) {
+      await googleRequest(
+        `spreadsheets/${vacancySpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
+        { method: 'POST', body: JSON.stringify({ values: [[vcode]] }) }
+      );
+      vacancyWritten = true;
+    }
+
+    const currentSource = await googleRequest(
+      `spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent(`PLANTILLA!B${sourceRowNumber}:AH${sourceRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE`
+    );
+    const currentRow = currentSource.values?.[0] || [];
+    const currentDate = currentRow[31];
+    const currentStatus = String(currentRow[32] ?? '').trim().toLocaleUpperCase();
+    const stillHasDate = typeof currentDate === 'number'
+      ? Number.isFinite(currentDate) && currentDate > 0
+      : typeof currentDate === 'string' && Number.isFinite(Date.parse(currentDate));
+    if (String(currentRow[0] ?? '').trim() !== vcode || !stillHasDate || !inactiveTransferStatuses.has(currentStatus)) {
+      throw new Error(`PLANTILLA row ${sourceRowNumber} changed before it could be deleted.`);
+    }
+    await googleRequest(`spreadsheets/${plantillaSpreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: plantillaTab.properties.sheetId,
+              dimension: 'ROWS',
+              startIndex: sourceRowNumber - 1,
+              endIndex: sourceRowNumber
+            }
+          }
+        }]
+      })
+    });
+    return { transferred: true, vcode, archived: true, vacancyUpdated: true, sourceRowDeleted: true };
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    if (transferStarted) {
+      const completedSteps = [
+        inactiveWritten ? 'The row was copied to INACTIVE.' : '',
+        vacancyWritten ? 'The VCODE was added to VACANCY.' : ''
+      ].filter(Boolean).join(' ');
+      throw new Error(`${error.message} ${completedSteps} The source PLANTILLA row was kept. Retry the update to safely finish.`);
+    }
+    throw error;
+  }
 }
 
 async function readPlantilla(spreadsheetId: string) {
@@ -159,7 +349,7 @@ async function readVcode(spreadsheetId: string) {
 async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
   const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
   if (!activeClients.size) throw new Error('Select at least one client before loading vacancy records.');
-  const range = encodeURIComponent('VACANCY!B5:AF');
+  const range = encodeURIComponent('VACANCY!B5:AL');
   const clientRange = encodeURIComponent('VACANCY!C5:C');
   const [raw, display, clientValues, deployers] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
@@ -265,11 +455,11 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'read-for-approval', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, clientName, clientNames, targetRole } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'list-client-options') return respond(await readClientOptions(spreadsheetId));
     if (body.action === 'fill-plantilla-newly-hired') {
@@ -317,6 +507,7 @@ Deno.serve(async request => {
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames));
+    if (body.action === 'read-for-approval') return respond(await readVacancy(spreadsheetId, clientNames));
     if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientNames));
 
     if (body.action === 'update-vacancy') {
@@ -435,7 +626,16 @@ Deno.serve(async request => {
         ]
       })
     });
-    return respond({ vcode, updated: true });
+    let inactiveTransfer = { transferred: false, reason: 'not-a-user-account' };
+    if (targetRole === 'user') {
+      try {
+        inactiveTransfer = await transferPlantillaRowToInactive(adminClient, targetUserId, spreadsheetId, vcode);
+      } catch (error) {
+        const details = error instanceof Error ? error.message : 'Unexpected transfer error.';
+        throw new Error(`PLANTILLA was updated, but the INACTIVE transfer did not complete: ${details}`);
+      }
+    }
+    return respond({ vcode, updated: true, inactiveTransfer });
   } catch (error) {
     return respond({ error: error instanceof Error ? error.message : 'Unexpected spreadsheet service error.' }, 400);
   }
