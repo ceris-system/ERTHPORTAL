@@ -210,7 +210,7 @@
     .user-dialog-tab:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
     .user-dialog-panel[hidden] { display:none; }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
-    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
+    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
     .user-form-actions .primary-button { margin-top:0; }
     .roster-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:18px; color:#55757b; font-size:11px; }
@@ -544,7 +544,7 @@
       </div>
       <p id="admin-account-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
       <section id="add-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="add-users-tab">
-        <p class="dialog-copy">Create the account, choose its client from the Master Admin’s HR EMPLOC client list, then assign dashboard spreadsheets. Only the Master Admin can create Regular Admin accounts.</p>
+        <p class="dialog-copy">Choose the client(s) each account can access. When creating a Regular Admin, also select the existing User accounts it may manage. Only the Master Admin can create Regular Admin accounts.</p>
         <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
@@ -553,6 +553,7 @@
         <label class="dialog-label" for="new-default-password">Initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="8" pattern="\\d{8,}" title="Use at least 8 digits for a default account password." autocomplete="new-password" placeholder="Default account: 8 digits; active account: 8 letters and numbers"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6s-3.4 6-9.5 6c-1.2 0-2.3-.2-3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
         <label class="dialog-label" for="new-user-client">Client name</label><select id="new-user-client" name="clientName" required></select><select id="new-user-clients" name="clientNames" multiple size="4" class="hidden" aria-label="Clients for regular administrator"></select>
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
+        <label id="new-admin-managed-users-label" class="dialog-label hidden" for="new-admin-managed-users">User accounts this Regular Admin can manage</label><select id="new-admin-managed-users" class="hidden" multiple size="5" aria-label="User accounts this Regular Admin can manage"></select><p id="new-admin-managed-users-help" class="dialog-scope hidden"></p>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add User</button></div>
         </form>
@@ -656,6 +657,7 @@
     let dashboardAssignments = {};
     let dashboardClientAssignments = {};
     let availableClientOptions = [];
+    let assignableUserProfiles = [];
     let selectedDashboard = dashboards[0];
     let toastTimer;
     let topbarClockTimer = null;
@@ -1124,14 +1126,45 @@
     function selectedClientValues(select) {
       return [...select.selectedOptions].map(option => option.value);
     }
+    function fillManagedUserSelect() {
+      const select = document.querySelector('#new-admin-managed-users');
+      const selectedIds = new Set([...select.selectedOptions].map(option => option.value));
+      const allowedClients = new Set(selectedClientValues(document.querySelector('#new-user-clients'))
+        .map(client => client.toLocaleLowerCase()));
+      select.replaceChildren();
+      const eligibleUsers = assignableUserProfiles.filter(user => {
+        const userClients = (user.client_names?.length ? user.client_names : [user.client_name])
+          .filter(client => client && client !== 'My spreadsheets')
+          .map(client => client.toLocaleLowerCase());
+        return userClients.length > 0 && userClients.every(client => allowedClients.has(client));
+      });
+      eligibleUsers.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name}`;
+        option.selected = selectedIds.has(user.id);
+        select.append(option);
+      });
+      select.required = document.querySelector('#new-user-role').value === 'admin';
+      document.querySelector('#new-admin-managed-users-help').textContent = eligibleUsers.length
+        ? 'Select only the existing user accounts this Regular Admin should be allowed to manage.'
+        : 'No existing User accounts match the selected client(s). Select a client assigned to an existing user first.';
+    }
     function updateAccountClientControls() {
       const isAdminAccount = document.querySelector('#new-user-role').value === 'admin';
       const singleSelect = document.querySelector('#new-user-client');
       const multiSelect = document.querySelector('#new-user-clients');
+      const managedUsersLabel = document.querySelector('#new-admin-managed-users-label');
+      const managedUsersSelect = document.querySelector('#new-admin-managed-users');
+      const managedUsersHelp = document.querySelector('#new-admin-managed-users-help');
       singleSelect.classList.toggle('hidden', isAdminAccount);
       singleSelect.required = !isAdminAccount;
       multiSelect.classList.toggle('hidden', !isAdminAccount);
       multiSelect.required = isAdminAccount;
+      managedUsersLabel.classList.toggle('hidden', !isAdminAccount);
+      managedUsersSelect.classList.toggle('hidden', !isAdminAccount);
+      managedUsersHelp.classList.toggle('hidden', !isAdminAccount);
+      fillManagedUserSelect();
     }
     function showLoginPanel(panelId) {
       ['login-card', 'password-update-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
@@ -2538,8 +2571,14 @@
         await loadClientOptions();
         fillClientSelect(document.querySelector('#new-user-client'));
         fillClientSelect(document.querySelector('#new-user-clients'));
+        if (currentUser?.isMasterAdmin) {
+          const { users } = await callAdminFunction('list');
+          assignableUserProfiles = users.filter(user => user.role === 'user' && !user.is_master_admin);
+        } else {
+          assignableUserProfiles = [];
+        }
       } catch (error) {
-        document.querySelector('#admin-account-feedback').textContent = error.message || 'Could not load client options from the Master Admin HR EMPLOC spreadsheet.';
+        document.querySelector('#admin-account-feedback').textContent = error.message || 'Could not load client options or assignable user accounts.';
       }
       const adminRoleOption = document.querySelector('#new-user-role option[value="admin"]');
       adminRoleOption.hidden = !currentUser?.isMasterAdmin;
@@ -2550,6 +2589,7 @@
       usersDialog.showModal();
     });
     document.querySelector('#new-user-role').addEventListener('change', updateAccountClientControls);
+    document.querySelector('#new-user-clients').addEventListener('change', fillManagedUserSelect);
     document.querySelector('#select-all-users').addEventListener('change', event => {
       const checked = event.currentTarget.checked;
       document.querySelectorAll('#user-roster [data-select-user]').forEach(checkbox => { checkbox.checked = checked; });
@@ -2683,6 +2723,9 @@
             clientNames: form.elements.role.value === 'admin'
               ? selectedClientValues(document.querySelector('#new-user-clients'))
               : selectedClientValues(document.querySelector('#new-user-client')),
+            managedUserIds: form.elements.role.value === 'admin'
+              ? [...document.querySelector('#new-admin-managed-users').selectedOptions].map(option => option.value)
+              : [],
             role: form.elements.role.value,
             status: form.elements.status.value
           });

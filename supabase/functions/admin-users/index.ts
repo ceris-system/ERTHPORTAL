@@ -30,7 +30,7 @@ function createTemporaryPassword() {
 
 async function findProfile(adminClient: ReturnType<typeof createClient>, id: string) {
   const { data, error } = await adminClient.from('profiles')
-    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status')
+    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, managed_user_ids, is_master_admin, role, status')
     .eq('id', id)
     .single();
   if (error || !data) throw new Error('Account profile was not found.');
@@ -45,6 +45,16 @@ async function protectLastAdmin(adminClient: ReturnType<typeof createClient>, pr
     .eq('status', 'active');
   if (error) throw new Error('Could not verify active administrator count.');
   if ((count || 0) <= 1) throw new Error('Cannot remove or deactivate the last active administrator.');
+}
+
+function canManageUserProfile(actor: any, target: any) {
+  if (actor.is_master_admin || target.id === actor.id) return true;
+  if (target.role !== 'user') return false;
+  if (Array.isArray(actor.managed_user_ids)) return actor.managed_user_ids.includes(target.id);
+  const actorClients = new Set((actor.client_names?.length ? actor.client_names : [actor.client_name])
+    .map((client: string) => String(client || '').toLocaleLowerCase()));
+  const targetClients = target.client_names?.length ? target.client_names : [target.client_name];
+  return targetClients.some((client: string) => client && client !== 'My spreadsheets' && actorClients.has(String(client).toLocaleLowerCase()));
 }
 
 Deno.serve(async request => {
@@ -151,13 +161,9 @@ Deno.serve(async request => {
         .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status, created_at')
         .order('username');
       if (error) throw new Error('Could not load account list.');
-      const actorClients = new Set(actor.client_names?.length ? actor.client_names : [actor.client_name]);
       const users = actor.is_master_admin
         ? data || []
-        : (data || []).filter((profile: any) => profile.id === actor.id || (
-          profile.role !== 'admin' &&
-          (profile.client_names?.length ? profile.client_names : [profile.client_name]).some((client: string) => actorClients.has(client))
-        ));
+        : (data || []).filter((profile: any) => canManageUserProfile(actor, profile));
       return respond({ users });
     }
 
@@ -170,8 +176,8 @@ Deno.serve(async request => {
         .eq('username', username)
         .single();
       if (targetError || !target || (target.is_master_admin && target.id !== actor.id)) throw new Error('Choose a valid account.');
-      if (!actor.is_master_admin && target.role === 'admin' && target.id !== actor.id) {
-        throw new Error('Only the Master Admin can assign dashboards to another administrator.');
+      if (!canManageUserProfile(actor, target)) {
+        throw new Error('This account is not assigned to your administrator account.');
       }
 
       if (body.action === 'get-dashboard-assignment') {
@@ -244,6 +250,14 @@ Deno.serve(async request => {
         .map((value: unknown) => String(value || '').trim())
         .filter(Boolean))];
       const role = body.role === 'admin' ? 'admin' : 'user';
+      const managedUserIds = role === 'admin' && Array.isArray(body.managedUserIds)
+        ? [...new Set(body.managedUserIds.map((value: unknown) => {
+          if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+            throw new Error('Choose valid user accounts for this administrator.');
+          }
+          return value;
+        }))]
+        : [];
       const status = ['default', 'active', 'inactive'].includes(String(body.status || '').trim()) ? String(body.status).trim() : 'default';
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       if (!displayName) throw new Error('Display name is required.');
@@ -253,7 +267,28 @@ Deno.serve(async request => {
       }
       if (role === 'user' && clientNames.length !== 1) throw new Error('Choose exactly one client for a user account.');
       if (role === 'admin' && (clientNames.length < 1 || clientNames.length > 30)) throw new Error('Choose between 1 and 30 clients for an administrator.');
+      if (role === 'admin' && !managedUserIds.length) throw new Error('Select at least one user account for this administrator to manage.');
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
+
+      if (role === 'admin') {
+        const { data: managedUsers, error: managedUsersError } = await adminClient.from('profiles')
+          .select('id, role, is_master_admin, client_name, client_names')
+          .in('id', managedUserIds);
+        if (managedUsersError) throw new Error('Could not validate the selected user accounts.');
+        if (!managedUsers || managedUsers.length !== managedUserIds.length ||
+          managedUsers.some(profile => profile.role !== 'user' || profile.is_master_admin)) {
+          throw new Error('Select only existing User accounts to assign to a Regular Admin.');
+        }
+        const assignedClients = new Set(clientNames.map(name => name.toLocaleLowerCase()));
+        const outsideScope = managedUsers.some(profile => {
+          const profileClients = Array.isArray(profile.client_names) && profile.client_names.length
+            ? profile.client_names
+            : [profile.client_name];
+          const scopedClients = profileClients.filter((name: string) => name && name !== 'My spreadsheets');
+          return !scopedClients.length || scopedClients.some((name: string) => !assignedClients.has(name.toLocaleLowerCase()));
+        });
+        if (outsideScope) throw new Error('Each selected account must belong to a client assigned to this Regular Admin.');
+      }
 
       const temporaryPassword = defaultPassword || createTemporaryPassword();
       if (status === 'default' && !/^\d{8,}$/.test(temporaryPassword)) {
@@ -279,6 +314,7 @@ Deno.serve(async request => {
         google_email: googleEmail || '',
         client_name: clientNames[0] || clientName,
         client_names: clientNames,
+        managed_user_ids: role === 'admin' ? managedUserIds : null,
         is_master_admin: false,
         role,
         status
@@ -286,6 +322,17 @@ Deno.serve(async request => {
       if (profileError || !profile) {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');
+      }
+      if (role === 'user' && !actor.is_master_admin && Array.isArray(actor.managed_user_ids)) {
+        const managedIds = [...new Set([...actor.managed_user_ids, profile.id])];
+        const { error: scopeError } = await adminClient.from('profiles')
+          .update({ managed_user_ids: managedIds })
+          .eq('id', actor.id);
+        if (scopeError) {
+          const { error: rollbackError } = await adminClient.auth.admin.deleteUser(created.user.id);
+          if (rollbackError) throw new Error('The account was created but could not be assigned to your administrator; cleanup failed. Contact the Master Admin.');
+          throw new Error('Could not add this account to your assigned user list. The new account was removed.');
+        }
       }
       return respond({ user: profile, temporaryPassword: defaultPassword ? defaultPassword : temporaryPassword });
     }
@@ -304,11 +351,14 @@ Deno.serve(async request => {
         return value.trim().toLowerCase();
       }))];
       const { data: targets, error: targetsError } = await adminClient.from('profiles')
-        .select('id, username, role, status, is_master_admin')
+        .select('id, username, role, status, is_master_admin, client_name, client_names')
         .in('username', usernames);
       if (targetsError) throw new Error('Could not load the selected accounts.');
       if (!targets || targets.length !== usernames.length) throw new Error('One or more selected accounts no longer exist. Refresh the list and try again.');
       if (targets.some(target => target.is_master_admin)) throw new Error('The Master Admin account cannot be changed in a bulk status update.');
+      if (!actor.is_master_admin && targets.some(target => !canManageUserProfile(actor, target))) {
+        throw new Error('One or more selected accounts are not assigned to your administrator account.');
+      }
       if (!actor.is_master_admin && targets.some(target => target.role === 'admin')) {
         throw new Error('Only the Master Admin can change administrator account statuses.');
       }
@@ -337,7 +387,9 @@ Deno.serve(async request => {
       .single();
     if (targetError || !target) throw new Error('Username was not found.');
     if (target.is_master_admin) throw new Error('The Master Admin account cannot be modified through user management.');
-    if (!actor.is_master_admin && target.role === 'admin') throw new Error('Only the Master Admin can manage administrator accounts.');
+    if (!canManageUserProfile(actor, target)) {
+      throw new Error('This account is not assigned to your administrator account.');
+    }
 
     if (body.action === 'reset-password') {
       const temporaryPassword = createTemporaryPassword();
