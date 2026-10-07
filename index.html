@@ -1952,6 +1952,16 @@
           rawValues = filtered.rawValues;
           displayValues = filtered.displayValues;
         }
+        const requiredApprovalColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
+        const eligibleIndexes = displayValues.flatMap((displayRow, index) => {
+          const rawRow = rawValues[index] || [];
+          const hasRequiredFields = requiredApprovalColumns.every(column =>
+            String(displayRow[column] ?? rawRow[column] ?? '').trim() !== ''
+          );
+          return hasRequiredFields ? [index] : [];
+        });
+        rawValues = eligibleIndexes.map(index => rawValues[index] || []);
+        displayValues = eligibleIndexes.map(index => displayValues[index] || []);
         const rowCount = Math.max(rawValues.length, displayValues.length);
         approvalRecords = Array.from({ length: rowCount }, (_, index) => {
           const raw = rawValues[index] || [];
@@ -2005,7 +2015,7 @@
         selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleRecords.length;
       }
       if (!approvalRecords.length) {
-        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows with a VCODE were found from row 5 onward.</td></tr>';
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows meet the approval requirements. Columns K, L, M, N, O, P, U, V, W, and AF must all be nonblank.</td></tr>';
         return;
       }
       if (!visibleRecords.length) {

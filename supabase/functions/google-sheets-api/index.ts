@@ -381,6 +381,22 @@ async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
   };
 }
 
+async function readForApproval(spreadsheetId: string, clientNames: string[] = []) {
+  const result = await readVacancy(spreadsheetId, clientNames);
+  const requiredColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
+  const eligibleIndexes = result.displayValues.flatMap((displayRow, index) => {
+    const rawRow = result.rawValues[index] || [];
+    const hasRequiredFields = requiredColumns.every(column =>
+      String(displayRow[column] ?? rawRow[column] ?? '').trim() !== ''
+    );
+    return hasRequiredFields ? [index] : [];
+  });
+  return {
+    rawValues: eligibleIndexes.map(index => result.rawValues[index] || []),
+    displayValues: eligibleIndexes.map(index => result.displayValues[index] || [])
+  };
+}
+
 async function readDeployers(spreadsheetId: string) {
   const range = encodeURIComponent('Deployer!A2:A');
   const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
@@ -507,7 +523,7 @@ Deno.serve(async request => {
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames));
-    if (body.action === 'read-for-approval') return respond(await readVacancy(spreadsheetId, clientNames));
+    if (body.action === 'read-for-approval') return respond(await readForApproval(spreadsheetId, clientNames));
     if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientNames));
 
     if (body.action === 'update-vacancy') {
