@@ -359,37 +359,53 @@ async function approveVacancyRecord(
     emplocVerified = true;
   }
 
-  const currentMatchesResult = await googleRequest(
-    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`
-  );
-  const currentMatches = (currentMatchesResult.values || []).flatMap((value: unknown, index: number) =>
-    String(value ?? '').trim() === vcode ? [index + 5] : []
-  );
-  if (!currentMatches.length) return { vcode, approved: true, alreadyCompleted: true };
-  if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated before its VACANCY row could be deleted.`);
-  const currentRowNumber = currentMatches[0];
-  const currentSourceResult = await googleRequest(
-    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${currentRowNumber}:AR${currentRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
-  );
-  const currentSourceRow = Array.from({ length: 44 }, (_, index) => currentSourceResult.values?.[0]?.[index] ?? '');
-  if (!sameSheetValues(currentSourceRow, sourceRow)) {
-    throw new Error(`VACANCY row ${currentRowNumber} changed before deletion. Both destination copies are retained; the source row was kept.`);
-  }
-  await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
-    method: 'POST',
-    body: JSON.stringify({
-      requests: [{
-        deleteDimension: {
-          range: {
-            sheetId: vacancyTab.properties.sheetId,
-            dimension: 'ROWS',
-            startIndex: currentRowNumber - 1,
-            endIndex: currentRowNumber
+  let sourceRowDeleted = false;
+  for (let attempt = 0; attempt < 2 && !sourceRowDeleted; attempt += 1) {
+    const currentMatchesResult = await googleRequest(
+      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const currentMatches = (currentMatchesResult.values || []).flatMap((value: unknown, index: number) =>
+      String(value ?? '').trim() === vcode ? [index + 5] : []
+    );
+    if (!currentMatches.length) {
+      sourceRowDeleted = true;
+      break;
+    }
+    if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated before its VACANCY row could be deleted.`);
+    const currentRowNumber = currentMatches[0];
+    const currentSourceResult = await googleRequest(
+      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${currentRowNumber}:AR${currentRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    const currentSourceRow = Array.from({ length: 44 }, (_, index) => currentSourceResult.values?.[0]?.[index] ?? '');
+    if (!sameSheetValues(currentSourceRow, sourceRow)) {
+      throw new Error(`VACANCY row ${currentRowNumber} changed before deletion. Both destination copies are retained; the changed source row was not deleted.`);
+    }
+    await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: vacancyTab.properties.sheetId,
+              dimension: 'ROWS',
+              startIndex: currentRowNumber - 1,
+              endIndex: currentRowNumber
+            }
           }
-        }
-      }]
-    })
-  });
+        }]
+      })
+    });
+    const verifyMatchesResult = await googleRequest(
+      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const remainingMatches = (verifyMatchesResult.values || []).flat().filter((value: unknown) =>
+      String(value ?? '').trim() === vcode
+    );
+    if (!remainingMatches.length) sourceRowDeleted = true;
+  }
+  if (!sourceRowDeleted) {
+    throw new Error(`Both destination copies are verified, but VCODE ${vcode} is still present in VACANCY after two row-delete attempts.`);
+  }
   return { vcode, approved: true, sourceRowDeleted: true };
   } catch (error) {
     if (!(error instanceof Error)) throw error;
@@ -398,7 +414,7 @@ async function approveVacancyRecord(
       emplocVerified ? 'HR EMPLOC G1N copy verified.' : ''
     ].filter(Boolean).join(' ');
     if (copiedDestinations) {
-      throw new Error(`${error.message} ${copiedDestinations} The source VACANCY row was kept; retry to safely finish.`);
+      throw new Error(`${error.message} ${copiedDestinations} Check VACANCY to confirm whether the source row remains before retrying.`);
     }
     throw error;
   }
