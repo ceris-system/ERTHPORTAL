@@ -237,6 +237,7 @@
     .duplicate-check-table td:first-child { font-weight:700; }
     .duplicate-check-actions { display:flex; justify-content:flex-end; margin-top:16px; }
     .duplicate-check-actions .primary-button { width:auto; min-width:110px; min-height:42px; }
+    .inactive-setup-input { margin-bottom:15px; }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
     .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
@@ -544,6 +545,20 @@
         <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
+    </section>
+  </dialog>
+  <dialog id="inactive-setup-dialog" class="liquid-dialog" aria-labelledby="inactive-setup-title">
+    <section class="dialog-panel">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
+      <span class="dialog-kicker">MASTER ADMIN · PRIVATE ARCHIVE</span>
+      <h2 id="inactive-setup-title">INACTIVE spreadsheet</h2>
+      <p class="dialog-copy">Save the destination spreadsheet for the INACTIVE archive. This URL is stored only on the Master Admin account; users will not see it.</p>
+      <form id="inactive-setup-form">
+        <label class="dialog-label" for="inactive-sheet-url">Google Sheets URL</label>
+        <input id="inactive-sheet-url" class="inactive-setup-input" name="url" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/...">
+        <p class="dialog-footnote">Leave blank and save to remove the configured archive URL. This setup stores the destination only; transfer behavior will be connected once the transfer fields are defined.</p>
+        <button id="inactive-setup-save" class="primary-button" type="submit">Save INACTIVE URL</button>
+      </form>
     </section>
   </dialog>
   <dialog id="plantilla-connect-dialog" class="liquid-dialog plantilla-connect-dialog" aria-labelledby="plantilla-connect-title">
@@ -1579,7 +1594,32 @@
         button.addEventListener('click', () => openUserDashboard(name));
         grid.append(button);
       });
+      if (currentUser?.isMasterAdmin && !previewedUser) {
+        const inactiveButton = document.createElement('button');
+        inactiveButton.type = 'button';
+        inactiveButton.className = 'bubble-button';
+        inactiveButton.setAttribute('aria-label', 'INACTIVE archive spreadsheet setup');
+        inactiveButton.dataset.tooltip = 'INACTIVE · Master Admin setup';
+        inactiveButton.title = 'INACTIVE';
+        inactiveButton.innerHTML = '<span class="bubble-emoji" aria-hidden="true">📦</span>';
+        inactiveButton.addEventListener('click', openInactiveSetup);
+        grid.append(inactiveButton);
+      }
       content.prepend(section);
+    }
+    async function openInactiveSetup() {
+      if (!currentUser?.isMasterAdmin || previewedUser) return notify('Only the Master Admin can configure the INACTIVE archive.');
+      const input = document.querySelector('#inactive-sheet-url');
+      try {
+        const assignment = await callAdminFunction('get-dashboard-assignment', {
+          username: currentUser.username,
+          dashboardName: 'INACTIVE'
+        });
+        input.value = assignment.urls?.[0] || '';
+        document.querySelector('#inactive-setup-dialog').showModal();
+      } catch (error) {
+        notify(error?.message || 'Could not load the INACTIVE archive URL.');
+      }
     }
     function showHome() {
       saveCurrentView('home');
@@ -3195,6 +3235,34 @@
       })();
     });
     document.querySelector('#add-dashboard-url').addEventListener('click', () => addDashboardUrlRow());
+    document.querySelector('#inactive-setup-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      const url = form.elements.url.value.trim();
+      button.disabled = true;
+      button.textContent = 'Saving...';
+      (async () => {
+        try {
+          if (url) spreadsheetIdFromUrl(url);
+          const result = await callAdminFunction('set-dashboard-assignment', {
+            username: currentUser.username,
+            dashboardName: 'INACTIVE',
+            urls: url ? [url] : [],
+            clientNames: []
+          });
+          dashboardAssignments.INACTIVE = result.urls || [];
+          dashboardClientAssignments.INACTIVE = [];
+          document.querySelector('#inactive-setup-dialog').close();
+          notify(url ? 'INACTIVE archive spreadsheet saved for Master Admin use.' : 'INACTIVE archive spreadsheet removed.');
+        } catch (error) {
+          notify(error?.message || 'Could not save the INACTIVE archive URL.');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Save INACTIVE URL';
+        }
+      })();
+    });
     openDashboardUrl.addEventListener('click', () => {
       const saved = document.querySelector('#dashboard-url-list .dashboard-url-input')?.value.trim();
       if (saved) window.open(saved, '_blank', 'noopener,noreferrer');

@@ -6,7 +6,8 @@ const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const authEmailDomain = 'accounts.erthportal.invalid';
 const dashboardNames = new Set([
   'PLANTILLA', 'PLANTILLA SUMMARY', 'SIL', 'VCODE MASTERLIST', 'VACANCY MONITORING',
-  'HR EMPLOC MONITORING', '+-5% BUFFER', 'VCODE VARIANCE', 'DEACTIVATION', 'FOR APPROVAL', 'ATTRITION'
+  'HR EMPLOC MONITORING', '+-5% BUFFER', 'VCODE VARIANCE', 'DEACTIVATION', 'FOR APPROVAL', 'ATTRITION',
+  'INACTIVE'
 ]);
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -176,6 +177,9 @@ Deno.serve(async request => {
         .eq('username', username)
         .single();
       if (targetError || !target || (target.is_master_admin && target.id !== actor.id)) throw new Error('Choose a valid account.');
+      if (dashboardName === 'INACTIVE' && (!actor.is_master_admin || !target.is_master_admin)) {
+        throw new Error('The INACTIVE archive spreadsheet is available only to the Master Admin.');
+      }
       if (!canManageUserProfile(actor, target)) {
         throw new Error('This account is not assigned to your administrator account.');
       }
@@ -201,7 +205,12 @@ Deno.serve(async request => {
         if (typeof value !== 'string' || !value.trim() || value.trim().length > 80) throw new Error('Choose valid client names.');
         return value.trim();
       }))];
-      const sourceSetup = target.is_master_admin && dashboardName === 'HR EMPLOC MONITORING' && clientNames.length === 0;
+      if (dashboardName === 'INACTIVE' && clientNames.length) {
+        throw new Error('The INACTIVE archive does not use client assignments.');
+      }
+      const sourceSetup = target.is_master_admin
+        && ((dashboardName === 'HR EMPLOC MONITORING' && clientNames.length === 0)
+          || (dashboardName === 'INACTIVE' && clientNames.length === 0));
       if (!actor.is_master_admin && clientNames.some(name => !(actor.client_names || [actor.client_name]).includes(name))) {
         throw new Error('You can assign only clients granted to your administrator account.');
       }
