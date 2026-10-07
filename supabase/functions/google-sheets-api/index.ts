@@ -298,39 +298,44 @@ Deno.serve(async request => {
         updates[field] = value;
       }
       if (!Object.keys(updates).length) throw new Error('Make at least one change before updating the vacancy record.');
-      const deployerValues = await readDeployers(spreadsheetId);
-      if (Object.hasOwn(updates, 'coordinator') && updates.coordinator && !deployerValues.includes(String(updates.coordinator))) {
-        throw new Error('Choose a Coordinator from the Deployer sheet options.');
+      const deployerFields = ['coordinator', 'deployedBy'].filter(field => Object.hasOwn(updates, field) && updates[field]);
+      if (deployerFields.length) {
+        const deployerValues = await readDeployers(spreadsheetId);
+        for (const field of deployerFields) {
+          if (!deployerValues.includes(String(updates[field]))) {
+            throw new Error(`Choose ${field === 'coordinator' ? 'a Coordinator' : 'a Deployed By value'} from the Deployer sheet options.`);
+          }
+        }
       }
-      if (Object.hasOwn(updates, 'deployedBy') && updates.deployedBy && !deployerValues.includes(String(updates.deployedBy))) {
-        throw new Error('Choose a Deployed By value from the Deployer sheet options.');
-      }
-      const vcodeRange = encodeURIComponent('VACANCY!B5:B');
+      const vcodeRange = encodeURIComponent('VACANCY!B5:C');
       const values = await googleRequest(`spreadsheets/${spreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
-      const matches = (values.values || []).flat().map((value: unknown, index: number) => String(value).trim() === vcode ? index + 5 : 0).filter(Boolean);
+      const matches = (values.values || []).map((rowValues: unknown[], index: number) =>
+        String(rowValues[0] ?? '').trim() === vcode ? { row: index + 5, client: String(rowValues[1] ?? '').trim().toLocaleLowerCase() } : null
+      ).filter(Boolean);
       if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
       if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
-      const row = matches[0];
-      const clientValues = await googleRequest(`spreadsheets/${spreadsheetId}/values/${encodeURIComponent(`VACANCY!C${row}`)}?valueRenderOption=FORMATTED_VALUE`);
-      const rowClient = String(clientValues.values?.[0]?.[0] || '').trim().toLocaleLowerCase();
+      const { row, client: rowClient } = matches[0];
       if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
         throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
       }
-      const formulaRange = encodeURIComponent(`VACANCY!K${row}:AF${row}`);
-      const formulaResult = await googleRequest(`spreadsheets/${spreadsheetId}/values/${formulaRange}?valueRenderOption=FORMULA`);
-      const formulaRow = formulaResult.values?.[0] || [];
-      const formulaFields = Object.keys(updates).filter(field => String(formulaRow[fieldColumns[field].offset] || '').startsWith('='));
+      const cellRanges = Object.keys(updates).map(field => `VACANCY!${fieldColumns[field].column}${row}`);
+      const formulaQuery = cellRanges.map(range => `ranges=${encodeURIComponent(range)}`).join('&');
+      const formulaResult = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${formulaQuery}&valueRenderOption=FORMULA`);
+      const formulaFields = Object.keys(updates).filter((_, index) =>
+        String(formulaResult.valueRanges?.[index]?.values?.[0]?.[0] || '').startsWith('=')
+      );
       if (formulaFields.length) {
         const columns = formulaFields.map(field => fieldColumns[field].column).join(', ');
         throw new Error(`Cannot overwrite a formula in column ${columns} for VCODE ${vcode}. Change the source data for that formula instead.`);
       }
-      for (const [field, value] of Object.entries(updates)) {
-        const range = encodeURIComponent(`VACANCY!${fieldColumns[field].column}${row}`);
-        await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW`, {
-          method: 'PUT',
-          body: JSON.stringify({ values: [[value]] })
-        });
-      }
+      const data = Object.entries(updates).map(([field, value]) => ({
+        range: `VACANCY!${fieldColumns[field].column}${row}`,
+        values: [[value]]
+      }));
+      await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ valueInputOption: 'RAW', data })
+      });
       return respond({ vcode, updated: true });
     }
 

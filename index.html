@@ -1712,18 +1712,20 @@
           await callSheetsFunction('update-vacancy', { vcode, ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
-          const range = encodeURIComponent('VACANCY!B5:B');
+          const range = encodeURIComponent('VACANCY!B5:C');
           const result = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
-          const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 5 : 0).filter(Boolean);
+          const matches = (result.values || []).map((rowValues, index) => String(rowValues[0] ?? '').trim() === vcode ? index + 5 : 0).filter(Boolean);
           if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
           if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
           const row = matches[0];
-          const formulaRange = encodeURIComponent(`VACANCY!K${row}:AF${row}`);
-          const formulaResult = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${formulaRange}?valueRenderOption=FORMULA`);
-          const formulaRow = formulaResult.values?.[0] || [];
-          const fieldColumns = { lastName: ['K', 0], firstName: ['L', 1], middleName: ['M', 2], contactNumber: ['N', 3], vacantDate: ['O', 4], dateOnboard: ['P', 5], reliever: ['U', 10], hrcoRemarks: ['W', 12], coordinator: ['AD', 19], deployedBy: ['AF', 21] };
-          const formulaFields = Object.keys(values).filter(name => String(formulaRow[fieldColumns[name][1]] || '').startsWith('='));
-          if (formulaFields.length) throw new Error(`Cannot overwrite a formula in ${formulaFields.map(name => fieldColumns[name][0]).join(', ')} for VCODE ${vcode}. Change the source data for that formula instead.`);
+          const fieldColumns = { lastName: 'K', firstName: 'L', middleName: 'M', contactNumber: 'N', vacantDate: 'O', dateOnboard: 'P', reliever: 'U', hrcoRemarks: 'W', coordinator: 'AD', deployedBy: 'AF' };
+          const cellRanges = Object.keys(values).map(name => `VACANCY!${fieldColumns[name]}${row}`);
+          const formulaQuery = cellRanges.map(cell => `ranges=${encodeURIComponent(cell)}`).join('&');
+          const formulaResult = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchGet?${formulaQuery}&valueRenderOption=FORMULA`);
+          const formulaFields = Object.keys(values).filter((_, index) =>
+            String(formulaResult.valueRanges?.[index]?.values?.[0]?.[0] || '').startsWith('=')
+          );
+          if (formulaFields.length) throw new Error(`Cannot overwrite a formula in ${formulaFields.map(name => fieldColumns[name]).join(', ')} for VCODE ${vcode}. Change the source data for that formula instead.`);
           const updateValues = {
             lastName: value => value,
             firstName: value => value,
@@ -1736,18 +1738,45 @@
             coordinator: value => value,
             deployedBy: value => value
           };
-          for (const [name, value] of Object.entries(values)) {
-            const cell = encodeURIComponent(`VACANCY!${fieldColumns[name][0]}${row}`);
-            await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${cell}?valueInputOption=RAW`, {
-              method: 'PUT',
-              body: JSON.stringify({ values: [[updateValues[name](value)]] })
-            });
-          }
+          const data = Object.entries(values).map(([name, value]) => ({
+            range: `VACANCY!${fieldColumns[name]}${row}`,
+            values: [[updateValues[name](value)]]
+          }));
+          await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
+            method: 'POST',
+            body: JSON.stringify({ valueInputOption: 'RAW', data })
+          });
         }
         notify(`Vacancy record ${vcode} updated.`);
-        const refreshed = await loadVacancyRecords();
-        if (refreshed && vacancyRecords.some(record => record.vcode === vcode)) openVacancyDrawer(vcode);
-        else notify('The vacancy record was saved, but the table did not refresh. Use Refresh to reload it.');
+        const recordValues = {
+          lastName: 'lastName',
+          firstName: 'firstName',
+          middleName: 'middleName',
+          contactNumber: 'contactNumber',
+          vacantDate: 'vacantDate',
+          dateOnboard: 'dateOnboard',
+          reliever: 'reliever',
+          hrcoRemarks: 'hrcoRemarks',
+          coordinator: 'coordinator',
+          deployedBy: 'deployedBy'
+        };
+        for (const [fieldName, recordKey] of Object.entries(recordValues)) {
+          if (!Object.hasOwn(values, fieldName)) continue;
+          if (fieldName === 'vacantDate') {
+            record.vacantDateInput = values[fieldName] || '';
+            record.vacantDate = values[fieldName] ? displaySheetDate(values[fieldName]) : '';
+          } else if (fieldName === 'dateOnboard') {
+            record.dateOnboardInput = values[fieldName] || '';
+            record.dateOnboard = values[fieldName] ? displaySheetDate(values[fieldName]) : '';
+          } else {
+            record[recordKey] = String(values[fieldName] ?? '').trim();
+          }
+        }
+        renderVacancyTable();
+        openVacancyDrawer(vcode);
+        loadVacancyRecords().then(refreshed => {
+          if (refreshed && vacancyRecords.some(item => item.vcode === vcode)) openVacancyDrawer(vcode);
+        });
       } catch (error) {
         button.disabled = false;
         button.textContent = 'Update record';
