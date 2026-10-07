@@ -323,17 +323,6 @@ Deno.serve(async request => {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');
       }
-      if (role === 'user' && !actor.is_master_admin && Array.isArray(actor.managed_user_ids)) {
-        const managedIds = [...new Set([...actor.managed_user_ids, profile.id])];
-        const { error: scopeError } = await adminClient.from('profiles')
-          .update({ managed_user_ids: managedIds })
-          .eq('id', actor.id);
-        if (scopeError) {
-          const { error: rollbackError } = await adminClient.auth.admin.deleteUser(created.user.id);
-          if (rollbackError) throw new Error('The account was created but could not be assigned to your administrator; cleanup failed. Contact the Master Admin.');
-          throw new Error('Could not add this account to your assigned user list. The new account was removed.');
-        }
-      }
       return respond({ user: profile, temporaryPassword: defaultPassword ? defaultPassword : temporaryPassword });
     }
 
