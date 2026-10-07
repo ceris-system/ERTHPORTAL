@@ -204,6 +204,11 @@
     .secondary-button:disabled { cursor:not-allowed; opacity:.48; }
     .dialog-footnote { margin:18px 0 0; padding-top:13px; border-top:1px solid rgba(53,139,143,.12); color:#83999d; font-size:10px; line-height:1.55; }
     .user-panel { padding-bottom:24px; }
+    .user-dialog-tabs { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:0 0 14px; padding:4px; border:1px solid rgba(53,139,143,.12); border-radius:11px; background:rgba(237,249,246,.72); }
+    .user-dialog-tab { min-height:38px; padding:8px 10px; border:0; border-radius:8px; color:#55757b; background:transparent; font-size:11px; font-weight:700; cursor:pointer; }
+    .user-dialog-tab[aria-selected="true"] { color:#176f74; background:rgba(255,255,255,.9); box-shadow:0 2px 8px rgba(37,101,112,.1); }
+    .user-dialog-tab:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+    .user-dialog-panel[hidden] { display:none; }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
     .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
@@ -530,8 +535,14 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">ADMINISTRATION</span>
       <h2 id="users-dialog-title">Add Users</h2>
-      <p class="dialog-copy">Create the account, choose its client from the Master Admin’s HR EMPLOC client list, then assign dashboard spreadsheets. Only the Master Admin can create Regular Admin accounts.</p>
-      <form id="user-form" class="user-form">
+      <div class="user-dialog-tabs" role="tablist" aria-label="User administration">
+        <button id="add-users-tab" class="user-dialog-tab" type="button" role="tab" aria-selected="true" aria-controls="add-users-panel">Add Users</button>
+        <button id="current-users-tab" class="user-dialog-tab" type="button" role="tab" aria-selected="false" aria-controls="current-users-panel" tabindex="-1">Current Users</button>
+      </div>
+      <p id="admin-account-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
+      <section id="add-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="add-users-tab">
+        <p class="dialog-copy">Create the account, choose its client from the Master Admin’s HR EMPLOC client list, then assign dashboard spreadsheets. Only the Master Admin can create Regular Admin accounts.</p>
+        <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
         <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
@@ -541,15 +552,18 @@
         <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add User</button></div>
-      </form>
-      <p id="admin-account-feedback" class="auth-feedback" role="status"></p>
-      <div class="roster-bulk-actions">
-        <label><input id="select-all-users" type="checkbox"> Select all</label>
-        <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
-        <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
-      </div>
-      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
-      <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
+        </form>
+      </section>
+      <section id="current-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="current-users-tab" hidden>
+        <p class="dialog-copy">View existing accounts, reset a password, update account status, or remove an account.</p>
+        <div class="roster-bulk-actions">
+          <label><input id="select-all-users" type="checkbox"> Select all</label>
+          <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
+          <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
+        </div>
+        <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+        <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
+      </section>
     </section>
   </dialog>
   <div id="drawer-backdrop" class="drawer-backdrop"></div>
@@ -2469,7 +2483,33 @@
       if (message) notify(message);
     }
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
+    const userDialogTabs = [...document.querySelectorAll('.user-dialog-tab')];
+    function setUserDialogTab(tabId, focusTab = false) {
+      const selectedTab = document.getElementById(tabId);
+      userDialogTabs.forEach(tab => {
+        const isSelected = tab === selectedTab;
+        tab.setAttribute('aria-selected', String(isSelected));
+        tab.tabIndex = isSelected ? 0 : -1;
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !isSelected;
+      });
+      if (focusTab) selectedTab.focus();
+    }
+    userDialogTabs.forEach((tab, index) => {
+      tab.addEventListener('click', async () => {
+        setUserDialogTab(tab.id);
+        if (tab.id === 'current-users-tab') await renderRoster();
+      });
+      tab.addEventListener('keydown', event => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0
+          : event.key === 'End' ? userDialogTabs.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + userDialogTabs.length) % userDialogTabs.length;
+        setUserDialogTab(userDialogTabs[nextIndex].id, true);
+      });
+    });
     document.querySelector('#manage-users').addEventListener('click', async () => {
+      setUserDialogTab('add-users-tab');
       document.querySelector('#admin-account-feedback').textContent = '';
       try {
         await loadClientOptions();
