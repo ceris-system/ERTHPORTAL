@@ -337,7 +337,7 @@ Deno.serve(async request => {
       }
       await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
-        body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!L${row}`, values: [[hrcoRemarks]] }] })
+        body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!J${row}`, values: [[hrcoRemarks]] }] })
       });
       return respond({ vcode, updated: true });
     }

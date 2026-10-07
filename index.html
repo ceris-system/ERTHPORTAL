@@ -1780,7 +1780,7 @@
             rowNumber: index + 9,
             vcode: value(0),
             fullName: value(4),
-            hrcoRemarks: value(5),
+            hrcoRemarks: value(3),
             onboardDate: displaySheetDate(onboardDate),
             aging: value(17),
             hc: value(19),
@@ -1854,7 +1854,7 @@
           if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no changes were made.`);
           await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values:batchUpdate`, {
             method: 'POST',
-            body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!L${matches[0]}`, values: [[values.hrcoRemarks]] }] })
+            body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!J${matches[0]}`, values: [[values.hrcoRemarks]] }] })
           });
         }
         notify(`HRCO remarks for VCODE ${vcode} updated.`);
