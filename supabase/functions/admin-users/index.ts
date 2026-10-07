@@ -30,12 +30,21 @@ function createTemporaryPassword() {
 }
 
 async function findProfile(adminClient: ReturnType<typeof createClient>, id: string) {
-  const { data, error } = await adminClient.from('profiles')
+  const profileQuery = adminClient.from('profiles');
+  const { data, error } = await profileQuery
     .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, managed_user_ids, is_master_admin, role, status')
     .eq('id', id)
     .single();
-  if (error || !data) throw new Error('Account profile was not found.');
-  return data;
+  if (!error && data) return data;
+  const missingManagedUsersColumn = error && /managed_user_ids/i.test(`${error.message || ''} ${error.details || ''} ${error.hint || ''}`)
+    && /column|schema cache/i.test(`${error.message || ''} ${error.details || ''}`);
+  if (!missingManagedUsersColumn) throw new Error('Account profile was not found.');
+  const fallback = await adminClient.from('profiles')
+    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status')
+    .eq('id', id)
+    .single();
+  if (fallback.error || !fallback.data) throw new Error('Account profile was not found.');
+  return fallback.data;
 }
 
 async function protectLastAdmin(adminClient: ReturnType<typeof createClient>, profile: { id: string; role: string; status: string }) {
