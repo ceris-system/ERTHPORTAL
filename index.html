@@ -1976,10 +1976,36 @@
         }
         renderForApprovalTable();
       });
-      document.querySelector('#approval-confirm').addEventListener('click', () => {
+      document.querySelector('#approval-confirm').addEventListener('click', async event => {
         if (currentUser?.role !== 'admin') return notify('Only Master Admins and Regular Admins can approve records.');
         if (!selectedApprovalRows.size) return notify('Select at least one row first.');
-        notify('Approval processing has not been configured yet. No spreadsheet changes were made.');
+        const selectedRecords = approvalRecords.filter(record => selectedApprovalRows.has(record.id));
+        const vcodes = selectedRecords.map(record => record.vcode);
+        if (!vcodes.length) return notify('The selected approval records are no longer available. Refresh the table and try again.');
+        if (!window.confirm(`Approve ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}? Each row will be copied to On Board Database and HR EMPLOC G1N, then deleted from VACANCY.`)) return;
+        const button = event.currentTarget;
+        button.disabled = true;
+        button.textContent = 'Transferring...';
+        try {
+          const result = await callSheetsFunction('approve-vacancy', {
+            vcodes,
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
+          const approvedCount = Number(result.approvedCount || 0);
+          const failures = Array.isArray(result.failures) ? result.failures : [];
+          await loadForApprovalRecords();
+          if (failures.length) {
+            const failureSummary = failures.map(item => `${item.vcode}: ${item.error}`).join(' · ');
+            notify(`Transferred ${approvedCount} of ${vcodes.length}. Untransferred source rows were kept. ${failureSummary}`);
+          } else {
+            notify(`Transferred ${approvedCount} record${approvedCount === 1 ? '' : 's'} to On Board Database and HR EMPLOC G1N. Source rows deleted.`);
+          }
+        } catch (error) {
+          notify(error?.message || 'The selected records could not be transferred. Check the sheets before retrying.');
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Approved';
+        }
       });
       loadForApprovalRecords();
     }

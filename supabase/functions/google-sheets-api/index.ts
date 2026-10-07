@@ -92,6 +92,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'read-vcode': 'VCODE MASTERLIST',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
+    'approve-vacancy': 'FOR APPROVAL',
     'update-vacancy': 'VACANCY MONITORING',
     'fill-plantilla-newly-hired': 'PLANTILLA',
     'read-hr-emploc': 'HR EMPLOC MONITORING',
@@ -154,6 +155,209 @@ function spreadsheetIdFromAssignedUrl(value: unknown, label: string) {
   const match = url.hostname === 'docs.google.com' ? url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/) : null;
   if (!match) throw new Error(`The ${label} URL must be a Google Sheets document link.`);
   return match[1];
+}
+
+async function getAssignedHrEmplocDestination(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string
+) {
+  const [assignmentResult, profileResult] = await Promise.all([
+    adminClient.from('dashboard_assignments').select('sheet_urls, client_names')
+      .eq('user_id', targetUserId).eq('dashboard_name', 'HR EMPLOC MONITORING').maybeSingle(),
+    adminClient.from('profiles').select('client_name, client_names').eq('id', targetUserId).single()
+  ]);
+  if (assignmentResult.error) throw new Error('Could not load the assigned HR EMPLOC spreadsheet.');
+  if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for HR EMPLOC.');
+  const assignment = assignmentResult.data;
+  const spreadsheetId = spreadsheetIdFromAssignedUrl(assignment?.sheet_urls?.[0], 'HR EMPLOC');
+  const assignedClients = Array.isArray(assignment?.client_names) && assignment.client_names.length
+    ? assignment.client_names
+    : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
+      ? profileResult.data.client_names
+      : [profileResult.data.client_name];
+  const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
+  if (!clientNames.length) throw new Error('No clients are assigned to the HR EMPLOC spreadsheet.');
+  return { spreadsheetId, clientNames };
+}
+
+const approvalRequiredSourceColumns = [10, 11, 12, 13, 14, 15, 20, 21, 22, 31];
+
+function sameSheetValues(actual: unknown[], expected: unknown[], ignoredIndexes: number[] = []) {
+  const ignored = new Set(ignoredIndexes);
+  return Array.from({ length: expected.length }, (_, index) => index)
+    .filter(index => !ignored.has(index))
+    .every(index => String(actual[index] ?? '') === String(expected[index] ?? ''));
+}
+
+async function approveVacancyRecord(
+  sourceSpreadsheetId: string,
+  hrEmplocSpreadsheetId: string,
+  sourceClientNames: string[],
+  hrClientNames: string[],
+  vcode: string
+) {
+  let boardVerified = false;
+  let emplocVerified = false;
+  try {
+  const sourceIndex = new Set(sourceClientNames.map(name => name.toLocaleLowerCase()));
+  const sourceMatchesResult = await googleRequest(
+    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:C')}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const sourceMatches = (sourceMatchesResult.values || []).flatMap((row: unknown[], index: number) =>
+    String(row[0] ?? '').trim() === vcode ? [{ rowNumber: index + 5, clientName: String(row[1] ?? '').trim() }] : []
+  );
+  if (!sourceMatches.length) throw new Error(`VCODE ${vcode} is no longer in VACANCY.`);
+  if (sourceMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no rows were transferred.`);
+  const { rowNumber: originalRowNumber, clientName } = sourceMatches[0];
+  if (!sourceIndex.has(clientName.toLocaleLowerCase())) throw new Error(`VCODE ${vcode} is outside your assigned client scope.`);
+  if (!hrClientNames.includes(clientName.toLocaleLowerCase())) {
+    throw new Error(`Client ${clientName} is not assigned to the HR EMPLOC spreadsheet.`);
+  }
+
+  const sourceResult = await googleRequest(
+    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${originalRowNumber}:AR${originalRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+  );
+  const sourceRow = Array.from({ length: 44 }, (_, index) => sourceResult.values?.[0]?.[index] ?? '');
+  if (String(sourceRow[1]).trim() !== vcode) throw new Error(`VACANCY row ${originalRowNumber} changed before approval.`);
+  if (!approvalRequiredSourceColumns.every(index => String(sourceRow[index] ?? '').trim() !== '')) {
+    throw new Error(`VCODE ${vcode} no longer meets all required approval fields.`);
+  }
+
+  const [sourceMetadata, hrMetadata] = await Promise.all([
+    googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`),
+    googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`)
+  ]);
+  const boardTab = sourceMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'On Board Database');
+  const vacancyTab = sourceMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'VACANCY');
+  const hrTab = hrMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'G1N');
+  if (!boardTab) throw new Error('The VACANCY spreadsheet needs a tab named On Board Database.');
+  if (!vacancyTab) throw new Error('The source spreadsheet needs a tab named VACANCY.');
+  if (!hrTab) throw new Error('The assigned HR EMPLOC spreadsheet needs a tab named G1N.');
+
+  const [boardKeyResult, boardRowValues] = await Promise.all([
+    googleRequest(`spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent("'On Board Database'!B:B")}?valueRenderOption=UNFORMATTED_VALUE`),
+    googleRequest(`spreadsheets/${sourceSpreadsheetId}/values:batchGet?ranges=${encodeURIComponent("'On Board Database'!A:N")}&ranges=${encodeURIComponent("'On Board Database'!P:Z")}&ranges=${encodeURIComponent("'On Board Database'!AB:AR")}&valueRenderOption=UNFORMATTED_VALUE`)
+  ]);
+  const boardKeys = boardKeyResult.values || [];
+  const boardMatches = boardKeys.flatMap((row: unknown[], index: number) =>
+    String(row[0] ?? '').trim() === vcode ? [index + 1] : []
+  );
+  if (boardMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in On Board Database.`);
+  let boardRowNumber: number;
+  if (boardMatches.length) {
+    boardRowNumber = boardMatches[0];
+    const existingResult = await googleRequest(
+      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`'On Board Database'!A${boardRowNumber}:AR${boardRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    if (!sameSheetValues(existingResult.values?.[0] || [], sourceRow, [14, 26])) {
+      throw new Error(`VCODE ${vcode} already exists in On Board Database with different data; it was not overwritten.`);
+    }
+    boardVerified = true;
+  } else {
+    const occupiedRanges = boardRowValues.valueRanges || [];
+    const lastOccupiedBoardRow = occupiedRanges.reduce((lastRow: number, range: any) =>
+      Math.max(lastRow, ...(range.values || []).flatMap((row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? [index + 1] : []
+      )), 0);
+    boardRowNumber = lastOccupiedBoardRow + 1;
+    const boardData = [
+      { range: `'On Board Database'!A${boardRowNumber}:N${boardRowNumber}`, values: [sourceRow.slice(0, 14)] },
+      { range: `'On Board Database'!P${boardRowNumber}:Z${boardRowNumber}`, values: [sourceRow.slice(15, 26)] },
+      { range: `'On Board Database'!AB${boardRowNumber}:AR${boardRowNumber}`, values: [sourceRow.slice(27, 44)] }
+    ];
+    await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({ valueInputOption: 'RAW', data: boardData })
+    });
+    const writtenBoardRow = await googleRequest(
+      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`'On Board Database'!A${boardRowNumber}:AR${boardRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    if (!sameSheetValues(writtenBoardRow.values?.[0] || [], sourceRow, [14, 26])) {
+      throw new Error(`The On Board Database copy for VCODE ${vcode} could not be verified.`);
+    }
+    boardVerified = true;
+  }
+
+  const emplocRow = [sourceRow[25], sourceRow[2], sourceRow[10], sourceRow[11], sourceRow[12], sourceRow[24], sourceRow[1]];
+  const [emplocKeyResult, emplocRowValues] = await Promise.all([
+    googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=UNFORMATTED_VALUE`),
+    googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent('G1N!A9:G')}?valueRenderOption=UNFORMATTED_VALUE`)
+  ]);
+  const emplocKeys = emplocKeyResult.values || [];
+  const emplocMatches = emplocKeys.flatMap((row: unknown[], index: number) =>
+    String(row[0] ?? '').trim() === vcode ? [index + 9] : []
+  );
+  if (emplocMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in HR EMPLOC G1N.`);
+  let emplocRowNumber: number;
+  if (emplocMatches.length) {
+    emplocRowNumber = emplocMatches[0];
+    const existingResult = await googleRequest(
+      `spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent(`G1N!A${emplocRowNumber}:G${emplocRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    if (!sameSheetValues(existingResult.values?.[0] || [], emplocRow)) {
+      throw new Error(`VCODE ${vcode} already exists in HR EMPLOC G1N with different data; it was not overwritten.`);
+    }
+    emplocVerified = true;
+  } else {
+    const lastOccupiedEmplocOffset = (emplocRowValues.values || []).reduce((lastRow: number, row: unknown[], index: number) =>
+      row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
+    emplocRowNumber = Math.max(9, lastOccupiedEmplocOffset + 9);
+    await googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent(`G1N!A${emplocRowNumber}:G${emplocRowNumber}`)}?valueInputOption=RAW`, {
+      method: 'PUT',
+      body: JSON.stringify({ values: [emplocRow] })
+    });
+    const writtenEmplocRow = await googleRequest(
+      `spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent(`G1N!A${emplocRowNumber}:G${emplocRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    if (!sameSheetValues(writtenEmplocRow.values?.[0] || [], emplocRow)) {
+      throw new Error(`The HR EMPLOC G1N copy for VCODE ${vcode} could not be verified.`);
+    }
+    emplocVerified = true;
+  }
+
+  const currentMatchesResult = await googleRequest(
+    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const currentMatches = (currentMatchesResult.values || []).flatMap((value: unknown, index: number) =>
+    String(value ?? '').trim() === vcode ? [index + 5] : []
+  );
+  if (!currentMatches.length) return { vcode, approved: true, alreadyCompleted: true };
+  if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated before its VACANCY row could be deleted.`);
+  const currentRowNumber = currentMatches[0];
+  const currentSourceResult = await googleRequest(
+    `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${currentRowNumber}:AR${currentRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+  );
+  const currentSourceRow = Array.from({ length: 44 }, (_, index) => currentSourceResult.values?.[0]?.[index] ?? '');
+  if (!sameSheetValues(currentSourceRow, sourceRow)) {
+    throw new Error(`VACANCY row ${currentRowNumber} changed before deletion. Both destination copies are retained; the source row was kept.`);
+  }
+  await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: [{
+        deleteDimension: {
+          range: {
+            sheetId: vacancyTab.properties.sheetId,
+            dimension: 'ROWS',
+            startIndex: currentRowNumber - 1,
+            endIndex: currentRowNumber
+          }
+        }
+      }]
+    })
+  });
+  return { vcode, approved: true, sourceRowDeleted: true };
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    const copiedDestinations = [
+      boardVerified ? 'On Board Database copy verified.' : '',
+      emplocVerified ? 'HR EMPLOC G1N copy verified.' : ''
+    ].filter(Boolean).join(' ');
+    if (copiedDestinations) {
+      throw new Error(`${error.message} ${copiedDestinations} The source VACANCY row was kept; retry to safely finish.`);
+    }
+    throw error;
+  }
 }
 
 async function transferPlantillaRowToInactive(
@@ -471,12 +675,41 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'read-for-approval', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
+      return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
+    }
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
     const { spreadsheetId, targetUserId, clientName, clientNames, targetRole } = await getAssignedSheet(adminClient, actor, body);
 
+    if (body.action === 'approve-vacancy') {
+      if (!Array.isArray(body.vcodes) || !body.vcodes.length || body.vcodes.length > 100) {
+        throw new Error('Select between 1 and 100 approval records.');
+      }
+      const vcodes = body.vcodes.map((value: unknown) => String(value || '').trim());
+      if (vcodes.some((value: string) => !value)) throw new Error('Every selected approval record must have a VCODE.');
+      if (new Set(vcodes).size !== vcodes.length) throw new Error('A VCODE was selected more than once. Refresh the table and try again.');
+      const hrDestination = await getAssignedHrEmplocDestination(adminClient, targetUserId);
+      const results = [];
+      const failures = [];
+      for (const vcode of vcodes) {
+        try {
+          results.push(await approveVacancyRecord(spreadsheetId, hrDestination.spreadsheetId, clientNames, hrDestination.clientNames, vcode));
+        } catch (error) {
+          failures.push({
+            vcode,
+            error: error instanceof Error ? error.message : 'Unexpected transfer error.'
+          });
+        }
+      }
+      return respond({
+        approvedCount: results.length,
+        results,
+        failures
+      });
+    }
     if (body.action === 'list-client-options') return respond(await readClientOptions(spreadsheetId));
     if (body.action === 'fill-plantilla-newly-hired') {
       if (targetRole !== 'user') throw new Error('Only User accounts can fill blank PLANTILLA statuses.');
