@@ -89,14 +89,16 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'read-vacancy': 'VACANCY MONITORING',
     'update-vacancy': 'VACANCY MONITORING',
     'read-hr-emploc': 'HR EMPLOC MONITORING',
-    'update-hr-emploc': 'HR EMPLOC MONITORING'
+    'update-hr-emploc': 'HR EMPLOC MONITORING',
+    'list-client-options': 'HR EMPLOC MONITORING'
   };
   const dashboardName = dashboardNameByAction[body.action] || 'PLANTILLA';
   let target = actor;
   const targetUsername = String(body.targetUsername || '').trim().toLowerCase();
   if (actor.role === 'admin' && targetUsername && targetUsername !== actor.username) {
+    if (!actor.is_master_admin) throw new Error('Only the Master Admin can preview another account.');
     const { data, error } = await adminClient.from('profiles')
-      .select('id, username, role, status, sheet_url, client_name')
+      .select('id, username, role, status, sheet_url, client_name, client_names, is_master_admin')
       .eq('username', targetUsername)
       .single();
     if (error || !data || data.role === 'admin') throw new Error('The previewed user was not found.');
@@ -106,7 +108,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls')
+    .select('sheet_urls, client_names')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
@@ -125,7 +127,12 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     try { return new URL(value).pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] === match[1]; }
     catch { return false; }
   })) throw new Error('That spreadsheet is not assigned to this account.');
-  return { spreadsheetId: match[1], clientName: String(target.client_name || '').trim() };
+  const assignedClientNames = Array.isArray(assignment?.client_names) ? assignment.client_names : [];
+  const profileClientNames = Array.isArray(target.client_names) ? target.client_names : [];
+  const clientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
+    .map((value: unknown) => String(value || '').trim())
+    .filter((value: string) => value && value !== 'My spreadsheets'))];
+  return { spreadsheetId: match[1], clientName: String(target.client_name || '').trim(), clientNames };
 }
 
 async function readPlantilla(spreadsheetId: string) {
@@ -143,7 +150,9 @@ async function readVcode(spreadsheetId: string) {
   return { displayValues: result.values || [] };
 }
 
-async function readVacancy(spreadsheetId: string, clientName = '') {
+async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
+  const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
+  if (!activeClients.size) throw new Error('Select at least one client before loading vacancy records.');
   const range = encodeURIComponent('VACANCY!B5:AF');
   const clientRange = encodeURIComponent('VACANCY!C5:C');
   const [raw, display, clientValues, deployers] = await Promise.all([
@@ -152,16 +161,15 @@ async function readVacancy(spreadsheetId: string, clientName = '') {
     googleRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`),
     readDeployers(spreadsheetId)
   ]);
-  const activeClient = String(clientName || '').trim();
   const rowCount = Math.max(raw.values?.length || 0, display.values?.length || 0);
   const filteredRaw: unknown[][] = [];
   const filteredDisplay: unknown[][] = [];
-  if (activeClient && activeClient !== 'My spreadsheets') {
+  if (activeClients.size) {
     for (let index = 0; index < rowCount; index += 1) {
       const rawRow = raw.values?.[index] || [];
       const displayRow = display.values?.[index] || [];
       const clientValue = String(clientValues.values?.[index]?.[0] ?? displayRow[1] ?? rawRow[1] ?? '').trim();
-      if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+      if (activeClients.has(clientValue.toLocaleLowerCase())) {
         filteredRaw.push(rawRow);
         filteredDisplay.push(displayRow);
       }
@@ -183,9 +191,24 @@ async function readDeployers(spreadsheetId: string) {
   return (result.values || []).flat().map((value: unknown) => String(value || '').trim()).filter(Boolean);
 }
 
-async function readHrEmploc(spreadsheetId: string, clientName = '') {
-  const activeClient = String(clientName || '').trim();
-  if (!activeClient) throw new Error('A client name is required to load HR EMPLOC records.');
+async function readClientOptions(spreadsheetId: string) {
+  const range = encodeURIComponent('G1vcode!C3:C');
+  const result = await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  const clientsByNormalizedName = new Map<string, string>();
+  for (const value of (result.values || []).flat()) {
+    const clientName = String(value || '').trim();
+    const normalizedName = clientName.toLocaleLowerCase();
+    if (normalizedName && !clientsByNormalizedName.has(normalizedName)) {
+      clientsByNormalizedName.set(normalizedName, clientName);
+    }
+  }
+  const clients = [...clientsByNormalizedName.values()];
+  return { clients };
+}
+
+async function readHrEmploc(spreadsheetId: string, clientNames: string[] = []) {
+  const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
+  if (!activeClients.size) throw new Error('Select at least one client before loading HR EMPLOC records.');
   const range = encodeURIComponent('G1N!G9:AC');
   const clientRange = encodeURIComponent('G1N!B9:B');
   const [raw, display, clientValues] = await Promise.all([
@@ -200,7 +223,7 @@ async function readHrEmploc(spreadsheetId: string, clientName = '') {
     const rawRow = raw.values?.[index] || [];
     const displayRow = display.values?.[index] || [];
     const clientValue = String(clientValues.values?.[index]?.[0] ?? '').trim();
-    if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+    if (activeClients.has(clientValue.toLocaleLowerCase())) {
       filteredRaw.push(rawRow);
       filteredDisplay.push(displayRow);
     }
@@ -230,19 +253,23 @@ Deno.serve(async request => {
     const { data: { user }, error: authError } = await adminClient.auth.getUser(authorization.slice(7));
     if (authError || !user) return respond({ error: 'Your session is invalid or expired.' }, 401);
     const { data: actor, error: profileError } = await adminClient.from('profiles')
-      .select('id, username, role, status, sheet_url, client_name')
+      .select('id, username, role, status, sheet_url, client_name, client_names, is_master_admin')
       .eq('id', user.id)
       .single();
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla'].includes(body.action)) throw new Error('Unknown sheets action.');
-    const { spreadsheetId, clientName } = await getAssignedSheet(adminClient, actor, body);
+    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (body.action === 'list-client-options' && !actor.is_master_admin) {
+      throw new Error('Only the Master Admin can load client options.');
+    }
+    const { spreadsheetId, clientName, clientNames } = await getAssignedSheet(adminClient, actor, body);
 
+    if (body.action === 'list-client-options') return respond(await readClientOptions(spreadsheetId));
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
-    if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientName));
-    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientName));
+    if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames));
+    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientNames));
 
     if (body.action === 'update-vacancy') {
       const vcode = String(body.vcode || '').trim();
@@ -269,6 +296,11 @@ Deno.serve(async request => {
       if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
       if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
       const row = matches[0];
+      const clientValues = await googleRequest(`spreadsheets/${spreadsheetId}/values/${encodeURIComponent(`VACANCY!C${row}`)}?valueRenderOption=FORMATTED_VALUE`);
+      const rowClient = String(clientValues.values?.[0]?.[0] || '').trim().toLocaleLowerCase();
+      if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
+        throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
+      }
       await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({
@@ -298,6 +330,11 @@ Deno.serve(async request => {
       if (!matches.length) throw new Error(`No G1N row found for VCODE ${vcode}.`);
       if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no changes were made.`);
       const row = matches[0];
+      const clientValues = await googleRequest(`spreadsheets/${spreadsheetId}/values/${encodeURIComponent(`G1N!B${row}`)}?valueRenderOption=FORMATTED_VALUE`);
+      const rowClient = String(clientValues.values?.[0]?.[0] || '').trim().toLocaleLowerCase();
+      if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
+        throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
+      }
       await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!L${row}`, values: [[hrcoRemarks]] }] })

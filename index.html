@@ -205,7 +205,7 @@
     .dialog-footnote { margin:18px 0 0; padding-top:13px; border-top:1px solid rgba(53,139,143,.12); color:#83999d; font-size:10px; line-height:1.55; }
     .user-panel { padding-bottom:24px; }
     .user-form { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
-    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
+    .user-form label:nth-of-type(3), .user-form #new-user-client, .user-form #new-user-clients, .user-form label:nth-of-type(4), .user-form #new-user-role, .user-form label:nth-of-type(5), .user-form #new-photo-url { grid-column:1 / -1; }
     .user-form-actions { grid-column:1 / -1; display:flex; gap:9px; margin-top:17px; }
     .user-form-actions .primary-button { margin-top:0; }
     .roster-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-top:18px; color:#55757b; font-size:11px; }
@@ -495,14 +495,16 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">DASHBOARD CONNECTION</span>
       <h2 id="dashboard-dialog-title">Dashboard</h2>
-      <p class="dialog-copy">Choose a user and assign one or more spreadsheet URLs to this dashboard.</p>
+      <p class="dialog-copy">Choose an account, the client(s) it may fetch for this dashboard, and the shared spreadsheet URL.</p>
       <form id="dashboard-url-form">
         <label class="dialog-label" for="dialog-user-select">Assign to user</label>
         <select id="dialog-user-select" required></select>
+        <label class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
+        <select id="dashboard-client-select" multiple size="4" required aria-label="Clients to fetch for this dashboard"></select>
         <label class="dialog-label">Spreadsheet URLs for this dashboard</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
-        <div class="dialog-scope">URLs are saved to the selected user's account for this dashboard.</div>
+        <div class="dialog-scope">Client names come from the Master Admin’s HR EMPLOC spreadsheet (`G1vcode!C3:C`). Users select one client; Regular Admins can select multiple. The assigned spreadsheet should contain rows for the selected clients.</div>
         <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
@@ -528,15 +530,15 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">ADMINISTRATION</span>
       <h2 id="users-dialog-title">Add Users</h2>
-      <p class="dialog-copy">Create a username and password, then assign the user's spreadsheet. New accounts start with a temporary password and must change it after sign-in.</p>
+      <p class="dialog-copy">Create the account, choose its client from the Master Admin’s HR EMPLOC client list, then assign dashboard spreadsheets. Only the Master Admin can create Regular Admin accounts.</p>
       <form id="user-form" class="user-form">
         <label class="dialog-label" for="new-username">Username</label><input id="new-username" name="username" required maxlength="40" autocomplete="off" placeholder="e.g. j.santos">
         <label class="dialog-label" for="new-display-name">Display name</label><input id="new-display-name" name="displayName" required maxlength="80" placeholder="e.g. Jamie Santos">
         <label class="dialog-label" for="new-photo-url">Profile photo</label><input id="new-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an image URL or choose a photo below"><input id="new-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="new-sheet-url">User's assigned spreadsheet URL</label><input id="new-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="new-default-password">Initial password</label><div class="password-field"><input id="new-default-password" name="defaultPassword" type="password" required minlength="8" pattern="\\d{8,}" title="Use at least 8 digits for a default account password." autocomplete="new-password" placeholder="Default account: 8 digits; active account: 8 letters and numbers"><button class="password-toggle" id="admin-password-toggle" type="button" aria-label="View password" title="View password"><svg class="password-eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg><svg class="password-eye-closed hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.6 6.2A10.4 10.4 0 0 1 12 6c6.1 0 9.5 6 9.5 6s-3.4 6-9.5 6c-1.2 0-2.3-.2-3.3-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
-        <label class="dialog-label" for="new-user-client">Client name</label><input id="new-user-client" name="clientName" required maxlength="80" placeholder="e.g. Client 01">
-        <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Administrator</option></select>
+        <label class="dialog-label" for="new-user-client">Client name</label><select id="new-user-client" name="clientName" required></select><select id="new-user-clients" name="clientNames" multiple size="4" class="hidden" aria-label="Clients for regular administrator"></select>
+        <label class="dialog-label" for="new-user-role">Role</label><select id="new-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
         <label class="dialog-label" for="new-user-status">Account status</label><select id="new-user-status" name="status"><option value="default">Default</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
         <div class="user-form-actions"><button id="user-form-submit" class="primary-button" type="submit">Add User</button></div>
       </form>
@@ -546,7 +548,7 @@
         <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
         <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
       </div>
-      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+      <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
       <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
     </section>
   </dialog>
@@ -635,6 +637,8 @@
     let currentUser = null;
     let previewedUser = null;
     let dashboardAssignments = {};
+    let dashboardClientAssignments = {};
+    let availableClientOptions = [];
     let selectedDashboard = dashboards[0];
     let toastTimer;
     let topbarClockTimer = null;
@@ -784,8 +788,8 @@
       return readJSON(`${dashboardLinksPrefix}${client}`, {});
     }
     function getDashboardSources(name, client = getActiveClient()) {
-      if (previewedUser || currentUser?.role !== 'admin') {
-        const assigned = dashboardAssignments[name];
+      const assigned = dashboardAssignments[name];
+      if (previewedUser || currentUser?.role !== 'admin' || !currentUser?.isMasterAdmin || (Array.isArray(assigned) && assigned.length)) {
         if (Array.isArray(assigned)) return assigned.filter(value => typeof value === 'string' && value.trim());
         const sheetUrl = previewedUser?.sheet_url || portalProfile?.sheet_url;
         if (name === 'PLANTILLA' && sheetUrl) return [sheetUrl];
@@ -795,9 +799,23 @@
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
     }
+    function getDashboardClientNames(name) {
+      const assigned = dashboardClientAssignments[name];
+      if (Array.isArray(assigned) && assigned.length) return assigned;
+      return (currentUser?.clientNames || [currentUser?.client]).filter(value => value && value !== 'My spreadsheets');
+    }
+    function getDashboardClientLabel(name) {
+      const clients = getDashboardClientNames(name);
+      return clients.length ? clients.join(', ') : getActiveClient();
+    }
+    function usesAssignedSheetAccess() {
+      return currentUser?.role !== 'admin' || !!previewedUser || !currentUser?.isMasterAdmin;
+    }
     function filterRowsByClient(rawValues = [], displayValues = [], clientName, clientColumnIndex) {
-      const activeClient = String(clientName || '').trim();
-      if (!activeClient || activeClient === 'My spreadsheets') return { rawValues, displayValues };
+      const activeClients = new Set((Array.isArray(clientName) ? clientName : [clientName])
+        .map(value => String(value || '').trim().toLocaleLowerCase())
+        .filter(value => value && value !== 'my spreadsheets'));
+      if (!activeClients.size) return { rawValues, displayValues };
       const rowCount = Math.max(rawValues.length, displayValues.length);
       const keptRaw = [];
       const keptDisplay = [];
@@ -805,7 +823,7 @@
         const rawRow = rawValues[index] || [];
         const displayRow = displayValues[index] || [];
         const clientValue = String(displayRow[clientColumnIndex] ?? rawRow[clientColumnIndex] ?? '').trim();
-        if (clientValue.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) {
+        if (activeClients.has(clientValue.toLocaleLowerCase())) {
           keptRaw.push(rawRow);
           keptDisplay.push(displayRow);
         }
@@ -915,10 +933,10 @@
       const profileFilter = `&id=eq.${encodeURIComponent(userId)}`;
       let profiles;
       try {
-        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,photo_url,sheet_url,google_email,client_name,client_names,is_master_admin,role,status${profileFilter}`, {}, supabaseAccessToken);
       } catch (profileError) {
         if (!/column .* does not exist|could not find the .* column/i.test(profileError.message || '')) throw profileError;
-        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,role,status${profileFilter}`, {}, supabaseAccessToken);
+        profiles = await supabaseRequest(`/rest/v1/profiles?select=id,username,display_name,google_email,client_name,client_names,is_master_admin,role,status${profileFilter}`, {}, supabaseAccessToken);
       }
       return profiles?.[0] || null;
     }
@@ -955,6 +973,8 @@
           username: portalProfile.username,
           displayName: portalProfile.display_name,
           client: portalProfile.client_name,
+          clientNames: portalProfile.client_names || [portalProfile.client_name].filter(Boolean),
+          isMasterAdmin: !!portalProfile.is_master_admin,
           role: portalProfile.role,
           photo: portalProfile.photo_url || ''
         };
@@ -1045,12 +1065,56 @@
     }
     async function loadDashboardAssignments() {
       dashboardAssignments = {};
+      dashboardClientAssignments = {};
       try {
         const { assignments } = await callAdminFunction('my-dashboard-sources');
-        for (const assignment of assignments || []) dashboardAssignments[assignment.dashboard_name] = assignment.sheet_urls || [];
+        for (const assignment of assignments || []) {
+          dashboardAssignments[assignment.dashboard_name] = assignment.sheet_urls || [];
+          dashboardClientAssignments[assignment.dashboard_name] = assignment.client_names || [];
+        }
       } catch (error) {
         notify(error.message || 'Could not load your assigned spreadsheets. Contact the administrator.');
       }
+    }
+    async function loadClientOptions() {
+      if (currentUser?.isMasterAdmin) {
+        try {
+          const result = await callSheetsFunction('list-client-options');
+          availableClientOptions = result.clients || [];
+        } catch (error) {
+          availableClientOptions = [];
+          throw error;
+        }
+      } else {
+        availableClientOptions = [...new Set([
+          ...(currentUser?.clientNames || (currentUser?.client ? [currentUser.client] : [])),
+          ...Object.values(dashboardClientAssignments).flat()
+        ].filter(value => value && value !== 'My spreadsheets'))];
+      }
+      return availableClientOptions;
+    }
+    function fillClientSelect(select, selectedValues = []) {
+      const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
+      select.replaceChildren();
+      availableClientOptions.forEach(clientName => {
+        const option = document.createElement('option');
+        option.value = clientName;
+        option.textContent = clientName;
+        option.selected = selected.has(clientName.toLocaleLowerCase());
+        select.append(option);
+      });
+    }
+    function selectedClientValues(select) {
+      return [...select.selectedOptions].map(option => option.value);
+    }
+    function updateAccountClientControls() {
+      const isAdminAccount = document.querySelector('#new-user-role').value === 'admin';
+      const singleSelect = document.querySelector('#new-user-client');
+      const multiSelect = document.querySelector('#new-user-clients');
+      singleSelect.classList.toggle('hidden', isAdminAccount);
+      singleSelect.required = !isAdminAccount;
+      multiSelect.classList.toggle('hidden', !isAdminAccount);
+      multiSelect.required = isAdminAccount;
     }
     function showLoginPanel(panelId) {
       ['login-card', 'password-update-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
@@ -1214,7 +1278,7 @@
     }
     function renderProfile(user) {
       document.querySelector('#profile-name').textContent = user.displayName;
-      document.querySelector('#profile-username').textContent = user.role === 'admin' ? 'Administrator' : user.username;
+      document.querySelector('#profile-username').textContent = user.isMasterAdmin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : user.username;
       welcomeUser = user;
       updateTopbarClock();
       if (topbarClockTimer === null) topbarClockTimer = window.setInterval(updateTopbarClock, 1000);
@@ -1243,11 +1307,11 @@
       } else {
         [profileAvatar, topbarAvatar].forEach(avatar => { avatar.textContent = user.displayName.slice(0, 2).toUpperCase(); });
       }
-      const isAdminSession = currentUser?.role === 'admin';
-      document.querySelector('#manage-users').classList.toggle('hidden', !isAdminSession);
+      const isMasterAdminSession = !!currentUser?.isMasterAdmin;
+      document.querySelector('#manage-users').classList.toggle('hidden', !isMasterAdminSession);
       document.querySelector('#manage-account').classList.toggle('hidden', !currentUser);
-      document.querySelector('#preview-user-portal').classList.toggle('hidden', !isAdminSession || !!previewedUser);
-      document.querySelector('#return-to-admin').classList.toggle('hidden', !isAdminSession || !previewedUser);
+      document.querySelector('#preview-user-portal').classList.toggle('hidden', !isMasterAdminSession || !!previewedUser);
+      document.querySelector('#return-to-admin').classList.toggle('hidden', !isMasterAdminSession || !previewedUser);
       document.querySelector('#assigned-client').classList.remove('hidden');
     }
     function updateTopbarClock() {
@@ -1314,11 +1378,11 @@
     let hrEmplocSpreadsheetId = '';
     function showPlantilla() {
       saveCurrentView('plantilla');
-      const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.role === 'admin' && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
+      const savedSheetUrl = getDashboardSources('PLANTILLA')[0] || (currentUser?.isMasterAdmin && !previewedUser ? localStorage.getItem(spreadsheetUrlStorageKey()) : '');
       plantillaSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
-      const adminOwnsSheet = currentUser?.role === 'admin' && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      const adminOwnsSheet = currentUser?.isMasterAdmin && !previewedUser;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
@@ -1335,6 +1399,7 @@
       const savedSheetUrl = getDashboardSources('VCODE MASTERLIST')[0] || '';
       vcodeSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-search" class="plantilla-search" type="search" aria-label="Search VCODE records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off"><p id="vcode-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VCODE MASTERLIST')} · Read-only records from the VCODE sheet`;
       document.querySelector('#vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
       document.querySelector('#vcode-refresh').addEventListener('click', loadVcodeRecords);
       document.querySelector('#vcode-home').addEventListener('click', showHome);
@@ -1354,7 +1419,7 @@
       body.innerHTML = '<tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr>';
       try {
         let displayValues;
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-vcode', previewedUser ? { targetUsername: previewedUser.username } : {});
           displayValues = result.displayValues || [];
         } else {
@@ -1426,8 +1491,9 @@
       saveCurrentView('dashboard', 'VACANCY MONITORING');
       const savedSheetUrl = getDashboardSources('VACANCY MONITORING')[0] || '';
       vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
-      const isDirectAdmin = currentUser?.role === 'admin' && !previewedUser;
+      const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VACANCY MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
       document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
         try {
@@ -1455,7 +1521,8 @@
       try {
         let rawValues;
         let displayValues;
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        let serverFiltered = false;
+        if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-vacancy', {
             clientName: getActiveClient(),
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
@@ -1463,6 +1530,7 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
           vacancyDeployers = result.deployers || [];
+          serverFiltered = true;
         } else {
           const range = encodeURIComponent('VACANCY!B5:AF');
           const deployerRange = encodeURIComponent('Deployer!A2:A');
@@ -1475,9 +1543,11 @@
           displayValues = displayResult.values || [];
           vacancyDeployers = (deployerResult.values || []).flat().map(value => String(value || '').trim()).filter(Boolean);
         }
-        const clientFiltered = filterRowsByClient(rawValues, displayValues, getActiveClient(), 1);
-        rawValues = clientFiltered.rawValues;
-        displayValues = clientFiltered.displayValues;
+        if (!serverFiltered) {
+          const clientFiltered = filterRowsByClient(rawValues, displayValues, getDashboardClientNames('VACANCY MONITORING'), 1);
+          rawValues = clientFiltered.rawValues;
+          displayValues = clientFiltered.displayValues;
+        }
         const rowCount = Math.max(rawValues.length, displayValues.length);
         vacancyRecords = Array.from({ length: rowCount }, (_, index) => {
           const raw = rawValues[index] || [];
@@ -1542,7 +1612,7 @@
       if (!record) return notify(`No loaded vacancy record matches VCODE ${vcode}.`);
       const field = (label, value) => `<div class="drawer-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       const optionList = (values, selected) => `<option value="">Choose...</option>${[...new Set([...values, selected].filter(Boolean))].map(value => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('')}`;
-      const directAdmin = currentUser?.role === 'admin' && !previewedUser;
+      const directAdmin = currentUser?.isMasterAdmin && !previewedUser;
       document.querySelector('#record-drawer-kicker').textContent = 'VACANCY RECORD';
       document.querySelector('#record-drawer-title').classList.remove('single-line-title');
       document.querySelector('#record-drawer-title').textContent = record.vcode;
@@ -1579,7 +1649,7 @@
       button.textContent = 'Updating...';
       form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = true; });
       try {
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        if (usesAssignedSheetAccess()) {
           await callSheetsFunction('update-vacancy', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
@@ -1617,8 +1687,9 @@
       saveCurrentView('dashboard', 'HR EMPLOC MONITORING');
       const savedSheetUrl = getDashboardSources('HR EMPLOC MONITORING')[0] || '';
       hrEmplocSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
-      const isDirectAdmin = currentUser?.role === 'admin' && !previewedUser;
+      const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off"><p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('HR EMPLOC MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#hr-emploc-assign-sheet')?.addEventListener('click', () => openDashboardEditor('HR EMPLOC MONITORING'));
       document.querySelector('#hr-emploc-authorize-google')?.addEventListener('click', async () => {
         try {
@@ -1647,7 +1718,7 @@
         let rawValues;
         let displayValues;
         let serverFiltered = false;
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-hr-emploc', {
             clientName: getActiveClient(),
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
@@ -1665,7 +1736,8 @@
           displayValues = displayResult.values || [];
         }
         if (!serverFiltered) {
-          const activeClient = getActiveClient();
+          const activeClients = new Set(getDashboardClientNames('HR EMPLOC MONITORING')
+            .map(client => client.trim().toLocaleLowerCase()));
           const clientRange = encodeURIComponent('G1N!B9:B');
           const clientResult = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
           const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
@@ -1676,7 +1748,7 @@
             const rawRow = rawValues[index] || [];
             const displayRow = displayValues[index] || [];
             const clientValue = String(clientValues[index] || '').trim();
-            if (clientValue.toLocaleLowerCase() === activeClient.trim().toLocaleLowerCase()) {
+            if (activeClients.has(clientValue.toLocaleLowerCase())) {
               keptRaw.push(rawRow);
               keptDisplay.push(displayRow);
             }
@@ -1737,7 +1809,7 @@
     function openHrEmplocDrawer(vcode) {
       const record = hrEmplocRecords.find(item => item.vcode === vcode);
       if (!record) return notify(`No loaded HR EMPLOC record matches VCODE ${vcode}.`);
-      const directAdmin = currentUser?.role === 'admin' && !previewedUser;
+      const directAdmin = currentUser?.isMasterAdmin && !previewedUser;
       document.querySelector('#record-drawer-kicker').textContent = 'HR EMPLOC RECORD';
       document.querySelector('#record-drawer-title').classList.add('single-line-title');
       document.querySelector('#record-drawer-title').textContent = `${record.vcode} · ${record.fullName || '-'}`;
@@ -1757,7 +1829,7 @@
       button.textContent = 'Updating...';
       form.querySelectorAll('textarea').forEach(input => { input.disabled = true; });
       try {
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        if (usesAssignedSheetAccess()) {
           await callSheetsFunction('update-hr-emploc', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
@@ -1796,7 +1868,7 @@
       try {
         let rawValues;
         let displayValues;
-        if (currentUser?.role !== 'admin' || previewedUser) {
+        if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-plantilla', previewedUser ? { targetUsername: previewedUser.username } : {});
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
@@ -1849,9 +1921,11 @@
     function showClientDashboard(name) {
       saveCurrentView('dashboard', name);
       const index = dashboards.indexOf(name);
-      const sourceCount = getDashboardSources(name).length;
+      const sources = getDashboardSources(name);
+      const sourceCount = sources.length;
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode(name));
       content.innerHTML = `<div class="module-heading"><div><h1>${escapeHtml(name)}</h1><p>CLIENT: ${escapeHtml(getActiveClient())}</p></div><span class="module-index">DASHBOARD ${String(index + 1).padStart(2, '0')} / 11</span></div><section class="empty-module"><div class="empty-inner"><span class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${iconPaths[index]}</svg></span><h2>${escapeHtml(name)} dashboard</h2><p>${sourceCount ? `${sourceCount} spreadsheet source${sourceCount === 1 ? '' : 's'} assigned. This portal dashboard is open; live spreadsheet rows are not yet loaded into the preview.` : `No spreadsheet source is connected for ${escapeHtml(getActiveClient())}. ${currentUser?.role === 'admin' ? 'Assign a spreadsheet URL to a user below.' : 'Ask the administrator to add one.'}`}</p></div></section>${currentUser?.role === 'admin' ? `<button id="dashboard-assign-url" class="primary-button" type="button">Assign spreadsheet URL to user</button>` : ''}<button id="dashboard-home" class="secondary-button" type="button">Home</button>`;
+      content.querySelector('.module-heading p').textContent = `CLIENT: ${getDashboardClientLabel(name)}`;
       if (currentUser?.role !== 'admin' && sourceCount) {
         const links = document.createElement('div');
         links.className = 'user-source-list';
@@ -1910,7 +1984,7 @@
             if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
             setProgress(25, 'Saving record');
-            if (currentUser?.role !== 'admin' || previewedUser) {
+            if (usesAssignedSheetAccess()) {
               await callSheetsFunction('update-plantilla', {
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
                 vcode,
@@ -2008,24 +2082,40 @@
       } catch (error) {
         return notify(error.message || 'Could not load assigned users.');
       }
-      const clientUsers = users.filter(user => user.role !== 'admin');
+      const clientUsers = users.filter(user => !user.is_master_admin || user.username === currentUser.username)
+        .filter(user => currentUser.isMasterAdmin || user.role !== 'admin' || user.username === currentUser.username);
       userSelect.replaceChildren();
       clientUsers.forEach(user => {
         const option = document.createElement('option');
         option.value = user.username;
-        option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name} · ${user.status}`;
+        const accountRole = user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User';
+        option.textContent = `${user.display_name} (@${user.username}) · ${accountRole}`;
         userSelect.append(option);
       });
       if (!clientUsers.length) return notify('Add a user account before assigning a spreadsheet URL.');
       if (previewedUser && clientUsers.some(user => user.username === previewedUser.username)) userSelect.value = previewedUser.username;
       const list = document.querySelector('#dashboard-url-list');
+      const clientSelect = document.querySelector('#dashboard-client-select');
+      try {
+        await loadClientOptions();
+      } catch (error) {
+        const isClientListSourceSetup = currentUser?.isMasterAdmin && name === 'HR EMPLOC MONITORING';
+        if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
+      }
       const loadSelectedAssignment = async () => {
-        const { urls } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
         const selectedUser = clientUsers.find(user => user.username === userSelect.value);
         const assignedUrls = urls?.length ? urls : (name === 'PLANTILLA' && selectedUser?.sheet_url ? [selectedUser.sheet_url] : []);
+        const canFetchMultiple = selectedUser?.role === 'admin';
+        const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
+        clientSelect.multiple = canFetchMultiple;
+        clientSelect.size = canFetchMultiple ? 4 : 1;
+        clientSelect.required = !isClientListSourceSetup;
+        clientSelect.setAttribute('aria-label', canFetchMultiple ? 'Clients to fetch for this administrator' : 'Client to fetch for this user');
+        fillClientSelect(clientSelect, assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean));
         list.replaceChildren();
         (assignedUrls.length ? assignedUrls : ['']).forEach(source => addDashboardUrlRow(source));
         openDashboardUrl.disabled = !assignedUrls.length;
@@ -2044,14 +2134,18 @@
 
     async function renderRoster() {
       const body = document.querySelector('#user-roster');
-      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading accounts...</td></tr>';
+      body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
         body.innerHTML = users.map(user => {
           const tempPassword = rosterPasswordMap.get(user.username);
           const isVisible = !!rosterPasswordVisible[user.username] && tempPassword;
           const passwordCell = tempPassword ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span style="font-family:'Roboto Mono',monospace;letter-spacing:.04em;">${isVisible ? escapeHtml(tempPassword) : '••••••••'}</span><button class="edit-user" type="button" data-view-password="${escapeHtml(user.username)}" aria-label="${isVisible ? 'Hide' : 'View'} password for ${escapeHtml(user.username)}">${isVisible ? 'Hide Password' : 'View Password'}</button></div>` : '<span class="plantilla-empty">No temp password</span>';
-          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(user.client_name)}</td><td>${escapeHtml(user.role)}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td><div class="roster-actions"><button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button></div></td></tr>`;
+          const photoCell = user.photo_url
+            ? `<img class="roster-photo" src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} photo" loading="lazy" onerror="this.replaceWith(document.createTextNode('No photo'))">`
+            : '<span class="plantilla-empty">No photo</span>';
+          const clientDisplay = (user.client_names?.length ? user.client_names : [user.client_name]).filter(Boolean).join(', ');
+          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
         }).join('');
         const selectAll = document.querySelector('#select-all-users');
         selectAll.checked = false;
@@ -2107,7 +2201,7 @@
           }
         }));
       } catch (error) {
-        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
       }
     }
 
@@ -2117,13 +2211,16 @@
       if (!user) throw new Error('Choose a valid non-admin user account.');
       const assignments = await Promise.all(dashboards.map(async dashboardName => {
         const result = await callAdminFunction('get-dashboard-assignment', { username, dashboardName });
-        return [dashboardName, result.urls || []];
+        return [dashboardName, result];
       }));
-      dashboardAssignments = Object.fromEntries(assignments.filter(([, urls]) => urls.length));
+      dashboardAssignments = Object.fromEntries(assignments.filter(([, result]) => result.urls?.length).map(([name, result]) => [name, result.urls]));
+      dashboardClientAssignments = Object.fromEntries(assignments.map(([name, result]) => [name, result.clientNames || []]));
       previewedUser = {
         username: user.username,
         displayName: user.display_name,
         client: user.client_name,
+        clientNames: user.client_names || [user.client_name].filter(Boolean),
+        isMasterAdmin: false,
         role: 'user',
         photo: user.photo_url || '',
         sheet_url: user.sheet_url || ''
@@ -2141,6 +2238,7 @@
       if (currentUser?.role !== 'admin') return;
       previewedUser = null;
       dashboardAssignments = {};
+      dashboardClientAssignments = {};
       googleAccessToken = '';
       signedInEmail = '';
       plantillaSpreadsheetId = '';
@@ -2195,6 +2293,8 @@
             username: portalProfile.username,
             displayName: portalProfile.display_name,
             client: portalProfile.client_name,
+            clientNames: portalProfile.client_names || [portalProfile.client_name].filter(Boolean),
+            isMasterAdmin: !!portalProfile.is_master_admin,
             role: portalProfile.role,
             photo: portalProfile.photo_url || ''
           };
@@ -2349,6 +2449,7 @@
       supabaseRefreshToken = '';
       portalProfile = null;
       dashboardAssignments = {};
+      dashboardClientAssignments = {};
       welcomeUser = null;
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
@@ -2368,11 +2469,24 @@
       if (message) notify(message);
     }
     document.querySelector('#home-link').addEventListener('click', event => { event.preventDefault(); showHome(); });
-    document.querySelector('#manage-users').addEventListener('click', () => {
+    document.querySelector('#manage-users').addEventListener('click', async () => {
       document.querySelector('#admin-account-feedback').textContent = '';
-      renderRoster();
+      try {
+        await loadClientOptions();
+        fillClientSelect(document.querySelector('#new-user-client'));
+        fillClientSelect(document.querySelector('#new-user-clients'));
+      } catch (error) {
+        document.querySelector('#admin-account-feedback').textContent = error.message || 'Could not load client options from the Master Admin HR EMPLOC spreadsheet.';
+      }
+      const adminRoleOption = document.querySelector('#new-user-role option[value="admin"]');
+      adminRoleOption.hidden = !currentUser?.isMasterAdmin;
+      adminRoleOption.disabled = !currentUser?.isMasterAdmin;
+      document.querySelector('#new-user-role').value = 'user';
+      updateAccountClientControls();
+      await renderRoster();
       usersDialog.showModal();
     });
+    document.querySelector('#new-user-role').addEventListener('change', updateAccountClientControls);
     document.querySelector('#select-all-users').addEventListener('change', event => {
       const checked = event.currentTarget.checked;
       document.querySelectorAll('#user-roster [data-select-user]').forEach(checkbox => { checkbox.checked = checked; });
@@ -2498,7 +2612,10 @@
             photoUrl: form.elements.photoUrl.value,
             sheetUrl: assignedSheetUrl,
             defaultPassword: form.elements.defaultPassword.value,
-            clientName: form.elements.clientName.value,
+            clientName: selectedClientValues(document.querySelector('#new-user-client'))[0] || '',
+            clientNames: form.elements.role.value === 'admin'
+              ? selectedClientValues(document.querySelector('#new-user-clients'))
+              : selectedClientValues(document.querySelector('#new-user-client')),
             role: form.elements.role.value,
             status: form.elements.status.value
           });
@@ -2509,6 +2626,10 @@
           const passwordMessage = result.temporaryPassword ? `Temporary password: ${result.temporaryPassword}.` : 'Password set by admin.';
           document.querySelector('#admin-account-feedback').textContent = `Account ${result.user.username} created. ${passwordMessage} Give it to the user privately; it will be required to change at first login.`;
           form.reset();
+          fillClientSelect(document.querySelector('#new-user-client'));
+          fillClientSelect(document.querySelector('#new-user-clients'));
+          document.querySelector('#new-user-role').value = 'user';
+          updateAccountClientControls();
           updateInitialPasswordRule();
           await renderRoster();
         } catch (error) {
@@ -2524,6 +2645,9 @@
       if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
       const username = document.querySelector('#dialog-user-select').value;
       if (!username) return notify('Choose a user to assign this dashboard.');
+      const clientNames = selectedClientValues(document.querySelector('#dashboard-client-select'));
+      const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
+      if (!clientNames.length && !sourceSetup) return notify('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
       const sources = [];
       for (const value of values) {
@@ -2538,11 +2662,16 @@
       button.textContent = 'Saving...';
       (async () => {
         try {
-          await callAdminFunction('set-dashboard-assignment', { username, dashboardName: selectedDashboard, urls: sources });
+          await callAdminFunction('set-dashboard-assignment', { username, dashboardName: selectedDashboard, urls: sources, clientNames });
           openDashboardUrl.disabled = !sources.length;
           dashboardDialog.close();
+          if (currentUser?.username === username) {
+            dashboardAssignments[selectedDashboard] = sources;
+            dashboardClientAssignments[selectedDashboard] = clientNames;
+          }
           if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
+            dashboardClientAssignments[selectedDashboard] = clientNames;
             openUserDashboard(selectedDashboard);
           }
           notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for @${username} / ${selectedDashboard}.`);

@@ -30,7 +30,7 @@ function createTemporaryPassword() {
 
 async function findProfile(adminClient: ReturnType<typeof createClient>, id: string) {
   const { data, error } = await adminClient.from('profiles')
-    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status')
+    .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status')
     .eq('id', id)
     .single();
   if (error || !data) throw new Error('Account profile was not found.');
@@ -70,7 +70,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls')
+        .select('dashboard_name, sheet_urls, client_names')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -130,13 +130,23 @@ Deno.serve(async request => {
     }
 
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);
+    if (!actor.is_master_admin && !['list', 'get-dashboard-assignment', 'set-dashboard-assignment'].includes(body.action)) {
+      return respond({ error: 'Master Admin access is required for account management.' }, 403);
+    }
 
     if (body.action === 'list') {
       const { data, error } = await adminClient.from('profiles')
-        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status, created_at')
+        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status, created_at')
         .order('username');
       if (error) throw new Error('Could not load account list.');
-      return respond({ users: data });
+      const actorClients = new Set(actor.client_names?.length ? actor.client_names : [actor.client_name]);
+      const users = actor.is_master_admin
+        ? data || []
+        : (data || []).filter((profile: any) => profile.id === actor.id || (
+          profile.role !== 'admin' &&
+          (profile.client_names?.length ? profile.client_names : [profile.client_name]).some((client: string) => actorClients.has(client))
+        ));
+      return respond({ users });
     }
 
     if (body.action === 'get-dashboard-assignment' || body.action === 'set-dashboard-assignment') {
@@ -144,22 +154,43 @@ Deno.serve(async request => {
       const dashboardName = String(body.dashboardName || '').trim();
       if (!dashboardNames.has(dashboardName)) throw new Error('Choose a valid dashboard.');
       const { data: target, error: targetError } = await adminClient.from('profiles')
-        .select('id, username, role')
+        .select('id, username, role, is_master_admin, client_name, client_names')
         .eq('username', username)
         .single();
-      if (targetError || !target || target.role === 'admin') throw new Error('Choose a valid user account.');
+      if (targetError || !target || (target.is_master_admin && target.id !== actor.id)) throw new Error('Choose a valid account.');
+      if (!actor.is_master_admin && target.role === 'admin' && target.id !== actor.id) {
+        throw new Error('Only the Master Admin can assign dashboards to another administrator.');
+      }
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls')
+          .select('sheet_urls, client_names')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
         if (error) throw new Error('Could not load this user\'s spreadsheet assignment.');
-        return respond({ username, dashboardName, urls: data?.sheet_urls || [] });
+        const clientNames = data?.client_names?.length
+          ? data.client_names
+          : target.client_names?.length
+            ? target.client_names
+            : [target.client_name].filter(Boolean);
+        return respond({ username, dashboardName, urls: data?.sheet_urls || [], clientNames });
       }
 
       if (!Array.isArray(body.urls) || body.urls.length > 10) throw new Error('Provide up to 10 spreadsheet URLs.');
+      if (!Array.isArray(body.clientNames)) throw new Error('Select client(s) for this dashboard.');
+      const clientNames = [...new Set(body.clientNames.map((value: unknown) => {
+        if (typeof value !== 'string' || !value.trim() || value.trim().length > 80) throw new Error('Choose valid client names.');
+        return value.trim();
+      }))];
+      const sourceSetup = target.is_master_admin && dashboardName === 'HR EMPLOC MONITORING' && clientNames.length === 0;
+      if (!actor.is_master_admin && clientNames.some(name => !(actor.client_names || [actor.client_name]).includes(name))) {
+        throw new Error('You can assign only clients granted to your administrator account.');
+      }
+      const allowedClientCount = target.role === 'admin' ? 30 : 1;
+      if (!sourceSetup && (clientNames.length < 1 || clientNames.length > allowedClientCount)) {
+        throw new Error(target.role === 'admin' ? 'Select between 1 and 30 clients for an administrator.' : 'Select exactly one client for a user account.');
+      }
       const urls = body.urls.map((value: unknown) => {
         if (typeof value !== 'string') throw new Error('Each spreadsheet URL must be text.');
         let url: URL;
@@ -171,10 +202,22 @@ Deno.serve(async request => {
         user_id: target.id,
         dashboard_name: dashboardName,
         sheet_urls: urls,
+        client_names: clientNames,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
-      return respond({ username, dashboardName, urls });
+      if (target.role === 'admin' && !target.is_master_admin) {
+        const existingClients = Array.isArray(target.client_names) ? target.client_names : [];
+        const updatedClients = [...new Set([...existingClients, ...clientNames])];
+        const { error: profileError } = await adminClient.from('profiles')
+          .update({
+            client_names: updatedClients,
+            client_name: target.client_name === 'My spreadsheets' ? updatedClients[0] : target.client_name
+          })
+          .eq('id', target.id);
+        if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
+      }
+      return respond({ username, dashboardName, urls, clientNames });
     }
 
     if (body.action === 'create') {
@@ -185,10 +228,19 @@ Deno.serve(async request => {
       const sheetUrl = String(body.sheetUrl || '').trim();
       const defaultPassword = String(body.defaultPassword || '').trim();
       const clientName = String(body.clientName || '').trim() || 'My spreadsheets';
+      const clientNames = [...new Set((Array.isArray(body.clientNames) ? body.clientNames : [clientName])
+        .map((value: unknown) => String(value || '').trim())
+        .filter(Boolean))];
       const role = body.role === 'admin' ? 'admin' : 'user';
       const status = ['default', 'active', 'inactive'].includes(String(body.status || '').trim()) ? String(body.status).trim() : 'default';
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
       if (!displayName) throw new Error('Display name is required.');
+      if (role === 'admin' && !actor.is_master_admin) throw new Error('Only the Master Admin can create administrator accounts.');
+      if (!actor.is_master_admin && clientNames.some(name => !(actor.client_names || [actor.client_name]).includes(name))) {
+        throw new Error('You can create accounts only for clients granted to your administrator account.');
+      }
+      if (role === 'user' && clientNames.length !== 1) throw new Error('Choose exactly one client for a user account.');
+      if (role === 'admin' && (clientNames.length < 1 || clientNames.length > 30)) throw new Error('Choose between 1 and 30 clients for an administrator.');
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
 
       const temporaryPassword = defaultPassword || createTemporaryPassword();
@@ -213,10 +265,12 @@ Deno.serve(async request => {
         photo_url: photoUrl || '',
         sheet_url: sheetUrl || '',
         google_email: googleEmail || '',
-        client_name: clientName,
+        client_name: clientNames[0] || clientName,
+        client_names: clientNames,
+        is_master_admin: false,
         role,
         status
-      }).select('id, username, display_name, photo_url, sheet_url, google_email, client_name, role, status').single();
+      }).select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status').single();
       if (profileError || !profile) {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');
@@ -238,10 +292,14 @@ Deno.serve(async request => {
         return value.trim().toLowerCase();
       }))];
       const { data: targets, error: targetsError } = await adminClient.from('profiles')
-        .select('id, username, role, status')
+        .select('id, username, role, status, is_master_admin')
         .in('username', usernames);
       if (targetsError) throw new Error('Could not load the selected accounts.');
       if (!targets || targets.length !== usernames.length) throw new Error('One or more selected accounts no longer exist. Refresh the list and try again.');
+      if (targets.some(target => target.is_master_admin)) throw new Error('The Master Admin account cannot be changed in a bulk status update.');
+      if (!actor.is_master_admin && targets.some(target => target.role === 'admin')) {
+        throw new Error('Only the Master Admin can change administrator account statuses.');
+      }
 
       if (status !== 'active') {
         const { count, error: countError } = await adminClient.from('profiles')
@@ -262,10 +320,12 @@ Deno.serve(async request => {
 
     const targetUsername = String(body.username || '').trim().toLowerCase();
     const { data: target, error: targetError } = await adminClient.from('profiles')
-      .select('id, username, display_name, google_email, client_name, role, status')
+      .select('id, username, display_name, google_email, client_name, client_names, is_master_admin, role, status')
       .eq('username', targetUsername)
       .single();
     if (targetError || !target) throw new Error('Username was not found.');
+    if (target.is_master_admin) throw new Error('The Master Admin account cannot be modified through user management.');
+    if (!actor.is_master_admin && target.role === 'admin') throw new Error('Only the Master Admin can manage administrator accounts.');
 
     if (body.action === 'reset-password') {
       const temporaryPassword = createTemporaryPassword();
