@@ -81,8 +81,16 @@ Deno.serve(async request => {
       if (actor.status !== 'active' && !completingDefaultAccount) throw new Error('Only active accounts can change account settings.');
       const username = String(body.username || '').trim().toLowerCase();
       const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+      const photoUrl = typeof body.photoUrl === 'string' ? body.photoUrl.trim() : undefined;
       if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
         throw new Error('Username must be 3-40 characters: letters, numbers, dots, hyphens, or underscores.');
+      }
+      if (photoUrl !== undefined && photoUrl.length > 700_000) throw new Error('Profile photo must be smaller than 512 KB.');
+      if (photoUrl) {
+        const isInlineImage = /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photoUrl);
+        let isHttpsImageUrl = false;
+        try { isHttpsImageUrl = new URL(photoUrl).protocol === 'https:'; } catch { /* not an absolute image URL */ }
+        if (!isInlineImage && !isHttpsImageUrl) throw new Error('Use an HTTPS profile photo URL or choose an image file.');
       }
       if (newPassword && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(newPassword)) {
         throw new Error('New password must be at least 8 characters and include both letters and numbers.');
@@ -126,7 +134,11 @@ Deno.serve(async request => {
         const { error: statusError } = await adminClient.from('profiles').update({ status: 'active' }).eq('id', user.id);
         if (statusError) throw new Error('Credentials were changed, but the account could not be activated. Contact the administrator.');
       }
-      return respond({ username, passwordUpdated: !!newPassword, status: completingDefaultAccount ? 'active' : actor.status });
+      if (photoUrl !== undefined) {
+        const { error: photoError } = await adminClient.from('profiles').update({ photo_url: photoUrl }).eq('id', user.id);
+        if (photoError) throw new Error('Account credentials were updated, but the profile photo could not be saved.');
+      }
+      return respond({ username, photoUrl: photoUrl ?? actor.photo_url, passwordUpdated: !!newPassword, status: completingDefaultAccount ? 'active' : actor.status });
     }
 
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);

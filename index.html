@@ -486,6 +486,9 @@
       <form id="account-form">
         <label class="dialog-label" for="account-username">Username</label>
         <input id="account-username" name="username" required minlength="3" maxlength="40" autocomplete="username">
+        <label class="dialog-label" for="account-photo-url">Profile photo</label>
+        <input id="account-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an HTTPS image URL or choose a photo below">
+        <input id="account-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
         <label class="dialog-label" for="account-new-password">New password</label>
         <input id="account-new-password" name="newPassword" type="password" minlength="8" pattern="(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}" title="Use at least 8 letters and numbers." autocomplete="new-password" placeholder="Leave blank to keep current password">
         <label class="dialog-label" for="account-confirm-password">Confirm new password</label>
@@ -1283,6 +1286,7 @@
     }
     function safePhotoUrl(value) {
       if (!value) return '';
+      if (value.length <= 700_000 && /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value)) return value;
       try {
         const url = new URL(value);
         if (url.protocol !== 'https:') return '';
@@ -2442,6 +2446,25 @@
       });
       reader.readAsDataURL(file);
     });
+    document.querySelector('#account-photo-file').addEventListener('change', event => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        notify('Choose an image file for the profile photo.');
+        event.currentTarget.value = '';
+        return;
+      }
+      if (file.size > 512 * 1024) {
+        notify('Choose an image smaller than 512 KB.');
+        event.currentTarget.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        document.querySelector('#account-photo-url').value = String(reader.result || '');
+      });
+      reader.readAsDataURL(file);
+    });
     document.querySelector('#logout-button').addEventListener('click', () => {
       signOutPortal();
     });
@@ -2557,6 +2580,7 @@
       const form = document.querySelector('#account-form');
       form.reset();
       form.elements.username.value = currentUser?.username || '';
+      form.elements.photoUrl.value = currentUser?.photo || '';
       document.querySelector('#account-feedback').textContent = '';
       document.querySelector('#account-dialog-copy').textContent = previewedUser
         ? `This updates your signed-in administrator account, not the previewed user (@${previewedUser.username}).`
@@ -2567,6 +2591,7 @@
       event.preventDefault();
       const form = event.currentTarget;
       const username = form.elements.username.value.trim().toLowerCase();
+      const photoUrl = form.elements.photoUrl.value.trim();
       const newPassword = form.elements.newPassword.value;
       const confirmPassword = form.elements.confirmPassword.value;
       const feedback = document.querySelector('#account-feedback');
@@ -2580,9 +2605,11 @@
       feedback.textContent = '';
       (async () => {
         try {
-          const result = await callAdminFunction('update-own-account', { username, newPassword });
+          const result = await callAdminFunction('update-own-account', { username, newPassword, photoUrl });
           currentUser.username = result.username;
+          currentUser.photo = result.photoUrl || '';
           if (portalProfile) portalProfile.username = result.username;
+          if (portalProfile) portalProfile.photo_url = result.photoUrl || '';
           saveRememberedUsername(result.username);
           accountDialog.close();
           if (!previewedUser) {
