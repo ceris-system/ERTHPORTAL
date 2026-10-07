@@ -1736,14 +1736,13 @@
             coordinator: value => value,
             deployedBy: value => value
           };
-          const data = Object.entries(values).map(([name, value]) => ({
-            range: `VACANCY!${fieldColumns[name][0]}${row}`,
-            values: [[updateValues[name](value)]]
-          }));
-          await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
-            method: 'POST',
-            body: JSON.stringify({ valueInputOption: 'RAW', data })
-          });
+          for (const [name, value] of Object.entries(values)) {
+            const cell = encodeURIComponent(`VACANCY!${fieldColumns[name][0]}${row}`);
+            await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${cell}?valueInputOption=RAW`, {
+              method: 'PUT',
+              body: JSON.stringify({ values: [[updateValues[name](value)]] })
+            });
+          }
         }
         notify(`Vacancy record ${vcode} updated.`);
         const refreshed = await loadVacancyRecords();

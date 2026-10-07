@@ -324,17 +324,13 @@ Deno.serve(async request => {
         const columns = formulaFields.map(field => fieldColumns[field].column).join(', ');
         throw new Error(`Cannot overwrite a formula in column ${columns} for VCODE ${vcode}. Change the source data for that formula instead.`);
       }
-      const data = Object.entries(updates).map(([field, value]) => ({
-        range: `VACANCY!${fieldColumns[field].column}${row}`,
-        values: [[value]]
-      }));
-      await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
-        method: 'POST',
-        body: JSON.stringify({
-          valueInputOption: 'RAW',
-          data
-        })
-      });
+      for (const [field, value] of Object.entries(updates)) {
+        const range = encodeURIComponent(`VACANCY!${fieldColumns[field].column}${row}`);
+        await googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW`, {
+          method: 'PUT',
+          body: JSON.stringify({ values: [[value]] })
+        });
+      }
       return respond({ vcode, updated: true });
     }
 
