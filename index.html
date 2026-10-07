@@ -1677,31 +1677,39 @@
       document.querySelector('#drawer-backdrop').classList.add('open');
       document.querySelector('#vacancy-update-form').addEventListener('submit', event => {
         event.preventDefault();
-        submitVacancyUpdate(event.currentTarget, record.vcode);
+        submitVacancyUpdate(event.currentTarget, record);
       });
     }
-    async function submitVacancyUpdate(form, vcode) {
+    async function submitVacancyUpdate(form, record) {
+      const { vcode } = record;
       const button = form.querySelector('button[type="submit"]');
       const formData = new FormData(form);
-      const values = {
-        vcode,
-        vacantDate: formData.get('vacantDate'),
-        lastName: formData.get('lastName'),
-        firstName: formData.get('firstName'),
-        middleName: formData.get('middleName'),
-        contactNumber: formData.get('contactNumber'),
-        dateOnboard: formData.get('dateOnboard'),
-        reliever: formData.get('reliever'),
-        hrcoRemarks: formData.get('hrcoRemarks'),
-        coordinator: formData.get('coordinator'),
-        deployedBy: formData.get('deployedBy')
+      const fieldNames = ['vacantDate', 'lastName', 'firstName', 'middleName', 'contactNumber', 'dateOnboard', 'reliever', 'hrcoRemarks', 'coordinator', 'deployedBy'];
+      const originalValues = {
+        vacantDate: record.vacantDateInput,
+        lastName: record.lastName,
+        firstName: record.firstName,
+        middleName: record.middleName,
+        contactNumber: record.contactNumber,
+        dateOnboard: record.dateOnboardInput,
+        reliever: record.reliever,
+        hrcoRemarks: record.hrcoRemarks,
+        coordinator: record.coordinator,
+        deployedBy: record.deployedBy
       };
+      const values = Object.fromEntries(fieldNames
+        .filter(name => String(formData.get(name) ?? '').trim() !== String(originalValues[name] ?? '').trim())
+        .map(name => [name, formData.get(name)]));
+      if (!Object.keys(values).length) {
+        notify(`No changes to save for vacancy ${vcode}.`);
+        return;
+      }
       button.disabled = true;
       button.textContent = 'Updating...';
       form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = true; });
       try {
         if (usesAssignedSheetAccess()) {
-          await callSheetsFunction('update-vacancy', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
+          await callSheetsFunction('update-vacancy', { vcode, ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
           const range = encodeURIComponent('VACANCY!B5:B');
@@ -1710,17 +1718,31 @@
           if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
           if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
           const row = matches[0];
+          const formulaRange = encodeURIComponent(`VACANCY!K${row}:AF${row}`);
+          const formulaResult = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${formulaRange}?valueRenderOption=FORMULA`);
+          const formulaRow = formulaResult.values?.[0] || [];
+          const fieldColumns = { lastName: ['K', 0], firstName: ['L', 1], middleName: ['M', 2], contactNumber: ['N', 3], vacantDate: ['O', 4], dateOnboard: ['P', 5], reliever: ['U', 10], hrcoRemarks: ['W', 12], coordinator: ['AD', 19], deployedBy: ['AF', 21] };
+          const formulaFields = Object.keys(values).filter(name => String(formulaRow[fieldColumns[name][1]] || '').startsWith('='));
+          if (formulaFields.length) throw new Error(`Cannot overwrite a formula in ${formulaFields.map(name => fieldColumns[name][0]).join(', ')} for VCODE ${vcode}. Change the source data for that formula instead.`);
+          const updateValues = {
+            lastName: value => value,
+            firstName: value => value,
+            middleName: value => value,
+            contactNumber: value => value,
+            vacantDate: value => sheetDateSerial(value),
+            dateOnboard: value => sheetDateSerial(value),
+            reliever: value => value,
+            hrcoRemarks: value => value,
+            coordinator: value => value,
+            deployedBy: value => value
+          };
+          const data = Object.entries(values).map(([name, value]) => ({
+            range: `VACANCY!${fieldColumns[name][0]}${row}`,
+            values: [[updateValues[name](value)]]
+          }));
           await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
             method: 'POST',
-            body: JSON.stringify({ valueInputOption: 'RAW', data: [
-              { range: `VACANCY!K${row}:N${row}`, values: [[values.lastName, values.firstName, values.middleName, values.contactNumber]] },
-              { range: `VACANCY!O${row}`, values: [[sheetDateSerial(values.vacantDate)]] },
-              { range: `VACANCY!P${row}`, values: [[sheetDateSerial(values.dateOnboard)]] },
-              { range: `VACANCY!U${row}`, values: [[values.reliever]] },
-              { range: `VACANCY!W${row}`, values: [[values.hrcoRemarks]] },
-              { range: `VACANCY!AD${row}`, values: [[values.coordinator]] },
-              { range: `VACANCY!AF${row}`, values: [[values.deployedBy]] }
-            ] })
+            body: JSON.stringify({ valueInputOption: 'RAW', data })
           });
         }
         notify(`Vacancy record ${vcode} updated.`);

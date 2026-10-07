@@ -274,20 +274,35 @@ Deno.serve(async request => {
     if (body.action === 'update-vacancy') {
       const vcode = String(body.vcode || '').trim();
       if (!vcode) throw new Error('VCODE is required.');
-      const textFields = ['lastName', 'firstName', 'middleName', 'contactNumber', 'reliever', 'hrcoRemarks', 'coordinator', 'deployedBy'];
+      const fieldColumns: Record<string, { column: string; offset: number; type: 'text' | 'date' }> = {
+        lastName: { column: 'K', offset: 0, type: 'text' },
+        firstName: { column: 'L', offset: 1, type: 'text' },
+        middleName: { column: 'M', offset: 2, type: 'text' },
+        contactNumber: { column: 'N', offset: 3, type: 'text' },
+        vacantDate: { column: 'O', offset: 4, type: 'date' },
+        dateOnboard: { column: 'P', offset: 5, type: 'date' },
+        reliever: { column: 'U', offset: 10, type: 'text' },
+        hrcoRemarks: { column: 'W', offset: 12, type: 'text' },
+        coordinator: { column: 'AD', offset: 19, type: 'text' },
+        deployedBy: { column: 'AF', offset: 21, type: 'text' }
+      };
       const updates: Record<string, unknown> = {};
-      for (const field of textFields) {
+      for (const [field, definition] of Object.entries(fieldColumns)) {
+        if (!Object.hasOwn(body, field)) continue;
+        if (definition.type === 'date') {
+          updates[field] = dateSerial(body[field]);
+          continue;
+        }
         const value = body[field] === undefined || body[field] === null ? '' : String(body[field]).trim();
         if (value.length > 500) throw new Error(`${field} cannot exceed 500 characters.`);
         updates[field] = value;
       }
-      const vacantDate = dateSerial(body.vacantDate);
-      const dateOnboard = dateSerial(body.dateOnboard);
+      if (!Object.keys(updates).length) throw new Error('Make at least one change before updating the vacancy record.');
       const deployerValues = await readDeployers(spreadsheetId);
-      if (updates.coordinator && !deployerValues.includes(String(updates.coordinator))) {
+      if (Object.hasOwn(updates, 'coordinator') && updates.coordinator && !deployerValues.includes(String(updates.coordinator))) {
         throw new Error('Choose a Coordinator from the Deployer sheet options.');
       }
-      if (updates.deployedBy && !deployerValues.includes(String(updates.deployedBy))) {
+      if (Object.hasOwn(updates, 'deployedBy') && updates.deployedBy && !deployerValues.includes(String(updates.deployedBy))) {
         throw new Error('Choose a Deployed By value from the Deployer sheet options.');
       }
       const vcodeRange = encodeURIComponent('VACANCY!B5:B');
@@ -301,19 +316,23 @@ Deno.serve(async request => {
       if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
         throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
       }
+      const formulaRange = encodeURIComponent(`VACANCY!K${row}:AF${row}`);
+      const formulaResult = await googleRequest(`spreadsheets/${spreadsheetId}/values/${formulaRange}?valueRenderOption=FORMULA`);
+      const formulaRow = formulaResult.values?.[0] || [];
+      const formulaFields = Object.keys(updates).filter(field => String(formulaRow[fieldColumns[field].offset] || '').startsWith('='));
+      if (formulaFields.length) {
+        const columns = formulaFields.map(field => fieldColumns[field].column).join(', ');
+        throw new Error(`Cannot overwrite a formula in column ${columns} for VCODE ${vcode}. Change the source data for that formula instead.`);
+      }
+      const data = Object.entries(updates).map(([field, value]) => ({
+        range: `VACANCY!${fieldColumns[field].column}${row}`,
+        values: [[value]]
+      }));
       await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({
           valueInputOption: 'RAW',
-          data: [
-            { range: `VACANCY!K${row}:N${row}`, values: [[updates.lastName, updates.firstName, updates.middleName, updates.contactNumber]] },
-            { range: `VACANCY!O${row}`, values: [[vacantDate]] },
-            { range: `VACANCY!P${row}`, values: [[dateOnboard]] },
-            { range: `VACANCY!U${row}`, values: [[updates.reliever]] },
-            { range: `VACANCY!W${row}`, values: [[updates.hrcoRemarks]] },
-            { range: `VACANCY!AD${row}`, values: [[updates.coordinator]] },
-            { range: `VACANCY!AF${row}`, values: [[updates.deployedBy]] }
-          ]
+          data
         })
       });
       return respond({ vcode, updated: true });
