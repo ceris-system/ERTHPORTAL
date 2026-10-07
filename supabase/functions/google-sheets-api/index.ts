@@ -224,8 +224,8 @@ async function approveVacancyRecord(
   }
 
   const [sourceMetadata, hrMetadata] = await Promise.all([
-    googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`),
-    googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`)
+    googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`),
+    googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`)
   ]);
   const boardTab = sourceMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'On Board Database');
   const vacancyTab = sourceMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'VACANCY');
@@ -260,6 +260,34 @@ async function approveVacancyRecord(
         row.some(value => String(value ?? '').trim()) ? [index + 1] : []
       )), 0);
     boardRowNumber = lastOccupiedBoardRow + 1;
+    const boardGrid = boardTab.properties.gridProperties || {};
+    const boardGrowthRequests = [];
+    const boardRowsToAdd = boardRowNumber - Number(boardGrid.rowCount || 0);
+    const boardColumnsToAdd = 44 - Number(boardGrid.columnCount || 0);
+    if (boardRowsToAdd > 0) {
+      boardGrowthRequests.push({
+        appendDimension: {
+          sheetId: boardTab.properties.sheetId,
+          dimension: 'ROWS',
+          length: boardRowsToAdd
+        }
+      });
+    }
+    if (boardColumnsToAdd > 0) {
+      boardGrowthRequests.push({
+        appendDimension: {
+          sheetId: boardTab.properties.sheetId,
+          dimension: 'COLUMNS',
+          length: boardColumnsToAdd
+        }
+      });
+    }
+    if (boardGrowthRequests.length) {
+      await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ requests: boardGrowthRequests })
+      });
+    }
     const boardData = [
       { range: `'On Board Database'!A${boardRowNumber}:N${boardRowNumber}`, values: [sourceRow.slice(0, 14)] },
       { range: `'On Board Database'!P${boardRowNumber}:Z${boardRowNumber}`, values: [sourceRow.slice(15, 26)] },
@@ -302,6 +330,22 @@ async function approveVacancyRecord(
     const lastOccupiedEmplocOffset = (emplocRowValues.values || []).reduce((lastRow: number, row: unknown[], index: number) =>
       row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
     emplocRowNumber = Math.max(9, lastOccupiedEmplocOffset + 9);
+    const emplocGrid = hrTab.properties.gridProperties || {};
+    const emplocRowsToAdd = emplocRowNumber - Number(emplocGrid.rowCount || 0);
+    if (emplocRowsToAdd > 0) {
+      await googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          requests: [{
+            appendDimension: {
+              sheetId: hrTab.properties.sheetId,
+              dimension: 'ROWS',
+              length: emplocRowsToAdd
+            }
+          }]
+        })
+      });
+    }
     await googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${encodeURIComponent(`G1N!A${emplocRowNumber}:G${emplocRowNumber}`)}?valueInputOption=RAW`, {
       method: 'PUT',
       body: JSON.stringify({ values: [emplocRow] })

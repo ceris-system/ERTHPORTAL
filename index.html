@@ -1518,30 +1518,31 @@
         cancel.onclick = () => dialog.close('cancel');
       });
     }
-    async function showPopModalProgress(total = null) {
+    async function showPopModalProgress(total = null, { title = 'Updating statuses', message, progressLabel = 'NEWLY HIRED', unit = 'cell' } = {}) {
       const dialog = document.querySelector('#pop-modal');
-      document.querySelector('#pop-modal-title').textContent = 'Updating statuses';
-      document.querySelector('#pop-modal-message').textContent = total === null
+      document.querySelector('#pop-modal-title').textContent = title;
+      document.querySelector('#pop-modal-message').textContent = message || (total === null
         ? 'Checking PLANTILLA for blank status cells...'
-        : 'Please wait while blank cells are filled.';
+        : 'Please wait while blank cells are filled.');
       document.querySelector('#pop-modal-input').classList.add('hidden');
       document.querySelector('#pop-modal-progress').classList.remove('hidden');
       document.querySelector('.pop-modal-actions').classList.add('hidden');
+      document.querySelector('#pop-modal-progress-count span:first-child').textContent = progressLabel;
       if (total === null) {
         document.querySelector('#pop-modal-progress-step').textContent = '...';
         document.querySelector('#pop-modal-progress-total').textContent = 'checking cells';
         document.querySelector('#pop-modal-progress-percent').textContent = 'Please wait';
         document.querySelector('#pop-modal-progress-bar').removeAttribute('value');
       } else {
-        updatePopModalProgress(0, total);
+        updatePopModalProgress(0, total, unit);
       }
       if (!dialog.open) dialog.showModal();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     }
-    function updatePopModalProgress(completed, total) {
+    function updatePopModalProgress(completed, total, unit = 'cell') {
       const percent = total ? Math.round(completed / total * 100) : 100;
       document.querySelector('#pop-modal-progress-step').textContent = String(completed);
-      document.querySelector('#pop-modal-progress-total').textContent = `of ${total} cells`;
+      document.querySelector('#pop-modal-progress-total').textContent = `of ${total} ${unit}${total === 1 ? '' : 's'}`;
       document.querySelector('#pop-modal-progress-percent').textContent = `${percent}%`;
       const progress = document.querySelector('#pop-modal-progress-bar');
       progress.max = 100;
@@ -1998,22 +1999,64 @@
         const button = event.currentTarget;
         button.disabled = true;
         button.textContent = 'Transferring...';
+        let progressOpen = false;
+        let approvedCount = 0;
+        const failures = [];
         try {
-          const result = await callSheetsFunction('approve-vacancy', {
-            vcodes,
-            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          await showPopModalProgress(vcodes.length, {
+            title: 'Approving records',
+            message: 'Copying selected records to On Board Database and HR EMPLOC G1N. Each source row is deleted only after both copies are verified.',
+            progressLabel: 'APPROVED',
+            unit: 'record'
           });
-          const approvedCount = Number(result.approvedCount || 0);
-          const failures = Array.isArray(result.failures) ? result.failures : [];
+          progressOpen = true;
+          for (let index = 0; index < vcodes.length; index += 1) {
+            const vcode = vcodes[index];
+            try {
+              const result = await callSheetsFunction('approve-vacancy', {
+                vcodes: [vcode],
+                ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+              });
+              approvedCount += Number(result.approvedCount || 0);
+              if (Array.isArray(result.failures)) failures.push(...result.failures);
+            } catch (error) {
+              failures.push({
+                vcode,
+                error: error?.message || 'The transfer request failed.'
+              });
+            }
+            updatePopModalProgress(index + 1, vcodes.length, 'record');
+          }
+          closePopModalProgress();
+          progressOpen = false;
           await loadForApprovalRecords();
           if (failures.length) {
             const failureSummary = failures.map(item => `${item.vcode}: ${item.error}`).join(' · ');
-            notify(`Transferred ${approvedCount} of ${vcodes.length}. Untransferred source rows were kept. ${failureSummary}`);
+            await popModal({
+              title: 'Approval transfer incomplete',
+              message: `Transferred ${approvedCount} of ${vcodes.length}. Source rows for failed transfers were kept.\n\n${failureSummary}`,
+              confirmLabel: 'Okay',
+              cancelLabel: ''
+            });
           } else {
-            notify(`Transferred ${approvedCount} record${approvedCount === 1 ? '' : 's'} to On Board Database and HR EMPLOC G1N. Source rows deleted.`);
+            await popModal({
+              title: 'Approval transfer complete',
+              message: `Transferred ${approvedCount} record${approvedCount === 1 ? '' : 's'} to On Board Database and HR EMPLOC G1N. Source rows deleted.`,
+              confirmLabel: 'Okay',
+              cancelLabel: ''
+            });
           }
         } catch (error) {
-          notify(error?.message || 'The selected records could not be transferred. Check the sheets before retrying.');
+          if (progressOpen) {
+            closePopModalProgress();
+            progressOpen = false;
+          }
+          await popModal({
+            title: 'Approval transfer incomplete',
+            message: error?.message || 'The selected records could not be transferred. Check the destination sheets before retrying.',
+            confirmLabel: 'Okay',
+            cancelLabel: ''
+          });
         } finally {
           button.disabled = false;
           button.textContent = 'Approved';
