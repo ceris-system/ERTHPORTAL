@@ -1984,6 +1984,7 @@
         renderForApprovalTable();
       });
       document.querySelector('#approval-confirm').addEventListener('click', async event => {
+        const button = event.currentTarget;
         if (currentUser?.role !== 'admin') return notify('Only Master Admins and Regular Admins can approve records.');
         if (!selectedApprovalRows.size) return notify('Select at least one row first.');
         const selectedRecords = approvalRecords.filter(record => selectedApprovalRows.has(record.id));
@@ -1996,7 +1997,6 @@
           cancelLabel: 'Cancel'
         });
         if (!confirmed) return;
-        const button = event.currentTarget;
         button.disabled = true;
         button.textContent = 'Transferring...';
         let progressOpen = false;
