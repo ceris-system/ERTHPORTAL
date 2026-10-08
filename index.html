@@ -563,7 +563,7 @@
       <span class="dialog-kicker">DASHBOARD CONNECTION</span>
       <h2 id="dashboard-dialog-title">Dashboard</h2>
       <p class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL for each selected client.</p>
-      <form id="dashboard-url-form">
+      <form id="dashboard-url-form" novalidate>
         <label class="dialog-label" for="dialog-user-select">Assign to user</label>
         <select id="dialog-user-select" required></select>
         <label id="dashboard-client-select-label" class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
@@ -573,6 +573,7 @@
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
         <div class="dialog-scope">For a Regular Admin, check each client to reveal its URL field, then paste that client’s Google Sheets link. Each selected client must have its own URL.</div>
+        <p id="dashboard-assignment-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
         <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
@@ -3748,6 +3749,9 @@
     });
     document.querySelector('#dashboard-url-form').addEventListener('submit', event => {
       event.preventDefault();
+      const feedback = document.querySelector('#dashboard-assignment-feedback');
+      feedback.textContent = '';
+      const showAssignmentError = message => { feedback.textContent = message; };
       if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
       const username = document.querySelector('#dialog-user-select').value;
       if (!username) return notify('Choose a user to assign this dashboard.');
@@ -3755,25 +3759,27 @@
         ? document.querySelector('#dashboard-client-options')
         : document.querySelector('#dashboard-client-select'));
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
+      if (userUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
       if (!clientNames.length && !sourceSetup) return notify('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
       const clientSheetUrls = Object.fromEntries([...document.querySelectorAll('.dashboard-url-input[data-client-url]')]
         .map(input => [input.dataset.clientUrl, input.value.trim()]));
       if (userUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
-        if (missingClient) return notify(`Enter a spreadsheet URL for ${missingClient}.`);
+        if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
       }
       const sources = [];
       for (const value of values) {
         let parsed;
-        try { parsed = new URL(value); } catch { return notify('Enter a complete URL for each source.'); }
-        if (!['http:', 'https:'].includes(parsed.protocol)) return notify('Use HTTP or HTTPS spreadsheet links.');
-        try { spreadsheetIdFromUrl(parsed.href); } catch { return notify('Use the Google Sheets document link, not a script.google.com/macros Apps Script link.'); }
+        try { parsed = new URL(value); } catch { return showAssignmentError('Enter a complete URL for each source.'); }
+        if (!['http:', 'https:'].includes(parsed.protocol)) return showAssignmentError('Use HTTP or HTTPS spreadsheet links.');
+        try { spreadsheetIdFromUrl(parsed.href); } catch { return showAssignmentError('Use the Google Sheets document link, not a script.google.com/macros Apps Script link.'); }
         sources.push(parsed.href);
       }
       const button = event.currentTarget.querySelector('button[type="submit"]');
       button.disabled = true;
       button.textContent = 'Saving...';
+      feedback.textContent = 'Saving spreadsheet assignments...';
       (async () => {
         try {
           await callAdminFunction('set-dashboard-assignment', {
@@ -3798,8 +3804,9 @@
             openUserDashboard(selectedDashboard);
           }
           notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for @${username} / ${selectedDashboard}.`);
+          feedback.textContent = 'Spreadsheet assignments saved.';
         } catch (error) {
-          notify(error.message || 'Could not save the user\'s spreadsheet URLs.');
+          feedback.textContent = error.message || 'Could not save the user\'s spreadsheet URLs.';
         } finally {
           button.disabled = false;
           button.textContent = 'Save URLs';
