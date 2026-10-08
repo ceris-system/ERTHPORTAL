@@ -1974,8 +1974,9 @@
       saveCurrentView('dashboard', 'VCODE MASTERLIST');
       const savedSheetUrl = getDashboardSources('VCODE MASTERLIST')[0] || '';
       vcodeSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-search" class="plantilla-search" type="search" aria-label="Search VCODE records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off"><p id="vcode-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE MASTERLIST</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Read-only records from the VCODE sheet</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vcode-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}<button id="vcode-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-search" class="plantilla-search" type="search" aria-label="Search VCODE records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off">${dashboardClientSwitcherMarkup('VCODE MASTERLIST')}<p id="vcode-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="vcode-table-body"><tr><td colspan="5" class="plantilla-empty">Loading VCODE records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE masterlist</span><span>Source tab: VCODE · Read only</span></div>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('VCODE MASTERLIST');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VCODE MASTERLIST')} · Read-only records from the VCODE sheet`;
       document.querySelector('#vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
       document.querySelector('#vcode-refresh').addEventListener('click', loadVcodeRecords);
@@ -1987,6 +1988,9 @@
       const status = document.querySelector('#vcode-status');
       const body = document.querySelector('#vcode-table-body');
       if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const spreadsheetId = vcodeSpreadsheetId;
+      const clientName = getActiveClient();
       if (!vcodeSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a VCODE MASTERLIST spreadsheet to a user to begin.' : 'No VCODE MASTERLIST spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="5" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
@@ -1998,15 +2002,16 @@
         let displayValues;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-vcode', {
-            clientName: getActiveClient(),
+            clientName,
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           displayValues = result.displayValues || [];
         } else {
           const range = encodeURIComponent('VCODE!A3:N');
-          const result = await sheetsApiRequest(`spreadsheets/${vcodeSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+          const result = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
           displayValues = result.values || [];
         }
+        if (generation !== dashboardReadGeneration) return false;
         vcodeRecords = displayValues.map((row, index) => ({
           rowNumber: index + 3,
           vcode: String(row[0] || '').trim(),
@@ -2026,6 +2031,7 @@
         renderVcodeTable();
         return true;
       } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
         status.textContent = error?.message || 'Could not load VCODE records.';
         body.innerHTML = `<tr><td colspan="5" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
