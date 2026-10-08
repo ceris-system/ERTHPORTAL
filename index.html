@@ -173,11 +173,18 @@
     .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'Roboto Mono',monospace; }
     .picker-heading p { margin:4px 0 0; color:#718b92; font-size:12px; }
     .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:5px 11px; }
-    .bubble-button { position:relative; width:42px; height:42px; flex:0 0 42px; display:grid; place-items:center; padding:0; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#087e84; background:radial-gradient(circle at 31% 22%,#fff 0 7%,rgba(255,255,255,.95) 15%,rgba(194,242,236,.88) 46%,rgba(72,173,180,.72) 82%,rgba(255,255,255,.88) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 0 -4px 7px rgba(35,122,136,.28),0 3px 0 rgba(47,130,140,.32),0 7px 10px rgba(24,83,96,.19); cursor:pointer; transform:translateY(0) translateZ(0); transition:transform .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s; }
-    .bubble-button::before { content:''; position:absolute; top:5px; left:9px; width:17px; height:6px; border-radius:50%; background:rgba(255,255,255,.96); filter:blur(2px); transform:rotate(-25deg); }
+    .bubble-button { position:relative; isolation:isolate; width:46px; height:46px; flex:0 0 46px; display:grid; place-items:center; overflow:visible; padding:0; border:1px solid rgba(255,255,255,.94); border-radius:50%; color:#087e84; background:radial-gradient(ellipse at 31% 22%,rgba(255,255,255,.98) 0 5%,rgba(255,255,255,.65) 9%,rgba(222,255,251,.36) 20%,rgba(141,227,225,.18) 43%,rgba(52,161,175,.34) 72%,rgba(255,255,255,.72) 91%,rgba(129,204,207,.55) 100%); box-shadow:inset 0 2px 3px rgba(255,255,255,.98),inset 2px 0 5px rgba(255,255,255,.52),inset -3px -5px 9px rgba(31,115,142,.28),0 1px 1px rgba(255,255,255,.8),0 5px 10px rgba(24,83,96,.2); cursor:pointer; translate:0 0; animation:bubble-float 3.2s ease-in-out infinite; animation-delay:var(--bubble-delay,0s); transition:scale .22s cubic-bezier(.2,.75,.25,1),box-shadow .22s,filter .22s; }
+    .bubble-button::before { content:''; position:absolute; z-index:0; top:5px; left:9px; width:17px; height:6px; border-radius:50%; background:rgba(255,255,255,.98); filter:blur(1.5px); transform:rotate(-25deg); box-shadow:0 0 5px 2px rgba(255,255,255,.42); }
+    .bubble-button .bubble-emoji { text-shadow:0 0 5px rgba(255,255,255,.9); }
+    .bubble-button .bubble-pop-ring { position:absolute; z-index:2; inset:3px; border:2px solid rgba(255,255,255,.9); border-radius:50%; opacity:0; pointer-events:none; }
+    @keyframes bubble-float { 0%,100% { translate:0 0; } 50% { translate:0 -4px; } }
+    @keyframes bubble-pop-refill { 0% { scale:1; filter:brightness(1); } 18% { scale:1.18; filter:brightness(1.32); } 42% { scale:.18; filter:brightness(1.7); } 65% { scale:.78; filter:brightness(1.35); } 82% { scale:1.12; filter:brightness(1.14); } 100% { scale:1; filter:brightness(1); } }
+    @keyframes bubble-ring-burst { 0% { scale:.35; opacity:0; } 18% { opacity:.9; } 72% { scale:1.8; opacity:.45; } 100% { scale:2.2; opacity:0; } }
+    .bubble-button.is-popping { animation:bubble-pop-refill .56s cubic-bezier(.18,.72,.25,1) both; }
+    .bubble-button.is-popping .bubble-pop-ring { animation:bubble-ring-burst .48s ease-out both; }
     .bubble-button:hover,.bubble-button:focus-visible { z-index:2; }
-    .bubble-button:hover { transform:translateY(-3px) scale(1.07); box-shadow:inset 0 2px 4px white,inset 0 -5px 8px rgba(35,122,136,.3),0 4px 0 rgba(47,130,140,.3),0 11px 15px rgba(24,83,96,.24); }
-    .bubble-button:active { transform:translateY(2px) scale(.96); box-shadow:inset 0 2px 5px rgba(35,122,136,.25),0 1px 0 rgba(47,130,140,.25),0 3px 5px rgba(24,83,96,.16); }
+    .bubble-button:hover { scale:1.1; box-shadow:inset 0 2px 4px white,inset 0 -5px 8px rgba(35,122,136,.3),0 9px 17px rgba(24,83,96,.25); }
+    .bubble-button:active { scale:.94; box-shadow:inset 0 2px 5px rgba(35,122,136,.25),0 3px 6px rgba(24,83,96,.16); }
     .bubble-button:focus-visible { outline:2px solid #168c8c; outline-offset:2px; }
     .bubble-button::after { position:absolute; z-index:3; top:calc(100% + 7px); left:50%; width:max-content; max-width:min(220px,70vw); padding:6px 9px; border-radius:5px; color:#fff; background:#234e56; box-shadow:0 4px 12px rgba(16,68,81,.2); content:attr(data-tooltip); font-size:10px; font-weight:700; line-height:1.3; text-align:center; white-space:normal; pointer-events:none; opacity:0; visibility:hidden; transform:translate(-50%,-3px); transition:opacity .14s,transform .14s,visibility .14s; }
     .bubble-button:hover::after,.bubble-button:focus-visible::after { opacity:1; visibility:visible; transform:translate(-50%,0); }
@@ -1777,28 +1784,43 @@
       section.className = 'dashboard-picker';
       section.innerHTML = `<div class="picker-heading"><div><h2>YOUR DASHBOARDS</h2></div><div class="bubble-grid"></div></div>`;
       const grid = section.querySelector('.bubble-grid');
+      const bindBubbleClick = (button, action) => {
+        button.addEventListener('click', () => {
+          if (button.dataset.activating) return;
+          button.dataset.activating = 'true';
+          button.classList.add('is-popping');
+          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          window.setTimeout(() => {
+            button.classList.remove('is-popping');
+            delete button.dataset.activating;
+            action();
+          }, reducedMotion ? 0 : 580);
+        });
+      };
       dashboards.forEach((name, index) => {
         const sourceCount = getDashboardSources(name).length;
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'bubble-button';
+        button.style.setProperty('--bubble-delay', `${(index % 6) * -0.37}s`);
         const adminCanEdit = currentUser?.role === 'admin' && !previewedUser;
         button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
         button.dataset.tooltip = name;
         button.title = name;
-        button.innerHTML = `<span class="bubble-emoji" aria-hidden="true">${dashboardEmojis[index]}</span>`;
-        button.addEventListener('click', () => openUserDashboard(name));
+        button.innerHTML = `<span class="bubble-emoji" aria-hidden="true">${dashboardEmojis[index]}</span><span class="bubble-pop-ring" aria-hidden="true"></span>`;
+        bindBubbleClick(button, () => openUserDashboard(name));
         grid.append(button);
       });
       if (currentUser?.isMasterAdmin && !previewedUser) {
         const inactiveButton = document.createElement('button');
         inactiveButton.type = 'button';
         inactiveButton.className = 'bubble-button';
+        inactiveButton.style.setProperty('--bubble-delay', '-0.9s');
         inactiveButton.setAttribute('aria-label', 'INACTIVE archive spreadsheet setup');
         inactiveButton.dataset.tooltip = 'INACTIVE · Master Admin setup';
         inactiveButton.title = 'INACTIVE';
-        inactiveButton.innerHTML = '<span class="bubble-emoji" aria-hidden="true">📦</span>';
-        inactiveButton.addEventListener('click', openInactiveSetup);
+        inactiveButton.innerHTML = '<span class="bubble-emoji" aria-hidden="true">📦</span><span class="bubble-pop-ring" aria-hidden="true"></span>';
+        bindBubbleClick(inactiveButton, openInactiveSetup);
         grid.append(inactiveButton);
       }
       content.prepend(section);
