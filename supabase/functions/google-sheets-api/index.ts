@@ -1085,6 +1085,10 @@ Deno.serve(async request => {
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
+    if (body.action === 'approve-vacancy' &&
+      [actor.username, body.targetUsername].some(username => String(username || '').trim().toLocaleLowerCase() === 'annie')) {
+      return respond({ error: 'ANNIE is not allowed to approve records.' }, 403);
+    }
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }

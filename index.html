@@ -2220,15 +2220,16 @@
       const status = document.querySelector('#approval-status');
       const body = document.querySelector('#approval-table-body');
       if (!status || !body) return;
+      const columnCount = document.querySelector('#approval-select-all') ? 8 : 7;
       selectedApprovalRows = new Set();
       approvalRecords = [];
       if (!approvalSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a FOR APPROVAL spreadsheet to a user to begin.' : 'No FOR APPROVAL spreadsheet is assigned to your account. Contact your administrator.';
-        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
       }
       status.textContent = 'Loading records...';
-      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading approval records...</td></tr>';
+      body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">Loading approval records...</td></tr>`;
       try {
         let rawValues;
         let displayValues;
@@ -2281,7 +2282,7 @@
         return true;
       } catch (error) {
         status.textContent = error?.message || 'Could not load approval records.';
-        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
       }
     }
