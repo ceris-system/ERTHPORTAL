@@ -2241,7 +2241,12 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
-          const range = encodeURIComponent('VACANCY!B5:AL');
+          const metadata = await sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
+          const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === 'VACANCY');
+          if (!vacancySheet) throw new Error('The assigned spreadsheet needs a tab named VACANCY.');
+          const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
+          const sheetRange = `'${vacancySheet.properties.title.replace(/'/g, "''")}'`;
+          const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
           const [rawResult, displayResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
             sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)

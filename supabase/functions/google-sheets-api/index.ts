@@ -959,8 +959,15 @@ async function readVcode(spreadsheetId: string) {
 async function readVacancy(spreadsheetId: string, clientNames: string[] = [], includeDeployers = true) {
   const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
   if (!activeClients.size) throw new Error('Select at least one client before loading vacancy records.');
-  const range = encodeURIComponent('VACANCY!B5:AL');
-  const clientRange = encodeURIComponent('VACANCY!C5:C');
+  const metadata = await googleRequest(
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`
+  );
+  const vacancySheet = metadata.sheets?.find((sheet: any) => sheet.properties?.title === 'VACANCY');
+  if (!vacancySheet) throw new Error('The assigned spreadsheet needs a tab named VACANCY.');
+  const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
+  const sheetRange = `'${String(vacancySheet.properties.title).replace(/'/g, "''")}'`;
+  const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
+  const clientRange = encodeURIComponent(`${sheetRange}!C5:C${lastRow}`);
   const [raw, display, clientValues, deployers] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
