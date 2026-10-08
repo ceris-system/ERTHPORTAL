@@ -313,6 +313,8 @@
     .plantilla-actions { display:flex; align-items:center; gap:8px; }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
+    .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
+    .dashboard-client-switcher select { width:auto; min-width:150px; max-width:min(240px,38vw); min-height:40px; padding:0 30px 0 11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .plantilla-search:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.12); outline:0; }
     .plantilla-status { min-height:17px; margin:0; color:#66828c; font-size:11px; }
     .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(0,0,0,.12); border-radius:15px; background:rgba(255,255,255,.9); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
@@ -450,6 +452,8 @@
       .plantilla-actions button { flex:1; }
       .plantilla-table-tools { align-items:stretch; flex-direction:column; }
       .plantilla-search { width:100%; }
+      .dashboard-client-switcher { width:100%; }
+      .dashboard-client-switcher select { width:100%; max-width:none; }
       .plantilla-status { margin-bottom:0; }
       .plantilla-connect-dialog .dialog-panel { padding:25px 20px; }
       .step h3, .step p { font-size:9px; }
@@ -769,6 +773,7 @@
     let dashboardAssignmentUsesClientUrlPairs = false;
     let selectedDashboardClients = {};
     let activeDashboardForData = '';
+    let dashboardReadGeneration = 0;
     let availableClientOptions = [];
     let assignableUserProfiles = [];
     let selectedDashboard = dashboards[0];
@@ -970,6 +975,28 @@
     function getDashboardClientLabel(name) {
       const clients = getDashboardClientNames(name);
       return clients.length ? clients.join(', ') : getActiveClient();
+    }
+    function dashboardClientSwitcherMarkup(name) {
+      const isRegularAdminView = previewedUser?.role === 'admin' ||
+        (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin);
+      const clients = (dashboardClientAssignments[name] || [])
+        .filter(client => getDashboardSources(name, client).length > 0);
+      if (!isRegularAdminView || clients.length < 2) return '';
+      const selected = clients.includes(selectedDashboardClients[name]) ? selectedDashboardClients[name] : clients[0];
+      return `<label class="dashboard-client-switcher" for="dashboard-client-switcher"><span>CLIENT</span><select id="dashboard-client-switcher" aria-label="Switch dashboard client">${clients.map(client => `<option value="${escapeHtml(client)}"${client === selected ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')}</select></label>`;
+    }
+    function bindDashboardClientSwitcher(name) {
+      const select = document.querySelector('#dashboard-client-switcher');
+      if (!select) return;
+      select.addEventListener('change', () => {
+        const client = select.value;
+        if (!(dashboardClientAssignments[name] || []).includes(client) || !getDashboardSources(name, client).length) {
+          return notify('Choose a client assigned to this dashboard.');
+        }
+        selectedDashboardClients[name] = client;
+        activeDashboardForData = name;
+        showSelectedDashboard(name);
+      });
     }
     function applyDashboardAssignmentPermissions() {
       const canAssign = currentUser?.isMasterAdmin;
@@ -1790,6 +1817,7 @@
       }
     }
     function showHome() {
+      dashboardReadGeneration += 1;
       activeDashboardForData = '';
       saveCurrentView('home');
       const client = getActiveClient();
@@ -1831,8 +1859,9 @@
       if (plantillaSpreadsheetId && !previewedUser) localStorage.setItem(spreadsheetUrlStorageKey(), plantillaSpreadsheetId);
       const adminOwnsSheet = currentUser?.isMasterAdmin && !previewedUser;
       const userCanMarkNewlyHired = (previewedUser?.role || currentUser?.role) === 'user';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-duplicate-checker" class="secondary-button" type="button" disabled>DUPLICATE CHECKER</button><button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off"><p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA'))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="plantilla-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${adminOwnsSheet ? '<button id="plantilla-connect" class="secondary-button" type="button">Connect my sheet</button>' : ''}${userCanMarkNewlyHired ? '<button id="plantilla-duplicate-checker" class="secondary-button" type="button" disabled>DUPLICATE CHECKER</button><button id="plantilla-newly-hired" class="secondary-button" type="button">Newly Hired</button>' : ''}<button id="plantilla-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="plantilla-search" class="plantilla-search" type="search" aria-label="Search PLANTILLA records" placeholder="Search VCODE, name, EMPLOC, outlet, status..." autocomplete="off">${dashboardClientSwitcherMarkup('PLANTILLA')}<p id="plantilla-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr>${plantillaHeaders.map(header => `<th scope="col">${escapeHtml(header)}</th>`).join('')}</tr></thead><tbody id="plantilla-table-body"><tr><td colspan="9" class="plantilla-empty">Loading PLANTILLA records...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA records</span><span>Unique record key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('PLANTILLA');
       document.querySelector('#plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
       const connectButton = document.querySelector('#plantilla-connect');
       connectButton?.addEventListener('click', () => {
@@ -2043,8 +2072,9 @@
       const savedSheetUrl = getDashboardSources('VACANCY MONITORING')[0] || '';
       vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off">${dashboardClientSwitcherMarkup('VACANCY MONITORING')}<p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('VACANCY MONITORING');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VACANCY MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
       document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
@@ -2289,6 +2319,10 @@
       const status = document.querySelector('#vacancy-status');
       const body = document.querySelector('#vacancy-table-body');
       if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const spreadsheetId = vacancySpreadsheetId;
+      const clientName = getActiveClient();
+      const clientNames = getDashboardClientNames('VACANCY MONITORING');
       if (!vacancySpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a VACANCY MONITORING spreadsheet to a user to begin.' : 'No VACANCY MONITORING spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
@@ -2302,7 +2336,7 @@
         let serverFiltered = false;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-vacancy', {
-            clientName: getActiveClient(),
+            clientName,
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           rawValues = result.rawValues || [];
@@ -2313,16 +2347,17 @@
           const range = encodeURIComponent('VACANCY!B5:AF');
           const deployerRange = encodeURIComponent('Deployer!A2:A');
           const [rawResult, displayResult, deployerResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
-            sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${deployerRange}?valueRenderOption=FORMATTED_VALUE`)
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${deployerRange}?valueRenderOption=FORMATTED_VALUE`)
           ]);
           rawValues = rawResult.values || [];
           displayValues = displayResult.values || [];
           vacancyDeployers = (deployerResult.values || []).flat().map(value => String(value || '').trim()).filter(Boolean);
         }
+        if (generation !== dashboardReadGeneration) return false;
         if (!serverFiltered) {
-          const clientFiltered = filterRowsByClient(rawValues, displayValues, getDashboardClientNames('VACANCY MONITORING'), 1);
+          const clientFiltered = filterRowsByClient(rawValues, displayValues, clientNames, 1);
           rawValues = clientFiltered.rawValues;
           displayValues = clientFiltered.displayValues;
         }
@@ -2356,6 +2391,7 @@
         renderVacancyTable();
         return true;
       } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
         status.textContent = error?.message || 'Could not load vacancy records.';
         body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
@@ -2523,8 +2559,9 @@
       const savedSheetUrl = getDashboardSources('HR EMPLOC MONITORING')[0] || '';
       hrEmplocSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off"><p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off">${dashboardClientSwitcherMarkup('HR EMPLOC MONITORING')}<p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('HR EMPLOC MONITORING');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('HR EMPLOC MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#hr-emploc-assign-sheet')?.addEventListener('click', () => openDashboardEditor('HR EMPLOC MONITORING'));
       document.querySelector('#hr-emploc-authorize-google')?.addEventListener('click', async () => {
@@ -2543,6 +2580,10 @@
       const status = document.querySelector('#hr-emploc-status');
       const body = document.querySelector('#hr-emploc-table-body');
       if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const spreadsheetId = hrEmplocSpreadsheetId;
+      const clientName = getActiveClient();
+      const clientNames = getDashboardClientNames('HR EMPLOC MONITORING');
       if (!hrEmplocSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign an HR EMPLOC MONITORING spreadsheet to a user to begin.' : 'No HR EMPLOC MONITORING spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
@@ -2556,7 +2597,7 @@
         let serverFiltered = false;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-hr-emploc', {
-            clientName: getActiveClient(),
+            clientName,
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           rawValues = result.rawValues || [];
@@ -2565,17 +2606,17 @@
         } else {
           const range = encodeURIComponent('G1N!G9:AC');
           const [rawResult, displayResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-            sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
           ]);
           rawValues = rawResult.values || [];
           displayValues = displayResult.values || [];
         }
         if (!serverFiltered) {
-          const activeClients = new Set(getDashboardClientNames('HR EMPLOC MONITORING')
+          const activeClients = new Set(clientNames
             .map(client => client.trim().toLocaleLowerCase()));
           const clientRange = encodeURIComponent('G1N!B9:B');
-          const clientResult = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
+          const clientResult = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
           const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
           const rowCount = Math.max(rawValues.length, displayValues.length, clientValues.length);
           const keptRaw = [];
@@ -2592,6 +2633,7 @@
           rawValues = keptRaw;
           displayValues = keptDisplay;
         }
+        if (generation !== dashboardReadGeneration) return false;
         const rowCount = Math.max(rawValues.length, displayValues.length);
         hrEmplocRecords = Array.from({ length: rowCount }, (_, index) => {
           const raw = rawValues[index] || [];
@@ -2613,6 +2655,7 @@
         renderHrEmplocTable();
         return true;
       } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
         status.textContent = error?.message || 'Could not load HR EMPLOC records.';
         body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
@@ -2691,6 +2734,9 @@
       const status = document.querySelector('#plantilla-status');
       const body = document.querySelector('#plantilla-table-body');
       if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const spreadsheetId = plantillaSpreadsheetId;
+      const clientName = getActiveClient();
       if (!plantillaSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a PLANTILLA spreadsheet to a user to begin.' : 'No PLANTILLA spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
@@ -2705,7 +2751,7 @@
         let displayValues;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('read-plantilla', {
-            clientName: getActiveClient(),
+            clientName,
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           rawValues = result.rawValues || [];
@@ -2713,12 +2759,13 @@
         } else {
           const range = encodeURIComponent('PLANTILLA!A9:AJ');
           const [rawResult, displayResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
           ]);
           rawValues = rawResult.values || [];
           displayValues = displayResult.values || [];
         }
+        if (generation !== dashboardReadGeneration) return false;
         const rowCount = Math.max(rawValues.length, displayValues.length);
         const allRecords = Array.from({ length: rowCount }, (_, index) => mapPlantillaRow(rawValues[index] || [], displayValues[index] || [], index + 9));
         plantillaRecords = allRecords.filter(record => record.vcode);
@@ -2727,6 +2774,7 @@
         if (!silent) showPlantillaDuplicateVcodes(allRecords);
         return true;
       } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
         if (silent) {
           notify(`The statuses were saved, but the table could not refresh: ${error?.message || 'Refresh PLANTILLA to reload it.'}`);
           return false;
