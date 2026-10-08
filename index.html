@@ -261,6 +261,10 @@
     .roster-table { width:100%; border-collapse:collapse; font-size:10px; text-align:left; }
     .roster-table th { position:sticky; top:0; padding:9px 10px; color:#6c898f; background:#edf8f6; font-size:9px; }
     .roster-table td { padding:8px 10px; border-top:1px solid rgba(53,139,143,.1); color:#355c64; }
+    .roster-presence { display:inline-flex; align-items:center; gap:7px; min-width:70px; color:#a7373d; font-size:9px; font-weight:800; letter-spacing:.04em; }
+    .roster-presence::before { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#c5303e; content:""; }
+    .roster-presence.is-online::before { animation:presence-pulse 1.15s ease-in-out infinite; }
+    @keyframes presence-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(197,48,62,.56); opacity:1; } 50% { box-shadow:0 0 0 5px rgba(197,48,62,0); opacity:.62; } }
     .roster-photo { width:28px; height:28px; display:grid; place-items:center; overflow:hidden; border-radius:50%; color:white; background:#61a9a4; font-size:9px; font-weight:700; }
     .roster-photo img { width:100%; height:100%; object-fit:cover; }
     .remove-user { border:0; color:#b7685e; background:none; font-size:10px; }
@@ -627,7 +631,7 @@
           <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
           <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
         </div>
-        <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
+        <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Online</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
         <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
       </section>
     </section>
@@ -757,6 +761,10 @@
     let welcomeUser = null;
     let authUserId = '';
     let idleLogoutTimer = null;
+    let presenceHeartbeatTimer = null;
+    let presenceHeartbeatInFlight = false;
+    let presenceHeartbeatWarningShown = false;
+    let rosterPresenceTimer = null;
     let lastActivityAt = 0;
     let lastActivityPersistedAt = 0;
     let sessionStorageWarningShown = false;
@@ -985,6 +993,8 @@
       }
       clearTimeout(idleLogoutTimer);
       idleLogoutTimer = null;
+      clearInterval(presenceHeartbeatTimer);
+      presenceHeartbeatTimer = null;
       authUserId = '';
       lastActivityAt = 0;
       lastActivityPersistedAt = 0;
@@ -1024,6 +1034,27 @@
         lastActivityPersistedAt = lastActivityAt;
         savePortalSession();
       }
+    }
+    async function sendPresenceHeartbeat() {
+      if (!currentUser || !supabaseAccessToken || presenceHeartbeatInFlight) return;
+      presenceHeartbeatInFlight = true;
+      try {
+        await callAdminFunction('heartbeat');
+        presenceHeartbeatWarningShown = false;
+      } catch (error) {
+        if (!presenceHeartbeatWarningShown) {
+          presenceHeartbeatWarningShown = true;
+          console.error('Could not update account online presence.', error);
+        }
+      } finally {
+        presenceHeartbeatInFlight = false;
+      }
+    }
+    function startPresenceHeartbeat() {
+      clearInterval(presenceHeartbeatTimer);
+      if (!currentUser || !supabaseAccessToken) return;
+      sendPresenceHeartbeat();
+      presenceHeartbeatTimer = window.setInterval(sendPresenceHeartbeat, 25_000);
     }
     ['pointerdown', 'pointermove', 'keydown', 'scroll', 'touchstart'].forEach(eventName => {
       document.addEventListener(eventName, recordPortalActivity, { passive: true });
@@ -1105,6 +1136,7 @@
         };
         lastActivityPersistedAt = lastActivityAt;
         startIdleLogoutTimer();
+        startPresenceHeartbeat();
         await loadDashboardAssignments();
         renderProfile(currentUser);
         if (portalProfile.status === 'default') {
@@ -2893,9 +2925,48 @@
     const rosterPasswordMap = new Map();
     const rosterPasswordVisible = {};
 
+    function userIsOnline(user) {
+      const lastSeen = Date.parse(user.last_seen_at || '');
+      const age = Date.now() - lastSeen;
+      return Number.isFinite(lastSeen) && age >= -30_000 && age <= 75_000;
+    }
+    function renderPresenceIndicator(user) {
+      const online = userIsOnline(user);
+      const label = online ? 'Online' : 'Offline';
+      return `<span class="roster-presence ${online ? 'is-online' : 'is-offline'}" data-roster-presence="${escapeHtml(user.username)}" title="${label}" aria-label="${label}"><span data-presence-label>${label}</span></span>`;
+    }
+    async function refreshRosterPresence() {
+      if (!usersDialog.open || !document.querySelector('#current-users-tab').matches('[aria-selected="true"]')) return;
+      try {
+        const { users } = await callAdminFunction('list');
+        users.forEach(user => {
+          const indicator = [...document.querySelectorAll('[data-roster-presence]')]
+            .find(element => element.dataset.rosterPresence === user.username);
+          if (!indicator) return;
+          const online = userIsOnline(user);
+          const label = online ? 'Online' : 'Offline';
+          indicator.classList.toggle('is-online', online);
+          indicator.classList.toggle('is-offline', !online);
+          indicator.title = label;
+          indicator.setAttribute('aria-label', label);
+          indicator.querySelector('[data-presence-label]').textContent = label;
+        });
+      } catch (error) {
+        document.querySelector('#admin-account-feedback').textContent = `Could not refresh online indicators: ${error.message || 'Unknown error.'}`;
+      }
+    }
+    function stopRosterPresencePolling() {
+      clearInterval(rosterPresenceTimer);
+      rosterPresenceTimer = null;
+    }
+    function startRosterPresencePolling() {
+      stopRosterPresencePolling();
+      if (!usersDialog.open || !document.querySelector('#current-users-tab').matches('[aria-selected="true"]')) return;
+      rosterPresenceTimer = window.setInterval(refreshRosterPresence, 20_000);
+    }
     async function renderRoster() {
       const body = document.querySelector('#user-roster');
-      body.innerHTML = '<tr><td colspan="9" class="plantilla-empty">Loading accounts...</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
         body.innerHTML = users.map(user => {
@@ -2906,7 +2977,7 @@
             ? `<img class="roster-photo" src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} photo" loading="lazy" onerror="this.replaceWith(document.createTextNode('No photo'))">`
             : '<span class="plantilla-empty">No photo</span>';
           const clientDisplay = (user.client_names?.length ? user.client_names : [user.client_name]).filter(Boolean).join(', ');
-          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
+          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${renderPresenceIndicator(user)}</td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
         }).join('');
         const selectAll = document.querySelector('#select-all-users');
         selectAll.checked = false;
@@ -2967,7 +3038,7 @@
           }
         }));
       } catch (error) {
-        body.innerHTML = `<tr><td colspan="9" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="10" class="plantilla-empty">${escapeHtml(error.message || 'Could not load accounts.')}</td></tr>`;
       }
     }
 
@@ -3074,6 +3145,7 @@
             photo: portalProfile.photo_url || ''
           };
           startIdleLogoutTimer();
+          startPresenceHeartbeat();
           if (portalProfile.status === 'default') {
             document.querySelector('#default-update-username').value = portalProfile.username;
             showLoginPanel('password-update-panel');
@@ -3304,6 +3376,8 @@
         document.getElementById(tab.getAttribute('aria-controls')).hidden = !isSelected;
       });
       if (focusTab) selectedTab.focus();
+      if (tabId === 'current-users-tab') startRosterPresencePolling();
+      else stopRosterPresencePolling();
     }
     userDialogTabs.forEach((tab, index) => {
       tab.addEventListener('click', async () => {
@@ -3342,6 +3416,7 @@
       updateAccountClientControls();
       await renderRoster();
       usersDialog.showModal();
+      startRosterPresencePolling();
     });
     document.querySelector('#new-user-role').addEventListener('change', updateAccountClientControls);
     document.querySelector('#select-all-users').addEventListener('change', event => {
@@ -3645,6 +3720,7 @@
     document.querySelector('#close-record-drawer').addEventListener('click', closeRecordDrawer);
     document.querySelector('#drawer-backdrop').addEventListener('click', closeRecordDrawer);
     document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+    usersDialog.addEventListener('close', stopRosterPresencePolling);
     [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close();
     }));

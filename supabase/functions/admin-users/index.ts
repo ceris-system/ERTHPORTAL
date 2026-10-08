@@ -81,6 +81,15 @@ Deno.serve(async request => {
 
     const actor = await findProfile(adminClient, user.id);
     const body = await request.json();
+    if (body.action === 'heartbeat') {
+      if (actor.status === 'inactive') return respond({ error: 'This account is inactive.' }, 403);
+      const lastSeenAt = new Date().toISOString();
+      const { error } = await adminClient.from('profiles')
+        .update({ last_seen_at: lastSeenAt })
+        .eq('id', user.id);
+      if (error) throw new Error('Could not update online presence.');
+      return respond({ lastSeenAt });
+    }
     if (body.action === 'activate-default') {
       if (actor.status !== 'default') return respond({ error: 'This account is not awaiting a password change.' }, 403);
       const { error } = await adminClient.from('profiles').update({ status: 'active' }).eq('id', user.id);
@@ -169,7 +178,7 @@ Deno.serve(async request => {
 
     if (body.action === 'list') {
       const { data, error } = await adminClient.from('profiles')
-        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status, created_at')
+        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status, created_at, last_seen_at')
         .order('username');
       if (error) throw new Error('Could not load account list.');
       const users = actor.is_master_admin
