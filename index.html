@@ -562,16 +562,17 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">DASHBOARD CONNECTION</span>
       <h2 id="dashboard-dialog-title">Dashboard</h2>
-      <p class="dialog-copy">Choose an account, the client(s) it may fetch for this dashboard, and the shared spreadsheet URL.</p>
+      <p class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL for each selected client.</p>
       <form id="dashboard-url-form">
         <label class="dialog-label" for="dialog-user-select">Assign to user</label>
         <select id="dialog-user-select" required></select>
-        <label class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
+        <label id="dashboard-client-select-label" class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
         <select id="dashboard-client-select" multiple size="4" required aria-label="Clients to fetch for this dashboard"></select>
-        <label class="dialog-label">Spreadsheet URLs for this dashboard</label>
+        <div id="dashboard-client-options" class="client-checklist hidden" role="group" aria-labelledby="dashboard-client-select-label"></div>
+        <label class="dialog-label">Spreadsheet URL for each selected client</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
-        <div class="dialog-scope">Client names come from the Master Admin’s HR EMPLOC spreadsheet (`G1vcode!C3:C`). For Regular Admins, select clients and enter the matching spreadsheet URL beside each client; only that client’s assigned sheet is opened.</div>
+        <div class="dialog-scope">For a Regular Admin, check each client to reveal its URL field, then paste that client’s Google Sheets link. Each selected client must have its own URL.</div>
         <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
@@ -1313,6 +1314,23 @@
     function selectedClientValues(select) {
       if (select instanceof HTMLSelectElement) return [...select.selectedOptions].map(option => option.value);
       return [...select.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value);
+    }
+    function fillDashboardClientOptions(selectedValues, onChange) {
+      const container = document.querySelector('#dashboard-client-options');
+      const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
+      const clients = [...new Set([...availableClientOptions, ...selectedValues])];
+      container.replaceChildren(...clients.map(clientName => {
+        const label = document.createElement('label');
+        label.className = 'client-check-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'dashboardClientNames';
+        checkbox.value = clientName;
+        checkbox.checked = selected.has(clientName.toLocaleLowerCase());
+        checkbox.addEventListener('change', onChange);
+        label.append(checkbox, document.createTextNode(clientName));
+        return label;
+      }));
     }
     function fillAdminClientCheckboxes(selectedValues = []) {
       const container = document.querySelector('#new-user-client-options');
@@ -2988,6 +3006,7 @@
       if (previewedUser && clientUsers.some(user => user.username === previewedUser.username)) userSelect.value = previewedUser.username;
       const list = document.querySelector('#dashboard-url-list');
       const clientSelect = document.querySelector('#dashboard-client-select');
+      const clientOptions = document.querySelector('#dashboard-client-options');
       const addUrlButton = document.querySelector('#add-dashboard-url');
       let activeClientUrlMap = {};
       let userUsesClientUrlPairs = false;
@@ -3007,11 +3026,14 @@
         const canFetchMultiple = selectedUser?.role === 'admin';
         userUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin;
         const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
-        clientSelect.multiple = canFetchMultiple;
-        clientSelect.size = canFetchMultiple ? 4 : 1;
-        clientSelect.required = !isClientListSourceSetup;
-        clientSelect.setAttribute('aria-label', canFetchMultiple ? 'Clients to fetch for this administrator' : 'Client to fetch for this user');
-        fillClientSelect(clientSelect, assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean));
+        const selectedClients = assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean);
+        clientSelect.multiple = false;
+        clientSelect.size = 1;
+        clientSelect.required = !userUsesClientUrlPairs && !isClientListSourceSetup;
+        clientSelect.hidden = userUsesClientUrlPairs;
+        clientOptions.classList.toggle('hidden', !userUsesClientUrlPairs);
+        clientSelect.setAttribute('aria-label', 'Client to fetch for this user');
+        fillClientSelect(clientSelect, selectedClients);
         list.replaceChildren();
         addUrlButton.hidden = userUsesClientUrlPairs;
         activeClientUrlMap = { ...clientSheetUrls };
@@ -3021,21 +3043,19 @@
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === 1) {
           (assignedClients || selectedUser?.client_names || []).forEach(client => { activeClientUrlMap[client] = assignedUrls[0]; });
         }
-        if (userUsesClientUrlPairs && selectedClientValues(clientSelect).length) {
-          const selectedClients = selectedClientValues(clientSelect);
-          selectedClients.forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+        if (userUsesClientUrlPairs) {
+          fillDashboardClientOptions(selectedClients, () => {
+            const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
+            activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
+            list.replaceChildren();
+            selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+          });
+          selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
         } else {
           (assignedUrls.length ? assignedUrls : ['']).forEach(source => addDashboardUrlRow(source));
         }
         openDashboardUrl.disabled = !assignedUrls.length;
-        clientSelect.onchange = () => {
-          if (!userUsesClientUrlPairs) return;
-          const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
-          activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
-          const selectedClients = selectedClientValues(clientSelect);
-          list.replaceChildren();
-          selectedClients.forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
-        };
+        clientSelect.onchange = null;
       };
       userSelect.onchange = () => loadSelectedAssignment().catch(error => notify(error.message || 'Could not load that user\'s spreadsheet URLs.'));
       try {
@@ -3731,7 +3751,9 @@
       if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
       const username = document.querySelector('#dialog-user-select').value;
       if (!username) return notify('Choose a user to assign this dashboard.');
-      const clientNames = selectedClientValues(document.querySelector('#dashboard-client-select'));
+      const clientNames = selectedClientValues(userUsesClientUrlPairs
+        ? document.querySelector('#dashboard-client-options')
+        : document.querySelector('#dashboard-client-select'));
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
       if (!clientNames.length && !sourceSetup) return notify('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
