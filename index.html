@@ -234,6 +234,16 @@
     .pop-modal-progress progress::-webkit-progress-bar { border-radius:999px; background:rgba(53,139,143,.13); }
     .pop-modal-progress progress::-webkit-progress-value { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); transition:width .2s ease; }
     .pop-modal-progress progress::-moz-progress-bar { border-radius:999px; background:linear-gradient(90deg,#148f91,#176c83); }
+    .dashboard-opening { position:fixed; z-index:1000; inset:0; display:grid; place-items:center; padding:20px; background:rgba(13,37,91,.24); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); transition:opacity .18s ease; }
+    .dashboard-opening[hidden] { display:none; }
+    .dashboard-opening.is-closing { opacity:0; pointer-events:none; }
+    .dashboard-opening-card { width:min(280px,calc(100vw - 40px)); padding:18px 18px 17px; border:1px solid rgba(255,255,255,.52); border-radius:23px; color:#fff; text-align:center; background:linear-gradient(145deg,rgba(107,145,229,.76),rgba(39,83,174,.82) 54%,rgba(36,67,145,.85)); box-shadow:inset 0 1px 0 rgba(255,255,255,.54),inset 0 -18px 38px rgba(25,53,132,.2),0 20px 46px rgba(10,30,87,.38); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px); animation:opening-card-in .32s cubic-bezier(.18,.8,.28,1.12) both; }
+    .dashboard-opening-title { margin:0; overflow:hidden; color:#fff; font:800 13px/1.35 'Roboto Mono',monospace; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 8px rgba(13,37,91,.28); }
+    .dashboard-opening-track { height:9px; margin:15px 0 8px; overflow:hidden; border:1px solid rgba(255,255,255,.22); border-radius:999px; background:rgba(17,43,103,.38); box-shadow:inset 0 1px 3px rgba(11,31,83,.3); }
+    .dashboard-opening-fill { width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#49b9ff,#d9f5ff 82%,#fff); box-shadow:0 0 12px 2px rgba(110,208,255,.72); transition:width .14s linear; }
+    .dashboard-opening-status { margin:0; color:rgba(239,247,255,.85); font:600 10px/1.4 'Roboto Mono',monospace; }
+    @keyframes opening-card-in { from { opacity:0; transform:translateY(7px) scale(.96); } to { opacity:1; transform:translateY(0) scale(1); } }
+    @media(prefers-reduced-motion:reduce) { .dashboard-opening,.dashboard-opening-card { animation:none; transition:none; } .dashboard-opening-fill { transition:none; } }
     .duplicate-check-dialog { width:min(920px,calc(100vw - 30px)); }
     .duplicate-check-panel { padding:28px; }
     .duplicate-check-summary { margin:0 0 15px; color:#587981; font-size:12px; line-height:1.55; }
@@ -676,6 +686,13 @@
       </div>
     </form>
   </dialog>
+  <div id="dashboard-opening" class="dashboard-opening" role="status" aria-live="polite" aria-atomic="true" hidden>
+    <section class="dashboard-opening-card">
+      <h2 id="dashboard-opening-title" class="dashboard-opening-title">Opening dashboard</h2>
+      <div id="dashboard-opening-progress" class="dashboard-opening-track" role="progressbar" aria-label="Opening dashboard" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="dashboard-opening-fill" class="dashboard-opening-fill"></div></div>
+      <p id="dashboard-opening-status" class="dashboard-opening-status">Almost there</p>
+    </section>
+  </div>
   <dialog id="plantilla-duplicate-dialog" class="liquid-dialog duplicate-check-dialog" aria-labelledby="plantilla-duplicate-title">
     <section class="dialog-panel duplicate-check-panel">
       <span class="dialog-kicker">PLANTILLA CHECK</span>
@@ -705,98 +722,196 @@
     let bubbleWidth = 0;
     let bubbleHeight = 0;
     let bubbleFrame = 0;
-    const backgroundBubbles = Array.from({ length: 19 }, (_, index) => ({
-      x: Math.random(),
-      y: Math.random(),
-      radius: .022 + Math.random() * .052,
-      speed: .012 + Math.random() * .024,
-      phase: Math.random() * Math.PI * 2,
-      drift: 8 + Math.random() * 19,
-      hue: index % 3 === 0 ? 190 : index % 3 === 1 ? 174 : 205
-    }));
+    const backgroundBubbles = [];
+    const bubbleBursts = [];
+    const maximumBubbles = 52;
+    let lastFrameTime = 0;
+    let nextBubbleTime = 0;
+    const randomBubbleHue = () => [188, 197, 207, 276, 322][Math.floor(Math.random() * 5)];
+    function createBackgroundBubble(x = Math.random() * bubbleWidth, y = bubbleHeight + 20, options = {}) {
+      const radius = options.radius || 5 + Math.random() * Math.min(21, bubbleHeight * .027);
+      const angle = options.angle ?? (-Math.PI / 2 + (Math.random() - .5) * .8);
+      const speed = options.speed || 9 + Math.random() * 20;
+      backgroundBubbles.push({
+        x, y, radius,
+        vx: Math.cos(angle) * speed + (Math.random() - .5) * 8,
+        vy: Math.sin(angle) * speed,
+        hue: options.hue ?? randomBubbleHue(),
+        wobble: Math.random() * Math.PI * 2,
+        wobbleSpeed: .7 + Math.random() * 1.4,
+        alpha: 1,
+        life: 0
+      });
+    }
     function resizeBubbleCanvas() {
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.6);
+      const oldWidth = bubbleWidth;
+      const oldHeight = bubbleHeight;
       bubbleWidth = window.innerWidth;
       bubbleHeight = window.innerHeight;
+      if (oldWidth && oldHeight) {
+        for (const bubble of backgroundBubbles) {
+          bubble.x *= bubbleWidth / oldWidth;
+          bubble.y *= bubbleHeight / oldHeight;
+        }
+      }
       canvas.width = Math.round(bubbleWidth * pixelRatio);
       canvas.height = Math.round(bubbleHeight * pixelRatio);
       canvas.style.width = `${bubbleWidth}px`;
       canvas.style.height = `${bubbleHeight}px`;
       bubbleContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      while (backgroundBubbles.length < 30) {
+        createBackgroundBubble(Math.random() * bubbleWidth, Math.random() * bubbleHeight);
+      }
       drawBackgroundBubbles(performance.now() / 1000);
     }
     function drawBackgroundBubbles(time) {
       if (!bubbleContext || !bubbleWidth || !bubbleHeight) return;
       bubbleContext.clearRect(0, 0, bubbleWidth, bubbleHeight);
-      const sizeScale = Math.min(bubbleWidth, bubbleHeight);
       for (const bubble of backgroundBubbles) {
-        const radius = Math.max(22, sizeScale * bubble.radius);
-        const x = bubble.x * bubbleWidth + Math.sin(time * bubble.speed + bubble.phase) * bubble.drift;
-        const y = ((bubble.y * bubbleHeight - time * bubble.speed * 34) % (bubbleHeight + radius * 2) + bubbleHeight + radius * 2) % (bubbleHeight + radius * 2) - radius;
-        const color = `hsla(${bubble.hue},90%,78%,`;
-        const fill = bubbleContext.createRadialGradient(x - radius * .31, y - radius * .38, radius * .02, x, y, radius);
-        fill.addColorStop(0, 'rgba(255,255,255,.2)');
-        fill.addColorStop(.48, `${color}.045)`);
-        fill.addColorStop(.78, `${color}.1)`);
-        fill.addColorStop(.94, 'rgba(255,255,255,.62)');
-        fill.addColorStop(.985, `${color}.2)`);
-        fill.addColorStop(1, 'rgba(255,255,255,.82)');
+        const radius = bubble.radius;
+        const x = bubble.x + Math.sin(bubble.wobble) * radius * .12;
+        const y = bubble.y;
+        const color = `hsla(${bubble.hue},95%,68%,`;
+        const fill = bubbleContext.createRadialGradient(x - radius * .34, y - radius * .4, radius * .02, x, y, radius);
+        fill.addColorStop(0, 'rgba(255,255,255,.34)');
+        fill.addColorStop(.28, `${color}.16)`);
+        fill.addColorStop(.68, `${color}.035)`);
+        fill.addColorStop(.86, `${color}.11)`);
+        fill.addColorStop(.94, 'rgba(255,255,255,.78)');
+        fill.addColorStop(.975, `${color}.27)`);
+        fill.addColorStop(1, 'rgba(255,255,255,.92)');
 
         bubbleContext.save();
-        bubbleContext.shadowColor = 'rgba(255,255,255,.38)';
-        bubbleContext.shadowBlur = radius * .2;
+        bubbleContext.globalAlpha = bubble.alpha;
+        bubbleContext.shadowColor = `hsla(${bubble.hue},95%,82%,.56)`;
+        bubbleContext.shadowBlur = Math.max(4, radius * .36);
         bubbleContext.beginPath();
         bubbleContext.arc(x, y, radius, 0, Math.PI * 2);
         bubbleContext.fillStyle = fill;
         bubbleContext.fill();
         bubbleContext.shadowBlur = 0;
-        bubbleContext.lineWidth = Math.max(1.2, radius * .035);
-        bubbleContext.strokeStyle = 'rgba(255,255,255,.64)';
+        bubbleContext.lineWidth = Math.max(1, radius * .055);
+        bubbleContext.strokeStyle = 'rgba(255,255,255,.86)';
         bubbleContext.stroke();
 
         bubbleContext.beginPath();
-        bubbleContext.ellipse(x - radius * .3, y - radius * .53, radius * .28, radius * .075, -.5, 0, Math.PI * 2);
-        bubbleContext.fillStyle = 'rgba(255,255,255,.82)';
+        bubbleContext.ellipse(x - radius * .3, y - radius * .54, radius * .32, radius * .11, -.48, 0, Math.PI * 2);
+        bubbleContext.fillStyle = 'rgba(255,255,255,.9)';
         bubbleContext.shadowColor = 'rgba(255,255,255,.8)';
-        bubbleContext.shadowBlur = radius * .12;
+        bubbleContext.shadowBlur = radius * .22;
         bubbleContext.fill();
         bubbleContext.shadowBlur = 0;
 
         bubbleContext.beginPath();
-        bubbleContext.arc(x, y, radius * .91, -.2, Math.PI * .8);
-        bubbleContext.strokeStyle = 'rgba(106,224,229,.28)';
-        bubbleContext.lineWidth = Math.max(1, radius * .055);
+        bubbleContext.arc(x, y, radius * .91, -.22, Math.PI * .73);
+        bubbleContext.strokeStyle = `hsla(${bubble.hue + 36},100%,82%,.68)`;
+        bubbleContext.lineWidth = Math.max(1, radius * .075);
         bubbleContext.stroke();
         bubbleContext.beginPath();
-        bubbleContext.arc(x, y, radius * .91, Math.PI * .93, Math.PI * 1.72);
-        bubbleContext.strokeStyle = 'rgba(255,210,238,.25)';
-        bubbleContext.lineWidth = Math.max(1, radius * .045);
+        bubbleContext.arc(x, y, radius * .91, Math.PI * .91, Math.PI * 1.72);
+        bubbleContext.strokeStyle = `hsla(${bubble.hue - 38},100%,82%,.58)`;
+        bubbleContext.lineWidth = Math.max(1, radius * .065);
         bubbleContext.stroke();
 
         bubbleContext.beginPath();
-        bubbleContext.ellipse(x - radius * .42, y - radius * .35, radius * .075, radius * .035, -.55, 0, Math.PI * 2);
-        bubbleContext.fillStyle = 'rgba(255,255,255,.92)';
+        bubbleContext.ellipse(x - radius * .42, y - radius * .35, radius * .09, radius * .045, -.55, 0, Math.PI * 2);
+        bubbleContext.fillStyle = 'rgba(255,255,255,.98)';
+        bubbleContext.fill();
+
+        bubbleContext.beginPath();
+        bubbleContext.arc(x + radius * .3, y + radius * .4, radius * .13, 0, Math.PI * 2);
+        bubbleContext.fillStyle = `hsla(${bubble.hue},100%,88%,.55)`;
         bubbleContext.fill();
         bubbleContext.restore();
+      }
+      for (const burst of bubbleBursts) {
+        const progress = Math.min(1, burst.age / burst.duration);
+        bubbleContext.save();
+        bubbleContext.globalAlpha = 1 - progress;
+        bubbleContext.beginPath();
+        bubbleContext.arc(burst.x, burst.y, burst.radius + progress * burst.maxSpread, 0, Math.PI * 2);
+        bubbleContext.strokeStyle = `hsla(${burst.hue},100%,88%,.9)`;
+        bubbleContext.lineWidth = Math.max(1, burst.radius * (1 - progress) * .22);
+        bubbleContext.shadowColor = 'rgba(255,255,255,.9)';
+        bubbleContext.shadowBlur = 12 * (1 - progress);
+        bubbleContext.stroke();
+        bubbleContext.restore();
+      }
+    }
+    function popBackgroundBubble(bubble, x, y) {
+      const index = backgroundBubbles.indexOf(bubble);
+      if (index < 0) return;
+      backgroundBubbles.splice(index, 1);
+      bubbleBursts.push({ x, y, radius: bubble.radius * .25, maxSpread: bubble.radius * 2.6, age: 0, duration: .42, hue: bubble.hue });
+      if (!reducedBubbleMotion.matches) {
+        const childCount = 4 + Math.floor(Math.random() * 4);
+        for (let child = 0; child < childCount && backgroundBubbles.length < maximumBubbles; child++) {
+          createBackgroundBubble(x, y, {
+            radius: Math.max(3, bubble.radius * (.18 + Math.random() * .18)),
+            angle: (Math.PI * 2 * child) / childCount + Math.random() * .35,
+            speed: 30 + Math.random() * 45,
+            hue: (bubble.hue + Math.random() * 50 - 25 + 360) % 360
+          });
+        }
+      }
+      if (reducedBubbleMotion.matches) {
+        createBackgroundBubble(Math.random() * bubbleWidth, bubbleHeight + 12);
+      }
+    }
+    function handleBackgroundBubbleClick(event) {
+      if (event.button !== 0 || event.target.closest('button, a, input, select, textarea, label, dialog, .intro, .login-card')) return;
+      for (let index = backgroundBubbles.length - 1; index >= 0; index--) {
+        const bubble = backgroundBubbles[index];
+        const x = bubble.x + Math.sin(bubble.wobble) * bubble.radius * .12;
+        const y = bubble.y;
+        if (Math.hypot(event.clientX - x, event.clientY - y) <= bubble.radius + 5) {
+          popBackgroundBubble(bubble, x, y);
+          if (reducedBubbleMotion.matches) drawBackgroundBubbles(performance.now() / 1000);
+          break;
+        }
       }
     }
     if (bubbleContext) {
       const animateBackgroundBubbles = time => {
+        const elapsed = lastFrameTime ? Math.min(.06, (time - lastFrameTime) / 1000) : 0;
+        lastFrameTime = time;
+        for (let index = backgroundBubbles.length - 1; index >= 0; index--) {
+          const bubble = backgroundBubbles[index];
+          bubble.life += elapsed;
+          bubble.wobble += bubble.wobbleSpeed * elapsed;
+          bubble.x += bubble.vx * elapsed;
+          bubble.y += bubble.vy * elapsed;
+          if (bubble.x < -bubble.radius) bubble.x = bubbleWidth + bubble.radius;
+          if (bubble.x > bubbleWidth + bubble.radius) bubble.x = -bubble.radius;
+          if (bubble.y < -bubble.radius * 1.5) backgroundBubbles.splice(index, 1);
+        }
+        for (let index = bubbleBursts.length - 1; index >= 0; index--) {
+          bubbleBursts[index].age += elapsed;
+          if (bubbleBursts[index].age >= bubbleBursts[index].duration) bubbleBursts.splice(index, 1);
+        }
+        if (backgroundBubbles.length < 32 && time >= nextBubbleTime) {
+          createBackgroundBubble(Math.random() * bubbleWidth);
+          nextBubbleTime = time + 500 + Math.random() * 800;
+        }
         drawBackgroundBubbles(time / 1000);
         if (!reducedBubbleMotion.matches && !document.hidden) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         }
       };
       resizeBubbleCanvas();
+      document.addEventListener('click', handleBackgroundBubbleClick, true);
       window.addEventListener('resize', resizeBubbleCanvas);
       document.addEventListener('visibilitychange', () => {
         cancelAnimationFrame(bubbleFrame);
+        lastFrameTime = 0;
         if (!document.hidden && !reducedBubbleMotion.matches) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         }
       });
       reducedBubbleMotion.addEventListener('change', () => {
         cancelAnimationFrame(bubbleFrame);
+        lastFrameTime = 0;
         if (!reducedBubbleMotion.matches && !document.hidden) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         } else {
@@ -828,6 +943,8 @@
     let notificationQueue = Promise.resolve();
     let currentUser = null;
     let previewedUser = null;
+    let dashboardOpeningFrame = 0;
+    let dashboardOpeningHideTimer = 0;
     let dashboardAssignments = {};
     let dashboardClientAssignments = {};
     let dashboardClientSheetUrls = {};
@@ -1831,6 +1948,48 @@
       document.querySelector('#welcome-greeting').textContent = `${greeting},`;
       document.querySelector('#welcome-name').textContent = welcomeUser.displayName;
     }
+    function setDashboardOpeningProgress(value) {
+      const progress = document.querySelector('#dashboard-opening-progress');
+      progress.setAttribute('aria-valuenow', String(Math.round(value)));
+      document.querySelector('#dashboard-opening-fill').style.width = `${value}%`;
+    }
+    function showDashboardOpening(name) {
+      const title = name === 'VCODE MASTERLIST'
+        ? 'VCode Master List'
+        : name.toLowerCase().replace(/\b\w/g, letter => letter.toUpperCase());
+      document.querySelector('#dashboard-opening-title').textContent = `Opening ${title}`;
+      document.querySelector('#dashboard-opening-status').textContent = 'Almost there';
+      setDashboardOpeningProgress(0);
+      const overlay = document.querySelector('#dashboard-opening');
+      overlay.hidden = false;
+      overlay.classList.remove('is-closing');
+      window.clearTimeout(dashboardOpeningHideTimer);
+      window.cancelAnimationFrame(dashboardOpeningFrame);
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setDashboardOpeningProgress(88);
+        return;
+      }
+      const startedAt = performance.now();
+      const advanceProgress = now => {
+        const progress = Math.min(88, ((now - startedAt) / 900) * 88);
+        setDashboardOpeningProgress(progress);
+        if (progress < 88) dashboardOpeningFrame = window.requestAnimationFrame(advanceProgress);
+      };
+      dashboardOpeningFrame = window.requestAnimationFrame(advanceProgress);
+    }
+    function finishDashboardOpening() {
+      window.cancelAnimationFrame(dashboardOpeningFrame);
+      setDashboardOpeningProgress(100);
+      document.querySelector('#dashboard-opening-status').textContent = 'Ready';
+      const overlay = document.querySelector('#dashboard-opening');
+      overlay.classList.add('is-closing');
+      window.clearTimeout(dashboardOpeningHideTimer);
+      dashboardOpeningHideTimer = window.setTimeout(() => {
+        overlay.hidden = true;
+        overlay.classList.remove('is-closing');
+        setDashboardOpeningProgress(0);
+      }, 180);
+    }
     function renderBubbles() {
       content.querySelectorAll('.bubble-grid').forEach(element => element.remove());
       const section = document.createElement('section');
@@ -1842,11 +2001,20 @@
           if (button.dataset.activating) return;
           button.dataset.activating = 'true';
           button.classList.add('is-popping');
+          showDashboardOpening(button.dataset.tooltip || button.title);
           const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
           window.setTimeout(() => {
             button.classList.remove('is-popping');
             delete button.dataset.activating;
-            action();
+            try {
+              Promise.resolve(action()).then(finishDashboardOpening, error => {
+                finishDashboardOpening();
+                notify(error?.message || 'Could not open the selected dashboard.');
+              });
+            } catch (error) {
+              finishDashboardOpening();
+              throw error;
+            }
           }, reducedMotion ? 0 : 960);
         });
       };
