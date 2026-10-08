@@ -3032,11 +3032,113 @@
     }
     function showSelectedDashboard(name) {
       if (name === 'PLANTILLA') showPlantilla();
+      else if (name === 'PLANTILLA SUMMARY') showPlantillaSummary();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
       else if (name === 'FOR APPROVAL') showForApproval();
       else showClientDashboard(name);
+    }
+    function showPlantillaSummary() {
+      saveCurrentView('dashboard', 'PLANTILLA SUMMARY');
+      const clientName = getActiveClient();
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA SUMMARY</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA SUMMARY'))} · Required HC from VCODE; actual HC from PLANTILLA</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="summary-vcode-assign-sheet" class="secondary-button" type="button">Assign VCODE URL</button><button id="summary-plantilla-assign-sheet" class="secondary-button" type="button">Assign PLANTILLA URL</button>' : ''}<button id="plantilla-summary-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-summary-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools">${dashboardClientSwitcherMarkup('PLANTILLA SUMMARY')}<p id="plantilla-summary-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">POSITION</th><th scope="col">REQUIRED HC</th><th scope="col">ACTUAL HC</th><th scope="col">GAP (REQUIRED - ACTUAL)</th></tr></thead><tbody id="plantilla-summary-table-body"><tr><td colspan="4" class="plantilla-empty">Loading PLANTILLA summary...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA summary by position</span><span>Unique positions: VCODE!D3:D · Required HC: VCODE!L3:L · Actual HC: PLANTILLA!AC9:AC</span></div>`;
+      applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('PLANTILLA SUMMARY');
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('PLANTILLA SUMMARY')} · Required HC from VCODE; actual HC from PLANTILLA`;
+      document.querySelector('#summary-vcode-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE MASTERLIST'));
+      document.querySelector('#summary-plantilla-assign-sheet')?.addEventListener('click', () => openDashboardEditor('PLANTILLA'));
+      document.querySelector('#plantilla-summary-refresh').addEventListener('click', loadPlantillaSummary);
+      document.querySelector('#plantilla-summary-home').addEventListener('click', showHome);
+      loadPlantillaSummary();
+    }
+    async function loadPlantillaSummary() {
+      const status = document.querySelector('#plantilla-summary-status');
+      const body = document.querySelector('#plantilla-summary-table-body');
+      if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const clientName = getActiveClient();
+      const vcodeUrl = getDashboardSources('VCODE MASTERLIST', clientName)[0] || '';
+      const plantillaUrl = getDashboardSources('PLANTILLA', clientName)[0] || '';
+      if (!vcodeUrl || !plantillaUrl) {
+        const missingSources = [
+          !vcodeUrl ? 'VCODE MASTERLIST' : '',
+          !plantillaUrl ? 'PLANTILLA' : ''
+        ].filter(Boolean);
+        status.textContent = `Assign both source spreadsheets to this account and client. Missing: ${missingSources.join(' and ')}.`;
+        body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+
+      status.textContent = 'Loading VCODE and PLANTILLA data...';
+      body.innerHTML = '<tr><td colspan="4" class="plantilla-empty">Loading PLANTILLA summary...</td></tr>';
+      try {
+        let vcodeValues;
+        let plantillaValues;
+        if (usesAssignedSheetAccess()) {
+          const requestContext = {
+            clientName,
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          };
+          const [vcodeResult, plantillaResult] = await Promise.all([
+            callSheetsFunction('read-vcode', requestContext),
+            callSheetsFunction('read-plantilla', requestContext)
+          ]);
+          vcodeValues = vcodeResult.displayValues || [];
+          plantillaValues = plantillaResult.displayValues || [];
+        } else {
+          const vcodeSpreadsheetId = spreadsheetIdFromUrl(vcodeUrl);
+          const plantillaSpreadsheetId = spreadsheetIdFromUrl(plantillaUrl);
+          const [vcodeResult, plantillaResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${vcodeSpreadsheetId}/values/${encodeURIComponent('VCODE!A3:N')}?valueRenderOption=FORMATTED_VALUE`),
+            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent('PLANTILLA!A9:AJ')}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          vcodeValues = vcodeResult.values || [];
+          plantillaValues = plantillaResult.values || [];
+        }
+        if (generation !== dashboardReadGeneration) return false;
+
+        const positions = new Map();
+        const addHc = (map, position, value) => {
+          const label = String(position ?? '').trim().replace(/\s+/g, ' ');
+          if (!label) return;
+          const key = label.toLocaleUpperCase();
+          if (!map.has(key)) map.set(key, { position: label, hc: 0 });
+          const parsedHc = Number(String(value ?? '').replace(/,/g, '').trim());
+          if (Number.isFinite(parsedHc)) map.get(key).hc += parsedHc;
+        };
+        const requiredByPosition = new Map();
+        vcodeValues.forEach(row => addHc(requiredByPosition, row[3], row[11]));
+        const actualByPosition = new Map();
+        plantillaValues.forEach(row => addHc(actualByPosition, row[6], row[28]));
+        for (const [key, required] of requiredByPosition) {
+          positions.set(key, {
+            position: required.position,
+            requiredHc: required.hc,
+            actualHc: actualByPosition.get(key)?.hc || 0
+          });
+        }
+        const summaries = [...positions.values()].sort((left, right) =>
+          left.position.localeCompare(right.position, undefined, { sensitivity: 'base' })
+        );
+        if (!summaries.length) {
+          status.textContent = 'No positions were found in VCODE column D from row 3 onward.';
+          body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+          return true;
+        }
+        const formatHc = value => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+        body.innerHTML = summaries.map(summary => {
+          const gap = summary.requiredHc - summary.actualHc;
+          return `<tr><td>${escapeHtml(summary.position)}</td><td>${formatHc(summary.requiredHc)}</td><td>${formatHc(summary.actualHc)}</td><td>${formatHc(gap)}</td></tr>`;
+        }).join('');
+        status.textContent = `${summaries.length} unique position${summaries.length === 1 ? '' : 's'} · GAP = REQUIRED HC − ACTUAL HC`;
+        return true;
+      } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
+        status.textContent = error?.message || 'Could not load the PLANTILLA summary.';
+        body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
     }
     async function openDashboardEditor(name) {
       if (!currentUser?.isMasterAdmin) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
