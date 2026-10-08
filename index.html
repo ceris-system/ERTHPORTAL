@@ -574,7 +574,7 @@
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
         <div class="dialog-scope">For a Regular Admin, check each client to reveal its URL field, then paste that client’s Google Sheets link. Each selected client must have its own URL.</div>
         <p id="dashboard-assignment-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
-        <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
+        <div class="dialog-actions"><button id="save-dashboard-urls" class="primary-button" type="button">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
     </section>
@@ -3752,15 +3752,17 @@
       const feedback = document.querySelector('#dashboard-assignment-feedback');
       feedback.textContent = '';
       const showAssignmentError = message => { feedback.textContent = message; };
-      if (currentUser?.role !== 'admin') return notify('Only an admin can edit dashboard URLs.');
+      if (!currentUser?.isMasterAdmin && currentUser?.role !== 'admin') {
+        return showAssignmentError('Only the Master Admin can assign dashboard spreadsheet URLs.');
+      }
       const username = document.querySelector('#dialog-user-select').value;
-      if (!username) return notify('Choose a user to assign this dashboard.');
+      if (!username) return showAssignmentError('Choose a user to assign this dashboard.');
       const clientNames = selectedClientValues(userUsesClientUrlPairs
         ? document.querySelector('#dashboard-client-options')
         : document.querySelector('#dashboard-client-select'));
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
       if (userUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
-      if (!clientNames.length && !sourceSetup) return notify('Select at least one client to fetch for this dashboard.');
+      if (!clientNames.length && !sourceSetup) return showAssignmentError('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
       const clientSheetUrls = Object.fromEntries([...document.querySelectorAll('.dashboard-url-input[data-client-url]')]
         .map(input => [input.dataset.clientUrl, input.value.trim()]));
@@ -3776,7 +3778,7 @@
         try { spreadsheetIdFromUrl(parsed.href); } catch { return showAssignmentError('Use the Google Sheets document link, not a script.google.com/macros Apps Script link.'); }
         sources.push(parsed.href);
       }
-      const button = event.currentTarget.querySelector('button[type="submit"]');
+      const button = document.querySelector('#save-dashboard-urls');
       button.disabled = true;
       button.textContent = 'Saving...';
       feedback.textContent = 'Saving spreadsheet assignments...';
@@ -3812,6 +3814,9 @@
           button.textContent = 'Save URLs';
         }
       })();
+    });
+    document.querySelector('#save-dashboard-urls').addEventListener('click', () => {
+      document.querySelector('#dashboard-url-form').requestSubmit();
     });
     document.querySelector('#plantilla-connect-form').addEventListener('submit', event => {
       event.preventDefault();
