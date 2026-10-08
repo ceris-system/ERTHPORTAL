@@ -30,14 +30,13 @@
     button, select, input { font: inherit; }
     button, select { cursor: pointer; }
     button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid rgba(27, 164, 164, .38); outline-offset: 3px; }
-    .scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background:radial-gradient(ellipse at 80% 45%,rgba(108,205,216,.38),transparent 42%),radial-gradient(ellipse at 18% 18%,#effcfa 0,transparent 42%),radial-gradient(ellipse at 86% 78%,#c5ecec 0,transparent 44%),linear-gradient(135deg,#d5eff1,#f7fbf8 55%,#cce9ea); }
-    .scene::after { content:''; position:absolute; inset:0; background-image:radial-gradient(rgba(17,94,102,.11) .65px,transparent .65px); background-size:19px 19px; opacity:.12; }
-    #water-scene { width: 100%; height: 100%; display: block; }
+    .scene { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background:radial-gradient(ellipse at 50% -12%,rgba(44,77,143,.42),transparent 48%),radial-gradient(ellipse at 82% 76%,rgba(19,41,91,.48),transparent 42%),linear-gradient(145deg,#030712,#071329 52%,#020611); }
+    #star-scene { width:100%; height:100%; display:block; }
     .app-shell { position: relative; z-index: 1; min-height: 100vh; }
-    .login-page { min-height:100vh; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(380px,.9fr); align-items:stretch; gap:0; max-width:none; margin:0; padding:0; background:linear-gradient(110deg,rgba(238,248,247,.04) 0 54.9%,rgba(244,251,250,.36) 55%,rgba(248,251,250,.44)); }
-    .intro { position:relative; isolation:isolate; max-width:none; min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:clamp(36px,7vw,100px); overflow:hidden; color:#fff; background:#1b4852; }
-    .intro::before { position:absolute; z-index:-2; inset:0; background-image:url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=85"); background-position:center; background-size:cover; content:""; transform:scale(1.015); }
-    .intro::after { position:absolute; z-index:-1; inset:0; background:linear-gradient(115deg,rgba(10,42,51,.83),rgba(12,60,67,.62) 56%,rgba(14,76,80,.38)); content:""; }
+    .login-page { min-height:100vh; display:grid; grid-template-columns:minmax(0,1.1fr) minmax(380px,.9fr); align-items:stretch; gap:0; max-width:none; margin:0; padding:0; background:linear-gradient(110deg,rgba(2,8,23,.24) 0 54.9%,rgba(3,9,24,.04) 55%,rgba(3,9,24,.12)); }
+    .intro { position:relative; isolation:isolate; max-width:none; min-height:100vh; display:flex; flex-direction:column; justify-content:center; padding:clamp(36px,7vw,100px); overflow:hidden; color:#fff; background:rgba(3,9,24,.3); }
+    .intro::before { position:absolute; z-index:-2; inset:0; background:radial-gradient(ellipse at 25% 22%,rgba(47,86,158,.22),transparent 48%),linear-gradient(145deg,rgba(4,12,32,.35),rgba(5,14,34,.12)); content:""; }
+    .intro::after { position:absolute; z-index:-1; inset:0; background:linear-gradient(115deg,rgba(2,7,22,.44),rgba(4,13,34,.24) 56%,rgba(4,13,34,.08)); content:""; }
     .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--ink); text-decoration: none; font: 800 17px 'Roboto Mono', monospace; letter-spacing: 0; }
     .intro .brand { width:fit-content; color:#fff; }
     .brand-mark { width: 39px; height: 39px; display: grid; place-items: center; border-radius: 13px 13px 15px 7px; color: white; background: linear-gradient(145deg, #22b8b1, #126f87); box-shadow: 0 7px 17px rgba(18,143,145,.22); transform: rotate(-5deg); }
@@ -46,7 +45,7 @@
     .intro .eyebrow { color:#b8eeea; }
     .eyebrow::before { content:''; width: 7px; height: 7px; border-radius: 50%; background: #ed9365; box-shadow: 0 0 0 4px rgba(237,147,101,.15); }
     .intro h1 { max-width: 650px; margin: 28px 0 18px; font: 800 clamp(30px, 3.5vw, 46px)/1.12 'Roboto Mono', monospace; letter-spacing: -.035em; }
-    .intro h1 span { display:block; margin-top:14px; color: #87e1d7; font-size:.78em; font-weight:600; letter-spacing:-.025em; }
+    .intro h1 span { display:block; margin-top:14px; color:#9dc8ff; font-size:.78em; font-weight:600; letter-spacing:-.025em; }
     .intro-copy { max-width: 470px; color:rgba(255,255,255,.84); font-size:16px; line-height:1.75; }
     .intro-foot { display: flex; align-items: center; gap: 12px; margin-top: 34px; color:rgba(255,255,255,.78); font-size: 12px; }
     .avatar-stack { display: flex; padding-left: 4px; }
@@ -403,8 +402,8 @@
       .step { min-height:142px; }
     }
     @media(max-width:720px) {
-      .login-page { grid-template-columns:minmax(0,1fr); align-content:start; gap:0; padding:0 0 28px; background:linear-gradient(180deg,transparent 0 310px,#f4f8f7 310px); }
-      .intro { width:100%; min-height:310px; max-width:none; margin:0; padding:25px 24px 55px; text-align:left; }
+      .login-page { grid-template-columns:minmax(0,1fr); align-content:start; gap:0; padding:0 0 28px; background:linear-gradient(180deg,rgba(3,9,24,.16) 0 310px,rgba(3,9,24,.28) 310px); }
+      .intro { width:100%; min-height:310px; max-width:none; margin:0; padding:25px 24px 55px; text-align:left; background:rgba(3,9,24,.18); }
       .intro > div { margin-top:25px !important; }
       .intro h1 { margin:14px 0 10px; font-size:clamp(26px,6.8vw,36px); line-height:1.12; }
       .intro h1 span { margin-top:10px; font-size:.8em; }
@@ -482,7 +481,7 @@
   </style>
 </head>
 <body>
-  <div class="scene" aria-hidden="true"><canvas id="water-scene"></canvas></div>
+  <div class="scene" aria-hidden="true"><canvas id="star-scene"></canvas></div>
   <div class="app-shell">
     <main id="login-page" class="login-page">
       <section class="intro">
@@ -715,9 +714,100 @@
     <div id="record-drawer-fields" class="record-drawer-fields"></div>
   </aside>
 
+  <script>
+    const starCanvas = document.querySelector('#star-scene');
+    const starContext = starCanvas.getContext('2d');
+    const reducedStarMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let starWidth = 0;
+    let starHeight = 0;
+    let starFrame = 0;
+    let previousStarFrame = 0;
+    const stars = [];
+    function resetStars() {
+      const density = Math.min(320, Math.max(160, Math.round(window.innerWidth * window.innerHeight / 4000)));
+      stars.length = 0;
+      for (let index = 0; index < density; index++) {
+        stars.push({
+          x: Math.random(),
+          y: Math.random(),
+          radius: Math.random() < .12 ? .95 + Math.random() * .55 : .35 + Math.random() * .55,
+          phase: Math.random() * Math.PI * 2,
+          speed: .45 + Math.random() * 1.8,
+          brightness: .52 + Math.random() * .48,
+          tint: Math.random() < .16 ? 205 + Math.random() * 35 : 0
+        });
+      }
+    }
+    function resizeStarCanvas() {
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      starWidth = window.innerWidth;
+      starHeight = window.innerHeight;
+      starCanvas.width = Math.round(starWidth * pixelRatio);
+      starCanvas.height = Math.round(starHeight * pixelRatio);
+      starCanvas.style.width = `${starWidth}px`;
+      starCanvas.style.height = `${starHeight}px`;
+      starContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      resetStars();
+      drawStars(performance.now() / 1000);
+    }
+    function drawStars(time) {
+      if (!starWidth || !starHeight) return;
+      starContext.clearRect(0, 0, starWidth, starHeight);
+      for (const star of stars) {
+        const pulse = reducedStarMotion.matches ? .78 : .34 + .66 * ((Math.sin(time * star.speed + star.phase) + 1) / 2);
+        const alpha = star.brightness * pulse;
+        const x = star.x * starWidth;
+        const y = star.y * starHeight;
+        starContext.beginPath();
+        starContext.arc(x, y, star.radius, 0, Math.PI * 2);
+        starContext.fillStyle = star.tint
+          ? `rgba(166,204,255,${alpha})`
+          : `rgba(238,245,255,${alpha})`;
+        starContext.shadowColor = star.tint
+          ? `rgba(105,162,255,${alpha * .75})`
+          : `rgba(207,225,255,${alpha * .65})`;
+        starContext.shadowBlur = star.radius > 1 ? 5 * alpha : 2.5 * alpha;
+        starContext.fill();
+        starContext.shadowBlur = 0;
+        if (star.radius > 1.25 && alpha > .76) {
+          starContext.globalAlpha = (alpha - .65) * .7;
+          starContext.strokeStyle = 'rgba(220,237,255,.85)';
+          starContext.lineWidth = .45;
+          starContext.beginPath();
+          starContext.moveTo(x - star.radius * 2.3, y);
+          starContext.lineTo(x + star.radius * 2.3, y);
+          starContext.moveTo(x, y - star.radius * 2.3);
+          starContext.lineTo(x, y + star.radius * 2.3);
+          starContext.stroke();
+          starContext.globalAlpha = 1;
+        }
+      }
+    }
+    function animateStars(now) {
+      if (now - previousStarFrame >= 40) {
+        drawStars(now / 1000);
+        previousStarFrame = now;
+      }
+      if (!reducedStarMotion.matches && !document.hidden) starFrame = requestAnimationFrame(animateStars);
+    }
+    resizeStarCanvas();
+    window.addEventListener('resize', resizeStarCanvas);
+    document.addEventListener('visibilitychange', () => {
+      cancelAnimationFrame(starFrame);
+      previousStarFrame = 0;
+      if (!document.hidden && !reducedStarMotion.matches) starFrame = requestAnimationFrame(animateStars);
+    });
+    reducedStarMotion.addEventListener('change', () => {
+      cancelAnimationFrame(starFrame);
+      previousStarFrame = 0;
+      if (reducedStarMotion.matches) drawStars(performance.now() / 1000);
+      else if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+    });
+    if (!reducedStarMotion.matches) starFrame = requestAnimationFrame(animateStars);
+  </script>
   <script type="module">
     const canvas = document.querySelector('#water-scene');
-    const bubbleContext = canvas.getContext('2d');
+    const bubbleContext = canvas?.getContext('2d');
     const reducedBubbleMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let bubbleWidth = 0;
     let bubbleHeight = 0;
