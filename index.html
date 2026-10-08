@@ -90,21 +90,7 @@
     .topbar-avatar > img:first-child { width:100%; height:100%; border-radius:50%; object-fit:cover; }
     .topbar-avatar .topbar-avatar-preview { position:absolute; z-index:30; top:calc(100% + 9px); right:0; width:160px; height:160px; border:3px solid white; border-radius:13px; object-fit:cover; box-shadow:0 14px 34px rgba(16,68,81,.25); opacity:0; visibility:hidden; pointer-events:none; transform:scale(.94); transform-origin:top right; transition:opacity .16s ease,transform .16s ease,visibility .16s; }
     .topbar-avatar:hover .topbar-avatar-preview,.topbar-avatar:focus .topbar-avatar-preview { opacity:1; visibility:visible; transform:scale(1); }
-    .powered-by-badge { position:fixed; z-index:20; left:20px; bottom:20px; min-height:43px; display:inline-flex; align-items:center; gap:10px; padding:6px 13px 6px 7px; border:1px solid rgba(255,255,255,.78); border-radius:999px; color:#14263f; background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(231,241,255,.9)); box-shadow:0 8px 24px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.98); text-align:left; cursor:grab; touch-action:none; user-select:none; transition:box-shadow .18s ease,transform .18s ease,filter .18s ease; }
-    .powered-by-badge-mark { width:29px; height:29px; flex:0 0 29px; display:grid; place-items:center; border-radius:50%; color:#fff; background:linear-gradient(145deg,#59d7c3,#138ca2 72%,#225b98); box-shadow:inset 0 1px 2px rgba(255,255,255,.74),0 2px 6px rgba(16,98,131,.28); }
-    .powered-by-badge > .powered-by-badge-mark { color:#fff; }
-    .powered-by-badge-mark svg { width:17px; height:17px; }
-    .powered-by-badge-copy { display:grid; gap:2px; }
-    .powered-by-badge span { position:relative; z-index:1; color:#62748b; font:700 8px/1 'Roboto Mono',monospace; letter-spacing:.09em; }
-    .powered-by-badge strong { position:relative; z-index:1; color:#14263f; font:800 12px/1 'Roboto Mono',monospace; letter-spacing:.04em; }
-    .powered-by-badge:hover { transform:translateY(-2px); filter:brightness(1.04); box-shadow:0 12px 28px rgba(0,0,0,.34),inset 0 1px 0 white; }
-    .powered-by-badge:active,.powered-by-badge.is-dragging { cursor:grabbing; }
-    .powered-by-badge:focus-visible { outline:3px solid rgba(121,190,255,.9); outline-offset:3px; }
     @media(max-width:520px) {
-      .powered-by-badge { left:12px; bottom:12px; min-height:39px; gap:8px; padding:5px 11px 5px 6px; }
-      .powered-by-badge-mark { width:27px; height:27px; flex-basis:27px; }
-      .powered-by-badge span { font-size:7px; }
-      .powered-by-badge strong { font-size:11px; }
       .topbar-avatar .topbar-avatar-preview { width:130px; height:130px; }
     }
     .profile-info { min-width: 0; flex: 1; }
@@ -557,10 +543,6 @@
         <div id="content" class="content" aria-live="polite"></div>
       </section>
     </div>
-  </div>
-  <div id="powered-by-badge" class="powered-by-badge" role="group" tabindex="0" aria-label="Developed by ERTH. Drag to move this badge; use arrow keys to reposition it." title="Developed by ERTH · Drag to move">
-    <span class="powered-by-badge-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-    <span class="powered-by-badge-copy"><span>DEVELOPED BY</span><strong>ERTH</strong></span>
   </div>
   <dialog id="preview-user-dialog" class="liquid-dialog" aria-labelledby="preview-user-title">
     <section class="dialog-panel">
@@ -1189,79 +1171,6 @@
     let sessionStorageWarningShown = false;
     const portalSessionStorageKey = 'erthportal:session';
     const portalIdleTimeoutMs = 30 * 60 * 1000;
-    const poweredByBadge = document.querySelector('#powered-by-badge');
-    const poweredByBadgePositionKey = 'erthportal:powered-by-badge-position';
-    function positionPoweredByBadge(left, top) {
-      const maxLeft = Math.max(0, window.innerWidth - poweredByBadge.offsetWidth);
-      const maxTop = Math.max(0, window.innerHeight - poweredByBadge.offsetHeight);
-      const boundedLeft = Math.min(Math.max(0, left), maxLeft);
-      const boundedTop = Math.min(Math.max(0, top), maxTop);
-      poweredByBadge.style.left = `${boundedLeft}px`;
-      poweredByBadge.style.top = `${boundedTop}px`;
-      poweredByBadge.style.right = 'auto';
-      poweredByBadge.style.bottom = 'auto';
-      return { left: boundedLeft, top: boundedTop };
-    }
-    function savePoweredByBadgePosition(position) {
-      try {
-        localStorage.setItem(poweredByBadgePositionKey, JSON.stringify(position));
-      } catch (storageError) {
-        console.warn('Could not save the Powered by ERTH badge position.', storageError);
-      }
-    }
-    try {
-      const savedPosition = JSON.parse(localStorage.getItem(poweredByBadgePositionKey) || 'null');
-      if (savedPosition && Number.isFinite(savedPosition.left) && Number.isFinite(savedPosition.top)) {
-        positionPoweredByBadge(savedPosition.left, savedPosition.top);
-      }
-    } catch (storageError) {
-      console.warn('Could not restore the Powered by ERTH badge position.', storageError);
-    }
-    let badgeDrag = null;
-    poweredByBadge.addEventListener('pointerdown', event => {
-      if (event.button !== 0 && event.pointerType !== 'touch') return;
-      const bounds = poweredByBadge.getBoundingClientRect();
-      badgeDrag = { pointerId: event.pointerId, offsetX: event.clientX - bounds.left, offsetY: event.clientY - bounds.top };
-      poweredByBadge.classList.add('is-dragging');
-      poweredByBadge.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    });
-    poweredByBadge.addEventListener('pointermove', event => {
-      if (!badgeDrag || badgeDrag.pointerId !== event.pointerId) return;
-      positionPoweredByBadge(event.clientX - badgeDrag.offsetX, event.clientY - badgeDrag.offsetY);
-    });
-    poweredByBadge.addEventListener('pointerup', event => {
-      if (!badgeDrag || badgeDrag.pointerId !== event.pointerId) return;
-      const bounds = poweredByBadge.getBoundingClientRect();
-      savePoweredByBadgePosition({ left: bounds.left, top: bounds.top });
-      badgeDrag = null;
-      poweredByBadge.classList.remove('is-dragging');
-      if (poweredByBadge.hasPointerCapture(event.pointerId)) poweredByBadge.releasePointerCapture(event.pointerId);
-    });
-    poweredByBadge.addEventListener('pointercancel', () => {
-      badgeDrag = null;
-      poweredByBadge.classList.remove('is-dragging');
-    });
-    poweredByBadge.addEventListener('keydown', event => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home'].includes(event.key)) return;
-      event.preventDefault();
-      const bounds = poweredByBadge.getBoundingClientRect();
-      const step = event.shiftKey ? 30 : 12;
-      const position = event.key === 'Home'
-        ? { left: 20, top: window.innerHeight - poweredByBadge.offsetHeight - 20 }
-        : {
-            left: bounds.left + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0),
-            top: bounds.top + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0)
-          };
-      savePoweredByBadgePosition(positionPoweredByBadge(position.left, position.top));
-    });
-    window.addEventListener('resize', () => {
-      if (poweredByBadge.style.top) {
-        const bounds = poweredByBadge.getBoundingClientRect();
-        savePoweredByBadgePosition(positionPoweredByBadge(bounds.left, bounds.top));
-      }
-    });
-
     const loginPage = document.querySelector('#login-page');
     const dashboardPage = document.querySelector('#dashboard');
     const content = document.querySelector('#content');
