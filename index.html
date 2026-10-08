@@ -2560,7 +2560,9 @@
           ...(previewedUser ? { targetUsername: previewedUser.username } : {})
         });
         notify(result.backoutTransfer?.transferred
-          ? `VCODE ${vcode} moved to back-out and returned to VACANCY.`
+          ? result.backoutTransfer.onBoardRowsDeleted
+            ? `VCODE ${vcode} moved to back-out and returned to VACANCY. ${result.backoutTransfer.onBoardRowsDeleted} matching On Board Database row(s) deleted.`
+            : `VCODE ${vcode} moved to back-out and returned to VACANCY. No matching On Board Database row was found.`
           : `HRCO remarks for VCODE ${vcode} updated.`);
         const refreshed = await loadHrEmplocRecords();
         if (result.backoutTransfer?.transferred) closeRecordDrawer();
