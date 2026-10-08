@@ -99,7 +99,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls, client_names')
+        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names')
+          .select('sheet_urls, client_names, client_sheet_urls')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -218,10 +218,10 @@ Deno.serve(async request => {
           : target.client_names?.length
             ? target.client_names
             : [target.client_name].filter(Boolean);
-        return respond({ username, dashboardName, urls: data?.sheet_urls || [], clientNames });
+        return respond({ username, dashboardName, urls: data?.sheet_urls || [], clientNames, clientSheetUrls: data?.client_sheet_urls || {} });
       }
 
-      if (!Array.isArray(body.urls) || body.urls.length > 10) throw new Error('Provide up to 10 spreadsheet URLs.');
+      if (!Array.isArray(body.urls) || body.urls.length > 30) throw new Error('Provide up to 30 spreadsheet URLs.');
       if (!Array.isArray(body.clientNames)) throw new Error('Select client(s) for this dashboard.');
       const clientNames = [...new Set(body.clientNames.map((value: unknown) => {
         if (typeof value !== 'string' || !value.trim() || value.trim().length > 80) throw new Error('Choose valid client names.');
@@ -247,11 +247,31 @@ Deno.serve(async request => {
         if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Spreadsheet URLs must use HTTP or HTTPS.');
         return url.href;
       });
+      const clientSheetUrls: Record<string, string> = {};
+      if (body.clientSheetUrls !== undefined) {
+        if (!body.clientSheetUrls || typeof body.clientSheetUrls !== 'object' || Array.isArray(body.clientSheetUrls)) {
+          throw new Error('Provide a spreadsheet URL for each assigned client.');
+        }
+        for (const clientName of clientNames) {
+          const assignedUrl = body.clientSheetUrls[clientName];
+          if (typeof assignedUrl !== 'string' || !assignedUrl.trim()) {
+            throw new Error(`Provide a spreadsheet URL for ${clientName}.`);
+          }
+          let parsed: URL;
+          try { parsed = new URL(assignedUrl.trim()); } catch { throw new Error(`Enter a complete spreadsheet URL for ${clientName}.`); }
+          if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Spreadsheet URLs must use HTTP or HTTPS.');
+          clientSheetUrls[clientName] = parsed.href;
+        }
+        if (Object.keys(body.clientSheetUrls).some(client => !clientNames.includes(client))) {
+          throw new Error('Each spreadsheet URL must match a selected client.');
+        }
+      }
       const { error } = await adminClient.from('dashboard_assignments').upsert({
         user_id: target.id,
         dashboard_name: dashboardName,
-        sheet_urls: urls,
+        sheet_urls: urls.length ? urls : [...new Set(Object.values(clientSheetUrls))],
         client_names: clientNames,
+        client_sheet_urls: clientSheetUrls,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');

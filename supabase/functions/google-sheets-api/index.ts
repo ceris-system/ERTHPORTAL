@@ -115,38 +115,65 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls, client_names')
+    .select('sheet_urls, client_names, client_sheet_urls')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
   if (assignmentError) throw new Error(`Could not load the ${dashboardName} assignment.`);
 
   const urls = assignment?.sheet_urls?.length ? assignment.sheet_urls : (dashboardName === 'PLANTILLA' && target.sheet_url ? [target.sheet_url] : []);
+  const assignedClientNames = Array.isArray(assignment?.client_names) ? assignment.client_names : [];
+  const profileClientNames = Array.isArray(target.client_names) ? target.client_names : [];
+  const clientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
+    .map((value: unknown) => String(value || '').trim())
+    .filter((value: string) => value && value !== 'My spreadsheets'))];
+  const requestedClient = String(body.clientName || '').trim();
+  const clientSheetUrls = assignment?.client_sheet_urls && typeof assignment.client_sheet_urls === 'object'
+    ? assignment.client_sheet_urls
+    : {};
+  let clientMappedUrl = requestedClient ? clientSheetUrls[requestedClient] : '';
+  if (!clientMappedUrl && requestedClient && clientNames.length > 1 && urls.length === clientNames.length) {
+    clientMappedUrl = urls[clientNames.indexOf(requestedClient)];
+  }
+  if (!clientMappedUrl && requestedClient && clientNames.length > 1 && urls.length === 1) clientMappedUrl = urls[0];
+  if (target.role === 'admin' && !target.is_master_admin && clientNames.length > 1 && !clientMappedUrl) {
+    throw new Error(`No ${dashboardName} spreadsheet is assigned to ${requestedClient || 'the selected client'}. Ask the Master Admin to assign one.`);
+  }
   const masterHrSelfService = body.action === 'update-hr-emploc' && actor.is_master_admin &&
     target.id === actor.id && typeof body.spreadsheetUrl === 'string' && body.spreadsheetUrl.trim();
   if (!urls.length && !masterHrSelfService) throw new Error(`No ${dashboardName} spreadsheet is assigned to this account. Ask the administrator to assign one.`);
 
-  const selectedUrl = String(body.spreadsheetUrl || urls[0]).trim();
+  if (requestedClient && clientNames.length && !clientNames.some((name: string) => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase())) {
+    throw new Error(`Client ${requestedClient} is not assigned to ${dashboardName}.`);
+  }
+  const selectedUrl = String(body.spreadsheetUrl || clientMappedUrl || urls[0]).trim();
   let parsed: URL;
   try { parsed = new URL(selectedUrl); } catch { throw new Error('The assigned spreadsheet URL is invalid.'); }
   if (parsed.hostname !== 'docs.google.com') throw new Error('The assigned URL must be a Google Sheets document.');
   const match = parsed.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
   if (!match) throw new Error('The assigned URL is not a Google Sheets document link.');
+  if (target.role === 'admin' && !target.is_master_admin && clientNames.length > 1 && clientMappedUrl) {
+    const expectedSpreadsheetId = spreadsheetIdFromAssignedUrl(clientMappedUrl, dashboardName);
+    if (expectedSpreadsheetId !== match[1]) {
+      throw new Error(`That spreadsheet is not assigned to ${requestedClient} for ${dashboardName}.`);
+    }
+  }
   if (!urls.some((value: string) => {
     try { return new URL(value).pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] === match[1]; }
     catch { return false; }
+  }) && !Object.values(clientSheetUrls).some((value: unknown) => {
+    try { return typeof value === 'string' && new URL(value).pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] === match[1]; }
+    catch { return false; }
   }) && !masterHrSelfService) throw new Error('That spreadsheet is not assigned to this account.');
-  const assignedClientNames = Array.isArray(assignment?.client_names) ? assignment.client_names : [];
-  const profileClientNames = Array.isArray(target.client_names) ? target.client_names : [];
   const selectedMasterClient = masterHrSelfService && !urls.length && typeof body.clientName === 'string' ? body.clientName.trim() : '';
-  const clientNames = [...new Set((selectedMasterClient ? [selectedMasterClient] : assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
+  const scopedClientNames = [...new Set((selectedMasterClient ? [selectedMasterClient] : requestedClient ? [requestedClient] : clientNames)
     .map((value: unknown) => String(value || '').trim())
     .filter((value: string) => value && value !== 'My spreadsheets'))];
   return {
     spreadsheetId: match[1],
     targetUserId: target.id,
     clientName: String(target.client_name || '').trim(),
-    clientNames,
+    clientNames: scopedClientNames,
     targetRole: target.role
   };
 }
@@ -177,17 +204,18 @@ function normalizeSheetIdentity(value: unknown) {
 
 async function getAssignedHrEmplocDestination(
   adminClient: ReturnType<typeof createClient>,
-  targetUserId: string
+  targetUserId: string,
+  clientName = ''
 ) {
   const [assignmentResult, profileResult] = await Promise.all([
-    adminClient.from('dashboard_assignments').select('sheet_urls, client_names')
+    adminClient.from('dashboard_assignments').select('sheet_urls, client_names, client_sheet_urls')
       .eq('user_id', targetUserId).eq('dashboard_name', 'HR EMPLOC MONITORING').maybeSingle(),
     adminClient.from('profiles').select('client_name, client_names').eq('id', targetUserId).single()
   ]);
   if (assignmentResult.error) throw new Error('Could not load the assigned HR EMPLOC spreadsheet.');
   if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for HR EMPLOC.');
   const assignment = assignmentResult.data;
-  const spreadsheetId = spreadsheetIdFromAssignedUrl(assignment?.sheet_urls?.[0], 'HR EMPLOC');
+  const urls = Array.isArray(assignment?.sheet_urls) ? assignment.sheet_urls : [];
   const assignedClients = Array.isArray(assignment?.client_names) && assignment.client_names.length
     ? assignment.client_names
     : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
@@ -195,7 +223,23 @@ async function getAssignedHrEmplocDestination(
       : [profileResult.data.client_name];
   const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
   if (!clientNames.length) throw new Error('No clients are assigned to the HR EMPLOC spreadsheet.');
-  return { spreadsheetId, clientNames };
+  const normalizedClient = clientName.trim().toLocaleLowerCase();
+  if (normalizedClient && !clientNames.includes(normalizedClient)) {
+    throw new Error(`Client ${clientName} is not assigned to the HR EMPLOC spreadsheet.`);
+  }
+  const mappings = assignment?.client_sheet_urls && typeof assignment.client_sheet_urls === 'object'
+    ? assignment.client_sheet_urls
+    : {};
+  const mappedClient = normalizedClient && Object.keys(mappings).find(name => name.toLocaleLowerCase() === normalizedClient);
+  let selectedUrl = mappedClient ? mappings[mappedClient] : '';
+  if (!selectedUrl && normalizedClient && urls.length === clientNames.length) {
+    selectedUrl = urls[clientNames.indexOf(normalizedClient)];
+  }
+  if (!selectedUrl && urls.length === 1) selectedUrl = urls[0];
+  if (!selectedUrl) throw new Error(`No HR EMPLOC spreadsheet is assigned${clientName ? ` to ${clientName}` : ''}.`);
+  const spreadsheetId = spreadsheetIdFromAssignedUrl(selectedUrl, 'HR EMPLOC');
+  const scopedClientNames = normalizedClient ? [normalizedClient] : clientNames;
+  return { spreadsheetId, clientNames: scopedClientNames };
 }
 
 const approvalRequiredSourceColumns = [10, 11, 12, 13, 14, 15, 20, 21, 22, 31];
@@ -215,18 +259,13 @@ async function getAssignedVacancyDestination(
   masterClientNames: string[] = []
 ) {
   const [assignmentResult, profileResult] = await Promise.all([
-    adminClient.from('dashboard_assignments').select('sheet_urls, client_names')
+    adminClient.from('dashboard_assignments').select('sheet_urls, client_names, client_sheet_urls')
       .eq('user_id', targetUserId).eq('dashboard_name', 'VACANCY MONITORING').maybeSingle(),
-    adminClient.from('profiles').select('client_name, client_names').eq('id', targetUserId).single()
+    adminClient.from('profiles').select('client_name, client_names, is_master_admin').eq('id', targetUserId).single()
   ]);
   if (assignmentResult.error) throw new Error('Could not load the assigned VACANCY spreadsheet.');
   if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for VACANCY.');
   const assignment = assignmentResult.data;
-  const spreadsheetUrls = typeof masterFallbackUrl === 'string' && masterFallbackUrl.trim()
-    ? [masterFallbackUrl.trim()]
-    : Array.isArray(assignment?.sheet_urls) ? assignment.sheet_urls : [];
-  const spreadsheetIds = [...new Set(spreadsheetUrls.map((url: unknown) => spreadsheetIdFromAssignedUrl(url, 'VACANCY')))];
-  if (!spreadsheetIds.length) throw new Error('No VACANCY spreadsheet is assigned.');
   const assignedClients = Array.isArray(assignment?.client_names) && assignment.client_names.length
     ? assignment.client_names
     : masterClientNames.length ? masterClientNames
@@ -239,27 +278,28 @@ async function getAssignedVacancyDestination(
   if (!clientNames.includes(normalizedClient)) {
     throw new Error(`Client ${clientName} is not assigned to the VACANCY spreadsheet.`);
   }
-  const candidateSheets = await Promise.all(spreadsheetIds.map(async spreadsheetId => {
-    const metadata = await googleRequest(
-      `spreadsheets/${spreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title`
-    );
-    const vacancySheet = metadata.sheets?.find((sheet: any) => sheet.properties?.title === 'VACANCY');
-    if (!vacancySheet) return null;
-    const clientsResult = await googleRequest(
-      `spreadsheets/${spreadsheetId}/values/${encodeURIComponent('VACANCY!C5:C')}?valueRenderOption=FORMATTED_VALUE`
-    );
-    const hasClient = (clientsResult.values || []).some((row: unknown[]) =>
-      String(row[0] ?? '').trim().toLocaleLowerCase() === normalizedClient
-    );
-    return { spreadsheetId, sheet: vacancySheet, hasClient };
-  }));
-  const candidates = candidateSheets.filter(Boolean);
-  if (!candidates.length) throw new Error('The assigned spreadsheet does not have a VACANCY tab.');
-  let selected = candidates.filter((candidate: any) => candidate.hasClient);
-  if (selected.length > 1) throw new Error(`More than one assigned VACANCY spreadsheet contains client ${clientName}; no destination was changed.`);
-  if (!selected.length && candidates.length === 1) selected = candidates;
-  if (!selected.length) throw new Error(`Could not find an assigned VACANCY spreadsheet containing client ${clientName}.`);
-  return { ...selected[0], clientNames };
+  const urls = Array.isArray(assignment?.sheet_urls) ? assignment.sheet_urls : [];
+  const mappings = assignment?.client_sheet_urls && typeof assignment.client_sheet_urls === 'object'
+    ? assignment.client_sheet_urls
+    : {};
+  const mappedClient = Object.keys(mappings).find(name => name.toLocaleLowerCase() === normalizedClient);
+  const mappedUrl = mappedClient ? mappings[mappedClient] : '';
+  let selectedUrl = typeof mappedUrl === 'string' && mappedUrl.trim() ? mappedUrl : '';
+  if (!selectedUrl && urls.length === clientNames.length) {
+    selectedUrl = urls[clientNames.indexOf(normalizedClient)];
+  }
+  if (!selectedUrl && urls.length === 1) selectedUrl = urls[0];
+  if (!selectedUrl && profileResult.data.is_master_admin && typeof masterFallbackUrl === 'string') {
+    selectedUrl = masterFallbackUrl.trim();
+  }
+  if (!selectedUrl) throw new Error(`No VACANCY spreadsheet is assigned to ${clientName}.`);
+  const spreadsheetId = spreadsheetIdFromAssignedUrl(selectedUrl, 'VACANCY');
+  const metadata = await googleRequest(
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+  );
+  const sheet = metadata.sheets?.find((item: any) => item.properties?.title === 'VACANCY');
+  if (!sheet) throw new Error('The assigned spreadsheet does not have a VACANCY tab.');
+  return { spreadsheetId, sheet, clientNames };
 }
 
 async function ensureDestinationRow(spreadsheetId: string, sheet: any, rowNumber: number, columnCount: number) {
@@ -1057,7 +1097,7 @@ Deno.serve(async request => {
       const vcodes = body.vcodes.map((value: unknown) => String(value || '').trim());
       if (vcodes.some((value: string) => !value)) throw new Error('Every selected approval record must have a VCODE.');
       if (new Set(vcodes).size !== vcodes.length) throw new Error('A VCODE was selected more than once. Refresh the table and try again.');
-      const hrDestination = await getAssignedHrEmplocDestination(adminClient, targetUserId);
+      const hrDestination = await getAssignedHrEmplocDestination(adminClient, targetUserId, clientNames[0] || '');
       const results = [];
       const failures = [];
       for (const vcode of vcodes) {

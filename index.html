@@ -267,6 +267,11 @@
     .roster-presence.is-online::before { background:#20a85a; }
     .roster-presence.is-online::before { animation:presence-pulse 1.15s ease-in-out infinite; }
     @keyframes presence-pulse { 0%,100% { box-shadow:0 0 0 0 rgba(32,168,90,.56); opacity:1; } 50% { box-shadow:0 0 0 5px rgba(32,168,90,0); opacity:.62; } }
+    .dashboard-client-picker { width:min(520px,100%); margin:8vh auto; padding:30px; border:1px solid rgba(53,139,143,.16); border-radius:20px; background:rgba(255,255,255,.78); box-shadow:0 18px 46px rgba(37,101,112,.12); }
+    .dashboard-client-picker h2 { margin:0 0 8px; color:#245761; font-size:22px; }
+    .dashboard-client-picker p { margin:0 0 20px; color:#648087; font-size:12px; line-height:1.6; }
+    .dashboard-client-picker select { width:100%; min-height:44px; margin-bottom:14px; }
+    .dashboard-client-picker .primary-button { width:100%; }
     .roster-photo { width:28px; height:28px; display:grid; place-items:center; overflow:hidden; border-radius:50%; color:white; background:#61a9a4; font-size:9px; font-weight:700; }
     .roster-photo img { width:100%; height:100%; object-fit:cover; }
     .remove-user { border:0; color:#b7685e; background:none; font-size:10px; }
@@ -293,6 +298,8 @@
     .account-state { display:inline-block; padding:4px 7px; border-radius:6px; background:#e5f4f0; color:#247c72; font-size:9px; font-weight:700; text-transform:uppercase; }
     .url-list { display:grid; gap:8px; }
     .url-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:7px; }
+    .url-row:has(.dashboard-url-client) { grid-template-columns:minmax(120px,.45fr) minmax(0,1fr); align-items:center; }
+    .dashboard-url-client { color:#365e68; font-size:11px; }
     .url-row input { min-width:0; }
     .remove-source { width:36px; height:43px; border:1px solid rgba(194,103,96,.2); border-radius:10px; color:#b7685e; background:rgba(255,255,255,.72); font-size:17px; }
     .add-source-button { margin-top:9px; padding:7px 0; border:0; color:#147f83; background:transparent; font-size:10px; font-weight:700; }
@@ -564,7 +571,7 @@
         <label class="dialog-label">Spreadsheet URLs for this dashboard</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
-        <div class="dialog-scope">Client names come from the Master Admin’s HR EMPLOC spreadsheet (`G1vcode!C3:C`). Users select one client; Regular Admins can select multiple. The assigned spreadsheet should contain rows for the selected clients.</div>
+        <div class="dialog-scope">Client names come from the Master Admin’s HR EMPLOC spreadsheet (`G1vcode!C3:C`). For Regular Admins, select clients and enter the matching spreadsheet URL beside each client; only that client’s assigned sheet is opened.</div>
         <div class="dialog-actions"><button class="primary-button" type="submit">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
@@ -756,6 +763,9 @@
     let previewedUser = null;
     let dashboardAssignments = {};
     let dashboardClientAssignments = {};
+    let dashboardClientSheetUrls = {};
+    let selectedDashboardClients = {};
+    let activeDashboardForData = '';
     let availableClientOptions = [];
     let assignableUserProfiles = [];
     let selectedDashboard = dashboards[0];
@@ -911,12 +921,31 @@
       catch { return fallback; }
     }
     function getActiveClient() {
+      const scopedClient = activeDashboardForData ? selectedDashboardClients[activeDashboardForData] : '';
+      if (scopedClient) return scopedClient;
       return previewedUser?.client || currentUser?.client || 'My spreadsheets';
     }
     function getClientLinks(client = getActiveClient()) {
       return readJSON(`${dashboardLinksPrefix}${client}`, {});
     }
+    function normalizeDashboardClientUrls(clientNames, urls, mappings = {}) {
+      if (mappings && Object.keys(mappings).length) return mappings;
+      if (!Array.isArray(clientNames) || !Array.isArray(urls)) return {};
+      if (clientNames.length === urls.length) {
+        return Object.fromEntries(clientNames.map((client, index) => [client, urls[index]]));
+      }
+      if (urls.length === 1) return Object.fromEntries(clientNames.map(client => [client, urls[0]]));
+      return {};
+    }
     function getDashboardSources(name, client = getActiveClient()) {
+      const clientUrls = dashboardClientSheetUrls[name];
+      if (clientUrls && typeof clientUrls === 'object') {
+        const matchedClient = Object.keys(clientUrls).find(value => value.toLocaleLowerCase() === String(client).toLocaleLowerCase());
+        if (Object.keys(clientUrls).length) return matchedClient && clientUrls[matchedClient] ? [clientUrls[matchedClient]] : [];
+      }
+      const isRegularAdminView = previewedUser?.role === 'admin' ||
+        (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin);
+      if (isRegularAdminView && (dashboardClientAssignments[name] || []).length > 1) return [];
       const assigned = dashboardAssignments[name];
       if (previewedUser || currentUser?.role !== 'admin' || !currentUser?.isMasterAdmin || (Array.isArray(assigned) && assigned.length)) {
         if (Array.isArray(assigned)) return assigned.filter(value => typeof value === 'string' && value.trim());
@@ -929,6 +958,8 @@
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
     }
     function getDashboardClientNames(name) {
+      const selectedClient = selectedDashboardClients[name];
+      if (selectedClient) return [selectedClient];
       const assigned = dashboardClientAssignments[name];
       if (Array.isArray(assigned) && assigned.length) return assigned;
       return (currentUser?.clientNames || [currentUser?.client]).filter(value => value && value !== 'My spreadsheets');
@@ -1149,7 +1180,10 @@
         }
         loginPage.classList.add('hidden');
         dashboardPage.classList.remove('hidden');
-        if (saved.view === 'plantilla') showPlantilla();
+        if (saved.view === 'plantilla') {
+          if (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin) openUserDashboard('PLANTILLA');
+          else showPlantilla();
+        }
         else if (saved.view === 'dashboard' && dashboards.includes(saved.dashboard) && saved.dashboard !== 'PLANTILLA') openUserDashboard(saved.dashboard);
         else showHome();
         savePortalSession();
@@ -1225,11 +1259,24 @@
     async function loadDashboardAssignments() {
       dashboardAssignments = {};
       dashboardClientAssignments = {};
+      dashboardClientSheetUrls = {};
+      selectedDashboardClients = {};
+      activeDashboardForData = '';
       try {
         const { assignments } = await callAdminFunction('my-dashboard-sources');
         for (const assignment of assignments || []) {
           dashboardAssignments[assignment.dashboard_name] = assignment.sheet_urls || [];
-          dashboardClientAssignments[assignment.dashboard_name] = assignment.client_names || [];
+          const clients = assignment.client_names?.length
+            ? assignment.client_names
+            : currentUser?.role === 'admin' && !currentUser?.isMasterAdmin
+              ? currentUser.clientNames || []
+              : [];
+          dashboardClientAssignments[assignment.dashboard_name] = clients;
+          dashboardClientSheetUrls[assignment.dashboard_name] = normalizeDashboardClientUrls(
+            clients,
+            assignment.sheet_urls || [],
+            assignment.client_sheet_urls || {}
+          );
         }
       } catch (error) {
         notify(error.message || 'Could not load your assigned spreadsheets. Contact the administrator.');
@@ -1723,6 +1770,7 @@
       }
     }
     function showHome() {
+      activeDashboardForData = '';
       saveCurrentView('home');
       const client = getActiveClient();
       document.querySelector('#sidebar-client').textContent = client;
@@ -1804,6 +1852,7 @@
         let eligibleCount;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('fill-plantilla-newly-hired', {
+            clientName: getActiveClient(),
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           eligibleCount = result.eligibleCount || 0;
@@ -1899,7 +1948,10 @@
       try {
         let displayValues;
         if (usesAssignedSheetAccess()) {
-          const result = await callSheetsFunction('read-vcode', previewedUser ? { targetUsername: previewedUser.username } : {});
+          const result = await callSheetsFunction('read-vcode', {
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
           displayValues = result.displayValues || [];
         } else {
           const range = encodeURIComponent('VCODE!A3:N');
@@ -2049,6 +2101,7 @@
             try {
               const result = await callSheetsFunction('approve-vacancy', {
                 vcodes: [vcode],
+                clientName: getActiveClient(),
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {})
               });
               approvedCount += Number(result.approvedCount || 0);
@@ -2365,7 +2418,12 @@
       form.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(input => { input.disabled = true; });
       try {
         if (usesAssignedSheetAccess()) {
-          await callSheetsFunction('update-vacancy', { vcode, ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
+          await callSheetsFunction('update-vacancy', {
+            vcode,
+            ...values,
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
           const range = encodeURIComponent('VACANCY!B5:C');
@@ -2626,7 +2684,10 @@
         let rawValues;
         let displayValues;
         if (usesAssignedSheetAccess()) {
-          const result = await callSheetsFunction('read-plantilla', previewedUser ? { targetUsername: previewedUser.username } : {});
+          const result = await callSheetsFunction('read-plantilla', {
+            clientName: getActiveClient(),
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
@@ -2753,6 +2814,7 @@
             if (usesAssignedSheetAccess()) {
               updateResult = await callSheetsFunction('update-plantilla', {
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
+                clientName: getActiveClient(),
                 vcode,
                 rate: numericRate,
                 separationDate: form.elements.separationDate.value,
@@ -2837,17 +2899,24 @@
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'true');
       document.querySelector('#drawer-backdrop').classList.remove('open');
     }
-    function addDashboardUrlRow(value = '') {
+    function addDashboardUrlRow(value = '', clientName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const row = document.createElement('div');
       row.className = 'url-row';
+      if (clientName) {
+        const clientLabel = document.createElement('strong');
+        clientLabel.className = 'dashboard-url-client';
+        clientLabel.textContent = clientName;
+        row.append(clientLabel);
+      }
       const input = document.createElement('input');
       input.className = 'dashboard-url-input';
       input.type = 'url';
       input.inputMode = 'url';
       input.autocomplete = 'url';
-      input.placeholder = 'https://docs.google.com/spreadsheets/d/...';
-      input.setAttribute('aria-label', `Spreadsheet URL ${list.children.length + 1}`);
+      input.placeholder = clientName ? `Spreadsheet URL for ${clientName}` : 'https://docs.google.com/spreadsheets/d/...';
+      input.setAttribute('aria-label', clientName ? `Spreadsheet URL for ${clientName}` : `Spreadsheet URL ${list.children.length + 1}`);
+      if (clientName) input.dataset.clientUrl = clientName;
       input.value = value;
       const remove = document.createElement('button');
       remove.className = 'remove-source';
@@ -2855,10 +2924,39 @@
       remove.setAttribute('aria-label', 'Remove spreadsheet URL');
       remove.textContent = '×';
       remove.addEventListener('click', () => row.remove());
-      row.append(input, remove);
+      row.append(input);
+      if (!clientName) row.append(remove);
       list.append(row);
     }
     function openUserDashboard(name) {
+      activeDashboardForData = name;
+      const isRegularAdminView = previewedUser?.role === 'admin' ||
+        (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin);
+      const assignedClients = dashboardClientAssignments[name] || [];
+      if (isRegularAdminView && assignedClients.length > 1) {
+        showDashboardClientPicker(name, assignedClients);
+        return;
+      }
+      selectedDashboardClients[name] = assignedClients[0] || '';
+      showSelectedDashboard(name);
+    }
+    function showDashboardClientPicker(name, clientNames) {
+      saveCurrentView('home');
+      content.innerHTML = `<section class="dashboard-client-picker"><span class="dialog-kicker">CLIENT ACCESS</span><h2>Choose a client for ${escapeHtml(name)}</h2><p>This Regular Admin has multiple assigned clients. Choose one before opening the dashboard. The selected client controls which spreadsheet is opened and which records can be updated.</p><form id="dashboard-client-picker-form"><label class="dialog-label" for="dashboard-client-picker-select">Assigned client</label><select id="dashboard-client-picker-select" required aria-label="Choose an assigned client">${clientNames.map(client => `<option value="${escapeHtml(client)}">${escapeHtml(client)}</option>`).join('')}</select><button class="primary-button" type="submit">Open dashboard</button></form></section>`;
+      document.querySelector('#dashboard-client-picker-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const selectedClient = document.querySelector('#dashboard-client-picker-select').value;
+        if (!clientNames.includes(selectedClient)) return notify('Choose a client assigned to this dashboard.');
+        selectedDashboardClients[name] = selectedClient;
+        activeDashboardForData = name;
+        if (!getDashboardSources(name, selectedClient).length) {
+          delete selectedDashboardClients[name];
+          return notify(`No spreadsheet URL is assigned to ${selectedClient} for ${name}. Ask the Master Admin to assign one.`);
+        }
+        showSelectedDashboard(name);
+      });
+    }
+    function showSelectedDashboard(name) {
       if (name === 'PLANTILLA') showPlantilla();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
@@ -2890,6 +2988,9 @@
       if (previewedUser && clientUsers.some(user => user.username === previewedUser.username)) userSelect.value = previewedUser.username;
       const list = document.querySelector('#dashboard-url-list');
       const clientSelect = document.querySelector('#dashboard-client-select');
+      const addUrlButton = document.querySelector('#add-dashboard-url');
+      let activeClientUrlMap = {};
+      let userUsesClientUrlPairs = false;
       try {
         await loadClientOptions();
       } catch (error) {
@@ -2897,13 +2998,14 @@
         if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
         const selectedUser = clientUsers.find(user => user.username === userSelect.value);
         const assignedUrls = urls?.length ? urls : (name === 'PLANTILLA' && selectedUser?.sheet_url ? [selectedUser.sheet_url] : []);
         const canFetchMultiple = selectedUser?.role === 'admin';
+        userUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin;
         const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
         clientSelect.multiple = canFetchMultiple;
         clientSelect.size = canFetchMultiple ? 4 : 1;
@@ -2911,8 +3013,29 @@
         clientSelect.setAttribute('aria-label', canFetchMultiple ? 'Clients to fetch for this administrator' : 'Client to fetch for this user');
         fillClientSelect(clientSelect, assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean));
         list.replaceChildren();
-        (assignedUrls.length ? assignedUrls : ['']).forEach(source => addDashboardUrlRow(source));
+        addUrlButton.hidden = userUsesClientUrlPairs;
+        activeClientUrlMap = { ...clientSheetUrls };
+        if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
+          (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
+        }
+        if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === 1) {
+          (assignedClients || selectedUser?.client_names || []).forEach(client => { activeClientUrlMap[client] = assignedUrls[0]; });
+        }
+        if (userUsesClientUrlPairs && selectedClientValues(clientSelect).length) {
+          const selectedClients = selectedClientValues(clientSelect);
+          selectedClients.forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+        } else {
+          (assignedUrls.length ? assignedUrls : ['']).forEach(source => addDashboardUrlRow(source));
+        }
         openDashboardUrl.disabled = !assignedUrls.length;
+        clientSelect.onchange = () => {
+          if (!userUsesClientUrlPairs) return;
+          const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
+          activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
+          const selectedClients = selectedClientValues(clientSelect);
+          list.replaceChildren();
+          selectedClients.forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+        };
       };
       userSelect.onchange = () => loadSelectedAssignment().catch(error => notify(error.message || 'Could not load that user\'s spreadsheet URLs.'));
       try {
@@ -3053,6 +3176,12 @@
       }));
       dashboardAssignments = Object.fromEntries(assignments.filter(([, result]) => result.urls?.length).map(([name, result]) => [name, result.urls]));
       dashboardClientAssignments = Object.fromEntries(assignments.map(([name, result]) => [name, result.clientNames || []]));
+      dashboardClientSheetUrls = Object.fromEntries(assignments.map(([name, result]) => [
+        name,
+        normalizeDashboardClientUrls(result.clientNames || [], result.urls || [], result.clientSheetUrls || {})
+      ]));
+      selectedDashboardClients = {};
+      activeDashboardForData = '';
       previewedUser = {
         username: user.username,
         displayName: user.display_name,
@@ -3077,6 +3206,9 @@
       previewedUser = null;
       dashboardAssignments = {};
       dashboardClientAssignments = {};
+      dashboardClientSheetUrls = {};
+      selectedDashboardClients = {};
+      activeDashboardForData = '';
       googleAccessToken = '';
       signedInEmail = '';
       plantillaSpreadsheetId = '';
@@ -3324,6 +3456,9 @@
       portalProfile = null;
       dashboardAssignments = {};
       dashboardClientAssignments = {};
+      dashboardClientSheetUrls = {};
+      selectedDashboardClients = {};
+      activeDashboardForData = '';
       welcomeUser = null;
       dashboardPage.classList.add('hidden');
       loginPage.classList.remove('hidden');
@@ -3600,6 +3735,12 @@
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
       if (!clientNames.length && !sourceSetup) return notify('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
+      const clientSheetUrls = Object.fromEntries([...document.querySelectorAll('.dashboard-url-input[data-client-url]')]
+        .map(input => [input.dataset.clientUrl, input.value.trim()]));
+      if (userUsesClientUrlPairs) {
+        const missingClient = clientNames.find(client => !clientSheetUrls[client]);
+        if (missingClient) return notify(`Enter a spreadsheet URL for ${missingClient}.`);
+      }
       const sources = [];
       for (const value of values) {
         let parsed;
@@ -3613,16 +3754,25 @@
       button.textContent = 'Saving...';
       (async () => {
         try {
-          await callAdminFunction('set-dashboard-assignment', { username, dashboardName: selectedDashboard, urls: sources, clientNames });
+          await callAdminFunction('set-dashboard-assignment', {
+            username,
+            dashboardName: selectedDashboard,
+            urls: sources,
+            clientNames,
+            ...(userUsesClientUrlPairs ? { clientSheetUrls } : {})
+          });
           openDashboardUrl.disabled = !sources.length;
           dashboardDialog.close();
           if (currentUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
+            dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
           }
           if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
+            dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
+            selectedDashboardClients[selectedDashboard] = '';
             openUserDashboard(selectedDashboard);
           }
           notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for @${username} / ${selectedDashboard}.`);
