@@ -2103,8 +2103,13 @@
       approvalRecords = [];
       selectedApprovalRows = new Set();
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      const canApprove = currentUser?.role === 'admin';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button><button id="approval-confirm" class="secondary-button approval-approve-button" type="button"${canApprove ? '' : ' disabled title="Only Master Admins and Regular Admins can approve records."'}>Approved</button><button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off"><p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr><th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th><th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="8" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Aging (R)</span></div>`;
+      const viewedUsername = previewedUser?.username || currentUser?.username;
+      const canApprove = currentUser?.role === 'admin' && viewedUsername?.toLocaleLowerCase() !== 'annie';
+      const approvalColumn = canApprove
+        ? '<th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th>'
+        : '';
+      const approvalColumnCount = canApprove ? 8 : 7;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button>${canApprove ? '<button id="approval-confirm" class="secondary-button approval-approve-button" type="button">Approved</button>' : ''}<button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off"><p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr>${approvalColumn}<th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="${approvalColumnCount}" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Aging (R)</span></div>`;
       applyDashboardAssignmentPermissions();
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('FOR APPROVAL')} · Source tab: VACANCY`;
       document.querySelector('#approval-assign-sheet')?.addEventListener('click', () => openDashboardEditor('FOR APPROVAL'));
@@ -2118,7 +2123,7 @@
       document.querySelector('#approval-refresh').addEventListener('click', loadForApprovalRecords);
       document.querySelector('#approval-home').addEventListener('click', showHome);
       document.querySelector('#approval-search').addEventListener('input', renderForApprovalTable);
-      document.querySelector('#approval-select-all').addEventListener('change', event => {
+      document.querySelector('#approval-select-all')?.addEventListener('change', event => {
         const visibleRecords = getVisibleApprovalRecords();
         for (const record of visibleRecords) {
           if (event.currentTarget.checked) selectedApprovalRows.add(record.id);
@@ -2126,9 +2131,12 @@
         }
         renderForApprovalTable();
       });
-      document.querySelector('#approval-confirm').addEventListener('click', async event => {
+      document.querySelector('#approval-confirm')?.addEventListener('click', async event => {
         const button = event.currentTarget;
-        if (currentUser?.role !== 'admin') return notify('Only Master Admins and Regular Admins can approve records.');
+        const activeUsername = previewedUser?.username || currentUser?.username;
+        if (currentUser?.role !== 'admin' || activeUsername?.toLocaleLowerCase() === 'annie') {
+          return notify('This account is not allowed to approve records.');
+        }
         if (!selectedApprovalRows.size) return notify('Select at least one row first.');
         const selectedRecords = approvalRecords.filter(record => selectedApprovalRows.has(record.id));
         const vcodes = selectedRecords.map(record => record.vcode);
@@ -2304,14 +2312,15 @@
         selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleRecords.length;
       }
       if (!approvalRecords.length) {
-        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No rows meet the approval requirements. Columns K, L, M, N, O, P, U, V, W, and AF must all be nonblank.</td></tr>';
+        body.innerHTML = `<tr><td colspan="${document.querySelector('#approval-select-all') ? 8 : 7}" class="plantilla-empty">No rows meet the approval requirements. Columns K, L, M, N, O, P, U, V, W, and AF must all be nonblank.</td></tr>`;
         return;
       }
       if (!visibleRecords.length) {
-        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No records match your search.</td></tr>';
+        body.innerHTML = `<tr><td colspan="${document.querySelector('#approval-select-all') ? 8 : 7}" class="plantilla-empty">No records match your search.</td></tr>`;
         return;
       }
-      body.innerHTML = visibleRecords.map(record => `<tr><td><input type="checkbox" data-approval-row="${record.id}" aria-label="Select ${escapeHtml(record.vcode)}"></td><td>${escapeHtml(record.client || '-')}</td><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td></tr>`).join('');
+      const canApprove = !!document.querySelector('#approval-select-all');
+      body.innerHTML = visibleRecords.map(record => `<tr>${canApprove ? `<td><input type="checkbox" data-approval-row="${record.id}" aria-label="Select ${escapeHtml(record.vcode)}"></td>` : ''}<td>${escapeHtml(record.client || '-')}</td><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td></tr>`).join('');
       body.querySelectorAll('[data-approval-row]').forEach(checkbox => {
         checkbox.checked = selectedApprovalRows.has(Number(checkbox.dataset.approvalRow));
         checkbox.addEventListener('change', event => {
