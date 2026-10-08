@@ -373,13 +373,6 @@ async function approveVacancyRecord(
     }
     if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated before its VACANCY row could be deleted.`);
     const currentRowNumber = currentMatches[0];
-    const currentSourceResult = await googleRequest(
-      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${currentRowNumber}:AR${currentRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
-    );
-    const currentSourceRow = Array.from({ length: 44 }, (_, index) => currentSourceResult.values?.[0]?.[index] ?? '');
-    if (!sameSheetValues(currentSourceRow, sourceRow, [14, 26])) {
-      throw new Error(`VACANCY row ${currentRowNumber} changed outside formula columns O and AA before deletion. The source row was not deleted.`);
-    }
     await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
