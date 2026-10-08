@@ -122,7 +122,9 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (assignmentError) throw new Error(`Could not load the ${dashboardName} assignment.`);
 
   const urls = assignment?.sheet_urls?.length ? assignment.sheet_urls : (dashboardName === 'PLANTILLA' && target.sheet_url ? [target.sheet_url] : []);
-  if (!urls.length) throw new Error(`No ${dashboardName} spreadsheet is assigned to this account. Ask the administrator to assign one.`);
+  const masterHrSelfService = body.action === 'update-hr-emploc' && actor.is_master_admin &&
+    target.id === actor.id && typeof body.spreadsheetUrl === 'string' && body.spreadsheetUrl.trim();
+  if (!urls.length && !masterHrSelfService) throw new Error(`No ${dashboardName} spreadsheet is assigned to this account. Ask the administrator to assign one.`);
 
   const selectedUrl = String(body.spreadsheetUrl || urls[0]).trim();
   let parsed: URL;
@@ -133,10 +135,11 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (!urls.some((value: string) => {
     try { return new URL(value).pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/)?.[1] === match[1]; }
     catch { return false; }
-  })) throw new Error('That spreadsheet is not assigned to this account.');
+  }) && !masterHrSelfService) throw new Error('That spreadsheet is not assigned to this account.');
   const assignedClientNames = Array.isArray(assignment?.client_names) ? assignment.client_names : [];
   const profileClientNames = Array.isArray(target.client_names) ? target.client_names : [];
-  const clientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
+  const selectedMasterClient = masterHrSelfService && !urls.length && typeof body.clientName === 'string' ? body.clientName.trim() : '';
+  const clientNames = [...new Set((selectedMasterClient ? [selectedMasterClient] : assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
     .map((value: unknown) => String(value || '').trim())
     .filter((value: string) => value && value !== 'My spreadsheets'))];
   return {
@@ -155,6 +158,17 @@ function spreadsheetIdFromAssignedUrl(value: unknown, label: string) {
   const match = url.hostname === 'docs.google.com' ? url.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/) : null;
   if (!match) throw new Error(`The ${label} URL must be a Google Sheets document link.`);
   return match[1];
+}
+
+function columnLetter(columnNumber: number) {
+  let remainder = columnNumber;
+  let label = '';
+  while (remainder > 0) {
+    const digit = (remainder - 1) % 26;
+    label = String.fromCharCode(65 + digit) + label;
+    remainder = Math.floor((remainder - 1) / 26);
+  }
+  return label;
 }
 
 async function getAssignedHrEmplocDestination(
@@ -187,6 +201,219 @@ function sameSheetValues(actual: unknown[], expected: unknown[], ignoredIndexes:
   return Array.from({ length: expected.length }, (_, index) => index)
     .filter(index => !ignored.has(index))
     .every(index => String(actual[index] ?? '') === String(expected[index] ?? ''));
+}
+
+async function getAssignedVacancyDestination(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string,
+  masterFallbackUrl?: unknown,
+  masterClientNames: string[] = []
+) {
+  const [assignmentResult, profileResult] = await Promise.all([
+    adminClient.from('dashboard_assignments').select('sheet_urls, client_names')
+      .eq('user_id', targetUserId).eq('dashboard_name', 'VACANCY MONITORING').maybeSingle(),
+    adminClient.from('profiles').select('client_name, client_names').eq('id', targetUserId).single()
+  ]);
+  if (assignmentResult.error) throw new Error('Could not load the assigned VACANCY spreadsheet.');
+  if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for VACANCY.');
+  const assignment = assignmentResult.data;
+  const spreadsheetUrl = assignment?.sheet_urls?.[0] || masterFallbackUrl;
+  const spreadsheetId = spreadsheetIdFromAssignedUrl(spreadsheetUrl, 'VACANCY');
+  const assignedClients = Array.isArray(assignment?.client_names) && assignment.client_names.length
+    ? assignment.client_names
+    : masterClientNames.length
+    ? masterClientNames
+    : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
+      ? profileResult.data.client_names
+      : [profileResult.data.client_name];
+  const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
+  if (!clientNames.length) throw new Error('No clients are assigned to the VACANCY spreadsheet.');
+  return { spreadsheetId, clientNames };
+}
+
+async function ensureDestinationRow(spreadsheetId: string, sheet: any, rowNumber: number, columnCount: number) {
+  const grid = sheet.properties.gridProperties || {};
+  const requests = [];
+  const missingRows = rowNumber - Number(grid.rowCount || 0);
+  const missingColumns = columnCount - Number(grid.columnCount || 0);
+  if (missingRows > 0) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheet.properties.sheetId,
+        dimension: 'ROWS',
+        length: missingRows
+      }
+    });
+  }
+  if (missingColumns > 0) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheet.properties.sheetId,
+        dimension: 'COLUMNS',
+        length: missingColumns
+      }
+    });
+  }
+  if (requests.length) {
+    await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({ requests })
+    });
+  }
+}
+
+async function transferHrEmplocBackout(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string,
+  hrSpreadsheetId: string,
+  clientNames: string[],
+  vcode: string,
+  rowNumber: number,
+  remarks: string,
+  vacancyFallbackUrl?: unknown
+) {
+  if (!/\bBACK\s*OUT\b|\bBACK-OUT\b/i.test(remarks)) return { transferred: false };
+  let backoutVerified = false;
+  let vacancyVerified = false;
+  try {
+    const vacancyDestination = await getAssignedVacancyDestination(
+      adminClient,
+      targetUserId,
+      vacancyFallbackUrl,
+      clientNames
+    );
+    const hrMetadata = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+    );
+    const sourceSheet = hrMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'G1N');
+    const backoutSheet = hrMetadata.sheets?.find((sheet: any) => sheet.properties?.title?.toLocaleLowerCase() === 'back-out');
+    if (!sourceSheet) throw new Error('The assigned HR EMPLOC spreadsheet needs a G1N tab.');
+    if (!backoutSheet) throw new Error('The assigned HR EMPLOC spreadsheet needs a back-out tab.');
+    const sourceWidth = 29;
+    const sourceLastColumn = columnLetter(sourceWidth);
+    const [sourceRowResult, sourceVcodes, vacancyMetadata] = await Promise.all([
+      googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`G1N!A${rowNumber}:${sourceLastColumn}${rowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+      googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`),
+      googleRequest(`spreadsheets/${vacancyDestination.spreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`)
+    ]);
+    const matchedSourceRows = (sourceVcodes.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (matchedSourceRows.length !== 1 || matchedSourceRows[0] !== rowNumber) {
+      throw new Error(`VCODE ${vcode} is no longer uniquely located at its G1N source row.`);
+    }
+    const sourceRow = Array.from({ length: sourceWidth }, (_, index) => sourceRowResult.values?.[0]?.[index] ?? '');
+    if (String(sourceRow[6] ?? '').trim() !== vcode) throw new Error(`G1N row ${rowNumber} changed before transfer.`);
+    const rowClient = String(sourceRow[1] ?? '').trim().toLocaleLowerCase();
+    if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
+      throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
+    }
+    if (!vacancyDestination.clientNames.includes(rowClient)) {
+      throw new Error(`Client ${sourceRow[1]} is not assigned to the VACANCY spreadsheet.`);
+    }
+    const vacancySheet = vacancyMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'VACANCY');
+    if (!vacancySheet) throw new Error('The assigned VACANCY spreadsheet needs a VACANCY tab.');
+
+    const backoutLastColumn = columnLetter(sourceWidth);
+    const [backoutKeysResult, backoutRowsResult, vacancyCodesResult] = await Promise.all([
+      googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent("'back-out'!G:G")}?valueRenderOption=FORMATTED_VALUE`),
+      googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'back-out'!A:${backoutLastColumn}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+      googleRequest(`spreadsheets/${vacancyDestination.spreadsheetId}/values/${encodeURIComponent('VACANCY!B5:B')}?valueRenderOption=FORMATTED_VALUE`)
+    ]);
+    const backoutMatches = (backoutKeysResult.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 1] : []
+    );
+    if (backoutMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in back-out.`);
+    if (backoutMatches.length) {
+      const existingBackoutResult = await googleRequest(
+        `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'back-out'!A${backoutMatches[0]}:${sourceLastColumn}${backoutMatches[0]}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(existingBackoutResult.values?.[0] || [], sourceRow)) {
+        throw new Error(`VCODE ${vcode} already exists in back-out with different data; the G1N source row was kept.`);
+      }
+      backoutVerified = true;
+    } else {
+      const backoutRows = backoutRowsResult.values || [];
+      const lastBackoutRow = backoutRows.reduce((lastRow: number, row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
+      const destinationRow = lastBackoutRow + 1;
+      await ensureDestinationRow(hrSpreadsheetId, backoutSheet, destinationRow, sourceWidth);
+      await googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'back-out'!A${destinationRow}:${sourceLastColumn}${destinationRow}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [sourceRow] })
+      });
+      const verifyBackoutResult = await googleRequest(
+        `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'back-out'!A${destinationRow}:${sourceLastColumn}${destinationRow}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(verifyBackoutResult.values?.[0] || [], sourceRow)) {
+        throw new Error(`The back-out copy for VCODE ${vcode} could not be verified; the G1N source row was kept.`);
+      }
+      backoutVerified = true;
+    }
+
+    const vacancyRows = vacancyCodesResult.values || [];
+    const existingVacancyMatches = vacancyRows.flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 5] : []
+    );
+    if (existingVacancyMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY.`);
+    if (existingVacancyMatches.length) {
+      vacancyVerified = true;
+    } else {
+      const lastVacancyRow = vacancyRows.reduce((lastRow: number, row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? index + 5 : lastRow, 4);
+      const vacancyRowNumber = lastVacancyRow + 1;
+      await ensureDestinationRow(vacancyDestination.spreadsheetId, vacancySheet, vacancyRowNumber, 2);
+      await googleRequest(`spreadsheets/${vacancyDestination.spreadsheetId}/values/${encodeURIComponent(`VACANCY!B${vacancyRowNumber}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [[vcode]] })
+      });
+      const verifyVacancyResult = await googleRequest(
+        `spreadsheets/${vacancyDestination.spreadsheetId}/values/${encodeURIComponent(`VACANCY!B${vacancyRowNumber}`)}?valueRenderOption=FORMATTED_VALUE`
+      );
+      if (String(verifyVacancyResult.values?.[0]?.[0] ?? '').trim() !== vcode) {
+        throw new Error(`The VACANCY VCODE copy for ${vcode} could not be verified; the G1N source row was kept.`);
+      }
+      vacancyVerified = true;
+    }
+
+    const currentVcodesResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const currentMatches = (currentVcodesResult.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (!currentMatches.length) return { transferred: true, vcode, sourceRowDeleted: true };
+    if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated in G1N before deletion.`);
+    await googleRequest(`spreadsheets/${hrSpreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sourceSheet.properties.sheetId,
+              dimension: 'ROWS',
+              startIndex: currentMatches[0] - 1,
+              endIndex: currentMatches[0]
+            }
+          }
+        }]
+      })
+    });
+    const verifyDeleteResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    if ((verifyDeleteResult.values || []).some((row: unknown[]) => String(row[0] ?? '').trim() === vcode)) {
+      throw new Error(`Both destinations were verified, but VCODE ${vcode} remains in G1N.`);
+    }
+    return { transferred: true, vcode, sourceRowDeleted: true };
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    const completed = [
+      backoutVerified ? 'The back-out row was verified.' : '',
+      vacancyVerified ? 'The VACANCY VCODE was verified.' : ''
+    ].filter(Boolean).join(' ');
+    throw new Error(`HRCO remarks were saved, but the BACK OUT transfer for VCODE ${vcode} did not finish. ${error.message} ${completed} The G1N source row was retained; retry the remarks update to safely finish.`);
+  }
 }
 
 async function approveVacancyRecord(
@@ -914,7 +1141,17 @@ Deno.serve(async request => {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!J${row}`, values: [[hrcoRemarks]] }] })
       });
-      return respond({ vcode, updated: true });
+      const backoutTransfer = await transferHrEmplocBackout(
+        adminClient,
+        targetUserId,
+        spreadsheetId,
+        clientNames,
+        vcode,
+        row,
+        hrcoRemarks,
+        actor.is_master_admin && targetUserId === actor.id ? body.vacancySpreadsheetUrl : undefined
+      );
+      return respond({ vcode, updated: true, backoutTransfer });
     }
 
     const vcode = String(body.vcode || '').trim();

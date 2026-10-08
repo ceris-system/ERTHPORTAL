@@ -2533,11 +2533,10 @@
     function openHrEmplocDrawer(vcode) {
       const record = hrEmplocRecords.find(item => item.vcode === vcode);
       if (!record) return notify(`No loaded HR EMPLOC record matches VCODE ${vcode}.`);
-      const directAdmin = currentUser?.isMasterAdmin && !previewedUser;
       document.querySelector('#record-drawer-kicker').textContent = 'HR EMPLOC RECORD';
       document.querySelector('#record-drawer-title').classList.add('single-line-title');
       document.querySelector('#record-drawer-title').textContent = `${record.vcode} · ${record.fullName || '-'}`;
-      document.querySelector('#record-drawer-fields').innerHTML = `<h3 class="drawer-section-title">REMARKS</h3><form id="hr-emploc-update-form" class="drawer-update"><div class="field"><label for="hr-emploc-remarks">HRCO REMARKS</label><textarea id="hr-emploc-remarks" name="hrcoRemarks" rows="5">${escapeHtml(record.hrcoRemarks)}</textarea></div><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}">${directAdmin && !googleAccessToken ? '<p class="dialog-footnote">Authorize Google Sheets before updating this record.</p>' : ''}<button class="primary-button" type="submit">Update remarks</button></form>`;
+      document.querySelector('#record-drawer-fields').innerHTML = `<h3 class="drawer-section-title">REMARKS</h3><form id="hr-emploc-update-form" class="drawer-update"><div class="field"><label for="hr-emploc-remarks">HRCO REMARKS</label><textarea id="hr-emploc-remarks" name="hrcoRemarks" rows="5">${escapeHtml(record.hrcoRemarks)}</textarea></div><input name="vcode" type="hidden" value="${escapeHtml(record.vcode)}"><button class="primary-button" type="submit">Update remarks</button></form>`;
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
@@ -2553,23 +2552,19 @@
       button.textContent = 'Updating...';
       form.querySelectorAll('textarea').forEach(input => { input.disabled = true; });
       try {
-        if (usesAssignedSheetAccess()) {
-          await callSheetsFunction('update-hr-emploc', { ...values, ...(previewedUser ? { targetUsername: previewedUser.username } : {}) });
-        } else {
-          if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
-          const range = encodeURIComponent('G1N!G9:G');
-          const result = await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
-          const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
-          if (!matches.length) throw new Error(`No G1N row found for VCODE ${vcode}.`);
-          if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no changes were made.`);
-          await sheetsApiRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values:batchUpdate`, {
-            method: 'POST',
-            body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `G1N!J${matches[0]}`, values: [[values.hrcoRemarks]] }] })
-          });
-        }
-        notify(`HRCO remarks for VCODE ${vcode} updated.`);
+        const result = await callSheetsFunction('update-hr-emploc', {
+          ...values,
+          spreadsheetUrl: getDashboardSources('HR EMPLOC MONITORING')[0],
+          vacancySpreadsheetUrl: getDashboardSources('VACANCY MONITORING')[0],
+          clientName: getActiveClient(),
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        notify(result.backoutTransfer?.transferred
+          ? `VCODE ${vcode} moved to back-out and returned to VACANCY.`
+          : `HRCO remarks for VCODE ${vcode} updated.`);
         const refreshed = await loadHrEmplocRecords();
-        if (refreshed && hrEmplocRecords.some(record => record.vcode === vcode)) openHrEmplocDrawer(vcode);
+        if (result.backoutTransfer?.transferred) closeRecordDrawer();
+        else if (refreshed && hrEmplocRecords.some(record => record.vcode === vcode)) openHrEmplocDrawer(vcode);
         else notify('HRCO remarks were saved, but the table did not refresh. Use Refresh to reload it.');
       } catch (error) {
         button.disabled = false;
