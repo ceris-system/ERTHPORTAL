@@ -101,14 +101,14 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   };
   const dashboardName = dashboardNameByAction[body.action] || 'PLANTILLA';
   let target = actor;
-  const targetUsername = String(body.targetUsername || '').trim().toLowerCase();
+  const targetUsername = String(body.targetUsername || '').trim();
   if (actor.role === 'admin' && targetUsername && targetUsername !== actor.username) {
     if (!actor.is_master_admin) throw new Error('Only the Master Admin can preview another account.');
     const { data, error } = await adminClient.from('profiles')
       .select('id, username, role, status, sheet_url, client_name, client_names, is_master_admin')
       .eq('username', targetUsername)
       .single();
-    if (error || !data || data.role === 'admin') throw new Error('The previewed user was not found.');
+    if (error || !data || data.is_master_admin) throw new Error('The previewed user was not found.');
     target = data;
   } else if (actor.role !== 'admin' && targetUsername && targetUsername !== actor.username) {
     throw new Error('You can only open spreadsheets assigned to your account.');

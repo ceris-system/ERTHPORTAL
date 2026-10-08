@@ -521,7 +521,7 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">ADMIN PREVIEW</span>
       <h2 id="preview-user-title">Preview User Portal</h2>
-      <p class="dialog-copy">Choose an account to see its assigned dashboards and spreadsheets. Your administrator session stays active.</p>
+      <p class="dialog-copy">Choose a User or Regular Admin account to see its assigned dashboards and spreadsheets. As Master Admin, you can also assign URLs while previewing. Your administrator session stays active.</p>
       <form id="preview-user-form">
         <label class="dialog-label" for="preview-user-select">User account</label>
         <select id="preview-user-select" required></select>
@@ -938,7 +938,7 @@
       return clients.length ? clients.join(', ') : getActiveClient();
     }
     function applyDashboardAssignmentPermissions() {
-      const canAssign = currentUser?.isMasterAdmin && !previewedUser;
+      const canAssign = currentUser?.isMasterAdmin;
       content.querySelectorAll('[id$="-assign-sheet"], #dashboard-assign-url').forEach(button => {
         button.classList.toggle('hidden', !canAssign);
       });
@@ -2867,7 +2867,7 @@
       else showClientDashboard(name);
     }
     async function openDashboardEditor(name) {
-      if (!currentUser?.isMasterAdmin || previewedUser) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
+      if (!currentUser?.isMasterAdmin) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
       selectedDashboard = name;
       document.querySelector('#dashboard-dialog-title').textContent = name;
       const userSelect = document.querySelector('#dialog-user-select');
@@ -2877,8 +2877,7 @@
       } catch (error) {
         return notify(error.message || 'Could not load assigned users.');
       }
-      const clientUsers = users.filter(user => !user.is_master_admin || user.username === currentUser.username)
-        .filter(user => currentUser.isMasterAdmin || user.role !== 'admin' || user.username === currentUser.username);
+      const clientUsers = users.filter(user => !user.is_master_admin || user.username === currentUser.username);
       userSelect.replaceChildren();
       clientUsers.forEach(user => {
         const option = document.createElement('option');
@@ -3046,8 +3045,8 @@
 
     async function enterUserPortalPreview(username) {
       const { users } = await callAdminFunction('list');
-      const user = users.find(item => item.username === username && item.role !== 'admin');
-      if (!user) throw new Error('Choose a valid non-admin user account.');
+      const user = users.find(item => item.username === username && !item.is_master_admin);
+      if (!user) throw new Error('Choose a valid User or Regular Admin account.');
       const assignments = await Promise.all(dashboards.map(async dashboardName => {
         const result = await callAdminFunction('get-dashboard-assignment', { username, dashboardName });
         return [dashboardName, result];
@@ -3059,8 +3058,8 @@
         displayName: user.display_name,
         client: user.client_name,
         clientNames: user.client_names || [user.client_name].filter(Boolean),
-        isMasterAdmin: false,
-        role: 'user',
+        isMasterAdmin: !!user.is_master_admin,
+        role: user.role,
         photo: user.photo_url || '',
         sheet_url: user.sheet_url || ''
       };
@@ -3503,10 +3502,11 @@
         const { users } = await callAdminFunction('list');
         const select = document.querySelector('#preview-user-select');
         select.replaceChildren();
-        users.filter(user => user.role !== 'admin').forEach(user => {
+        users.filter(user => !user.is_master_admin).forEach(user => {
           const option = document.createElement('option');
           option.value = user.username;
-          option.textContent = `${user.display_name} (@${user.username}) · ${user.client_name}`;
+          const roleLabel = user.role === 'admin' ? 'Regular Admin' : 'User';
+          option.textContent = `${user.display_name} (@${user.username}) · ${roleLabel} · ${user.client_name}`;
           select.append(option);
         });
         if (!select.options.length) return notify('Add a user account before previewing a user portal.');
