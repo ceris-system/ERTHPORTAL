@@ -1305,7 +1305,7 @@
     function fillClientSelect(select, selectedValues = []) {
       const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
       select.replaceChildren();
-      availableClientOptions.forEach(clientName => {
+      [...new Set([...availableClientOptions, ...selectedValues])].forEach(clientName => {
         const option = document.createElement('option');
         option.value = clientName;
         option.textContent = clientName;
@@ -3752,7 +3752,10 @@
       event.preventDefault();
       const feedback = document.querySelector('#dashboard-assignment-feedback');
       feedback.textContent = '';
-      const showAssignmentError = message => { feedback.textContent = message; };
+      const showAssignmentError = message => {
+        feedback.textContent = message;
+        notify(message);
+      };
       if (!currentUser?.isMasterAdmin && currentUser?.role !== 'admin') {
         return showAssignmentError('Only the Master Admin can assign dashboard spreadsheet URLs.');
       }
@@ -3809,7 +3812,9 @@
           notify(`${sources.length} URL${sources.length === 1 ? '' : 's'} saved for @${username} / ${selectedDashboard}.`);
           feedback.textContent = 'Spreadsheet assignments saved.';
         } catch (error) {
-          feedback.textContent = error.message || 'Could not save the user\'s spreadsheet URLs.';
+          const message = error.message || 'Could not save the user\'s spreadsheet URLs.';
+          feedback.textContent = message;
+          notify(message);
         } finally {
           button.disabled = false;
           button.textContent = 'Save URLs';
