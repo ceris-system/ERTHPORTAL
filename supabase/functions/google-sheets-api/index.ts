@@ -373,6 +373,18 @@ async function approveVacancyRecord(
     }
     if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated before its VACANCY row could be deleted.`);
     const currentRowNumber = currentMatches[0];
+    if (attempt === 1) {
+      await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values:batchClear`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ranges: [
+            `VACANCY!A${currentRowNumber}:N${currentRowNumber}`,
+            `VACANCY!P${currentRowNumber}:Z${currentRowNumber}`,
+            `VACANCY!AB${currentRowNumber}:AR${currentRowNumber}`
+          ]
+        })
+      });
+    }
     await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
@@ -397,7 +409,7 @@ async function approveVacancyRecord(
     if (!remainingMatches.length) sourceRowDeleted = true;
   }
   if (!sourceRowDeleted) {
-    throw new Error(`Both destination copies are verified, but VCODE ${vcode} is still present in VACANCY after two row-delete attempts.`);
+    throw new Error(`Both destination copies are verified, but VCODE ${vcode} is still present in VACANCY after retrying row deletion.`);
   }
   return { vcode, approved: true, sourceRowDeleted: true };
   } catch (error) {
