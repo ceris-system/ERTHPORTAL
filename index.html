@@ -724,12 +724,30 @@
     let bubbleFrame = 0;
     const backgroundBubbles = [];
     const bubbleBursts = [];
-    const maximumBubbles = 52;
+    const maximumBubbles = 56;
     let lastFrameTime = 0;
     let nextBubbleTime = 0;
-    const randomBubbleHue = () => [188, 197, 207, 276, 322][Math.floor(Math.random() * 5)];
-    function createBackgroundBubble(x = Math.random() * bubbleWidth, y = bubbleHeight + 20, options = {}) {
-      const radius = options.radius || 5 + Math.random() * Math.min(21, bubbleHeight * .027);
+    const randomBubbleHue = () => [194, 201, 207, 214, 222, 278][Math.floor(Math.random() * 6)];
+    function randomVisibleBubblePoint(radius) {
+      const loginCard = document.querySelector('#login-card');
+      const cardRect = loginCard && !loginCard.classList.contains('hidden')
+        ? loginCard.getBoundingClientRect()
+        : null;
+      for (let attempt = 0; attempt < 32; attempt++) {
+        const point = { x: bubbleWidth * (.54 + Math.random() * .46), y: Math.random() * bubbleHeight };
+        if (!cardRect || point.x < cardRect.left - radius * 1.2 || point.x > cardRect.right + radius * 1.2 ||
+          point.y < cardRect.top - radius * 1.2 || point.y > cardRect.bottom + radius * 1.2) {
+          return point;
+        }
+      }
+      return { x: bubbleWidth * (.54 + Math.random() * .46), y: Math.random() < .5 ? 20 : bubbleHeight - 20 };
+    }
+    function createBackgroundBubble(x = null, y = null, options = {}) {
+      const radius = options.radius || (Math.random() < .08
+        ? 18 + Math.random() * Math.min(17, bubbleHeight * .03)
+        : 5 + Math.random() * Math.min(15, bubbleHeight * .023));
+      if (x === null) x = bubbleWidth * (.54 + Math.random() * .46);
+      if (y === null) y = bubbleHeight + 20;
       const angle = options.angle ?? (-Math.PI / 2 + (Math.random() - .5) * .8);
       const speed = options.speed || 9 + Math.random() * 20;
       backgroundBubbles.push({
@@ -737,8 +755,11 @@
         vx: Math.cos(angle) * speed + (Math.random() - .5) * 8,
         vy: Math.sin(angle) * speed,
         hue: options.hue ?? randomBubbleHue(),
+        depth: Math.max(.42, Math.min(1, radius / 25)),
         wobble: Math.random() * Math.PI * 2,
         wobbleSpeed: .7 + Math.random() * 1.4,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - .5) * .16,
         alpha: 1,
         life: 0
       });
@@ -760,8 +781,12 @@
       canvas.style.width = `${bubbleWidth}px`;
       canvas.style.height = `${bubbleHeight}px`;
       bubbleContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      while (backgroundBubbles.length < 30) {
-        createBackgroundBubble(Math.random() * bubbleWidth, Math.random() * bubbleHeight);
+      while (backgroundBubbles.length < 42) {
+        const radius = Math.random() < .08
+          ? 18 + Math.random() * Math.min(17, bubbleHeight * .03)
+          : 5 + Math.random() * Math.min(15, bubbleHeight * .023);
+        const point = randomVisibleBubblePoint(radius);
+        createBackgroundBubble(point.x, point.y, { radius });
       }
       drawBackgroundBubbles(performance.now() / 1000);
     }
@@ -772,57 +797,138 @@
         const radius = bubble.radius;
         const x = bubble.x + Math.sin(bubble.wobble) * radius * .12;
         const y = bubble.y;
-        const color = `hsla(${bubble.hue},95%,68%,`;
-        const fill = bubbleContext.createRadialGradient(x - radius * .34, y - radius * .4, radius * .02, x, y, radius);
-        fill.addColorStop(0, 'rgba(255,255,255,.34)');
-        fill.addColorStop(.28, `${color}.16)`);
-        fill.addColorStop(.68, `${color}.035)`);
-        fill.addColorStop(.86, `${color}.11)`);
-        fill.addColorStop(.94, 'rgba(255,255,255,.78)');
-        fill.addColorStop(.975, `${color}.27)`);
-        fill.addColorStop(1, 'rgba(255,255,255,.92)');
 
         bubbleContext.save();
-        bubbleContext.globalAlpha = bubble.alpha;
-        bubbleContext.shadowColor = `hsla(${bubble.hue},95%,82%,.56)`;
-        bubbleContext.shadowBlur = Math.max(4, radius * .36);
+        bubbleContext.globalAlpha = bubble.alpha * (.68 + bubble.depth * .32);
+        bubbleContext.filter = radius < 10 ? 'blur(.45px)' : 'none';
+        bubbleContext.translate(x, y);
+        bubbleContext.rotate(bubble.rotation);
+
+        bubbleContext.shadowColor = 'rgba(13,39,83,.32)';
+        bubbleContext.shadowBlur = Math.max(3, radius * .3);
+        bubbleContext.shadowOffsetX = radius * .08;
+        bubbleContext.shadowOffsetY = radius * .16;
         bubbleContext.beginPath();
-        bubbleContext.arc(x, y, radius, 0, Math.PI * 2);
-        bubbleContext.fillStyle = fill;
+        bubbleContext.arc(0, 0, radius * .98, 0, Math.PI * 2);
+        bubbleContext.fillStyle = 'rgba(255,255,255,.035)';
         bubbleContext.fill();
+        bubbleContext.shadowOffsetX = 0;
+        bubbleContext.shadowOffsetY = 0;
         bubbleContext.shadowBlur = 0;
-        bubbleContext.lineWidth = Math.max(1, radius * .055);
-        bubbleContext.strokeStyle = 'rgba(255,255,255,.86)';
-        bubbleContext.stroke();
+
+        bubbleContext.save();
+        bubbleContext.beginPath();
+        bubbleContext.arc(0, 0, radius * .975, 0, Math.PI * 2);
+        bubbleContext.clip();
+
+        const glassBody = bubbleContext.createRadialGradient(-radius * .34, -radius * .42, radius * .02, radius * .08, radius * .06, radius * 1.02);
+        glassBody.addColorStop(0, 'rgba(255,255,255,.08)');
+        glassBody.addColorStop(.38, `hsla(${bubble.hue + 12},100%,72%,.055)`);
+        glassBody.addColorStop(.7, `hsla(${bubble.hue},100%,62%,.12)`);
+        glassBody.addColorStop(.84, `hsla(${bubble.hue + 24},100%,56%,.2)`);
+        glassBody.addColorStop(.92, 'rgba(23,57,105,.25)');
+        glassBody.addColorStop(.965, 'rgba(255,255,255,.96)');
+        glassBody.addColorStop(1, `hsla(${bubble.hue + 190},100%,76%,.76)`);
+        bubbleContext.fillStyle = glassBody;
+        bubbleContext.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+        const film = bubbleContext.createRadialGradient(-radius * .35, -radius * .48, radius * .04, 0, 0, radius * 1.12);
+        film.addColorStop(0, 'rgba(255,255,255,.025)');
+        film.addColorStop(.34, `hsla(${bubble.hue},100%,77%,.05)`);
+        film.addColorStop(.54, `hsla(${bubble.hue + 34},100%,72%,.1)`);
+        film.addColorStop(.68, `hsla(${bubble.hue + 82},100%,78%,.08)`);
+        film.addColorStop(.8, `hsla(${bubble.hue + 154},100%,75%,.14)`);
+        film.addColorStop(.91, `hsla(${bubble.hue + 220},100%,77%,.3)`);
+        film.addColorStop(.97, `hsla(${bubble.hue + 278},100%,82%,.48)`);
+        film.addColorStop(1, 'rgba(255,255,255,.88)');
+        bubbleContext.fillStyle = film;
+        bubbleContext.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+        const limbShade = bubbleContext.createRadialGradient(0, -radius * .12, radius * .42, 0, 0, radius);
+        limbShade.addColorStop(.54, 'rgba(24,67,111,0)');
+        limbShade.addColorStop(.78, 'rgba(37,92,139,.035)');
+        limbShade.addColorStop(.88, 'rgba(19,50,91,.22)');
+        limbShade.addColorStop(.94, 'rgba(17,39,78,.56)');
+        limbShade.addColorStop(.975, 'rgba(30,75,125,.24)');
+        limbShade.addColorStop(1, 'rgba(17,52,96,.12)');
+        bubbleContext.fillStyle = limbShade;
+        bubbleContext.fillRect(-radius, -radius, radius * 2, radius * 2);
+
+        const reflection = bubbleContext.createRadialGradient(-radius * .33, -radius * .48, radius * .02, -radius * .26, -radius * .38, radius * .68);
+        reflection.addColorStop(0, `rgba(255,255,255,${.68 * bubble.depth})`);
+        reflection.addColorStop(.16, `rgba(255,255,255,${.32 * bubble.depth})`);
+        reflection.addColorStop(.56, 'rgba(255,255,255,.045)');
+        reflection.addColorStop(1, 'rgba(255,255,255,0)');
+        bubbleContext.fillStyle = reflection;
+        bubbleContext.fillRect(-radius, -radius, radius * 2, radius * 2);
 
         bubbleContext.beginPath();
-        bubbleContext.ellipse(x - radius * .3, y - radius * .54, radius * .32, radius * .11, -.48, 0, Math.PI * 2);
-        bubbleContext.fillStyle = 'rgba(255,255,255,.9)';
+        bubbleContext.ellipse(-radius * .32, -radius * .49, radius * .3, radius * .085, -.52, 0, Math.PI * 2);
+        const softbox = bubbleContext.createLinearGradient(-radius * .55, -radius * .61, -radius * .14, -radius * .34);
+        softbox.addColorStop(0, 'rgba(255,255,255,1)');
+        softbox.addColorStop(.42, 'rgba(255,255,255,.78)');
+        softbox.addColorStop(1, 'rgba(255,255,255,.04)');
+        bubbleContext.fillStyle = softbox;
+        bubbleContext.shadowColor = 'rgba(255,255,255,.82)';
+        bubbleContext.shadowBlur = radius * .13;
+        bubbleContext.fill();
+        bubbleContext.shadowBlur = 0;
+
+        bubbleContext.beginPath();
+        bubbleContext.moveTo(-radius * .79, -radius * .08);
+        bubbleContext.bezierCurveTo(-radius * .93, -radius * .37, -radius * .71, -radius * .67, -radius * .45, -radius * .78);
+        bubbleContext.strokeStyle = 'rgba(255,255,255,.72)';
+        bubbleContext.lineWidth = Math.max(.8, radius * .035);
+        bubbleContext.lineCap = 'round';
         bubbleContext.shadowColor = 'rgba(255,255,255,.8)';
-        bubbleContext.shadowBlur = radius * .22;
-        bubbleContext.fill();
+        bubbleContext.shadowBlur = radius * .09;
+        bubbleContext.stroke();
         bubbleContext.shadowBlur = 0;
 
         bubbleContext.beginPath();
-        bubbleContext.arc(x, y, radius * .91, -.22, Math.PI * .73);
-        bubbleContext.strokeStyle = `hsla(${bubble.hue + 36},100%,82%,.68)`;
-        bubbleContext.lineWidth = Math.max(1, radius * .075);
-        bubbleContext.stroke();
-        bubbleContext.beginPath();
-        bubbleContext.arc(x, y, radius * .91, Math.PI * .91, Math.PI * 1.72);
-        bubbleContext.strokeStyle = `hsla(${bubble.hue - 38},100%,82%,.58)`;
-        bubbleContext.lineWidth = Math.max(1, radius * .065);
-        bubbleContext.stroke();
-
-        bubbleContext.beginPath();
-        bubbleContext.ellipse(x - radius * .42, y - radius * .35, radius * .09, radius * .045, -.55, 0, Math.PI * 2);
+        bubbleContext.ellipse(-radius * .4, -radius * .34, radius * .075, radius * .035, -.53, 0, Math.PI * 2);
         bubbleContext.fillStyle = 'rgba(255,255,255,.98)';
         bubbleContext.fill();
 
         bubbleContext.beginPath();
-        bubbleContext.arc(x + radius * .3, y + radius * .4, radius * .13, 0, Math.PI * 2);
-        bubbleContext.fillStyle = `hsla(${bubble.hue},100%,88%,.55)`;
+        bubbleContext.ellipse(radius * .32, radius * .45, radius * .18, radius * .075, -.58, 0, Math.PI * 2);
+        const lowerReflection = bubbleContext.createLinearGradient(radius * .18, radius * .38, radius * .49, radius * .53);
+        lowerReflection.addColorStop(0, 'rgba(112,221,245,.08)');
+        lowerReflection.addColorStop(.48, 'rgba(255,255,255,.34)');
+        lowerReflection.addColorStop(1, 'rgba(255,255,255,0)');
+        bubbleContext.fillStyle = lowerReflection;
         bubbleContext.fill();
+
+        bubbleContext.beginPath();
+        bubbleContext.arc(0, 0, radius * .925, .12, Math.PI * .66);
+        bubbleContext.strokeStyle = `hsla(${bubble.hue + 36},100%,88%,.86)`;
+        bubbleContext.lineWidth = Math.max(1, radius * .055);
+        bubbleContext.stroke();
+        bubbleContext.beginPath();
+        bubbleContext.arc(0, 0, radius * .925, Math.PI * .95, Math.PI * 1.72);
+        bubbleContext.strokeStyle = `hsla(${bubble.hue - 42},100%,88%,.78)`;
+        bubbleContext.lineWidth = Math.max(1, radius * .05);
+        bubbleContext.stroke();
+        bubbleContext.beginPath();
+        bubbleContext.ellipse(-radius * .62, -radius * .08, radius * .045, radius * .13, -.13, 0, Math.PI * 2);
+        bubbleContext.fillStyle = 'rgba(255,255,255,.33)';
+        bubbleContext.fill();
+        bubbleContext.restore();
+
+        bubbleContext.beginPath();
+        bubbleContext.arc(0, 0, radius * .985, 0, Math.PI * 2);
+        bubbleContext.lineWidth = Math.max(1.5, radius * .06);
+        bubbleContext.strokeStyle = 'rgba(255,255,255,.98)';
+        bubbleContext.shadowColor = `hsla(${bubble.hue},100%,85%,.85)`;
+        bubbleContext.shadowBlur = Math.max(3, radius * .22);
+        bubbleContext.stroke();
+        bubbleContext.shadowBlur = 0;
+
+        bubbleContext.beginPath();
+        bubbleContext.arc(0, 0, radius * .945, -.08, Math.PI * 1.84);
+        bubbleContext.lineWidth = Math.max(.8, radius * .027);
+        bubbleContext.strokeStyle = 'rgba(16,43,81,.48)';
+        bubbleContext.stroke();
         bubbleContext.restore();
       }
       for (const burst of bubbleBursts) {
@@ -856,7 +962,7 @@
         }
       }
       if (reducedBubbleMotion.matches) {
-        createBackgroundBubble(Math.random() * bubbleWidth, bubbleHeight + 12);
+        createBackgroundBubble(null, bubbleHeight + 12);
       }
     }
     function handleBackgroundBubbleClick(event) {
@@ -880,6 +986,10 @@
           const bubble = backgroundBubbles[index];
           bubble.life += elapsed;
           bubble.wobble += bubble.wobbleSpeed * elapsed;
+          bubble.rotation += bubble.rotationSpeed * elapsed;
+          bubble.vx += Math.sin(bubble.wobble * .7) * elapsed * 1.6;
+          bubble.vx *= Math.max(0, 1 - elapsed * .08);
+          bubble.vy = Math.min(-7, bubble.vy + Math.sin(bubble.wobble) * elapsed * .7);
           bubble.x += bubble.vx * elapsed;
           bubble.y += bubble.vy * elapsed;
           if (bubble.x < -bubble.radius) bubble.x = bubbleWidth + bubble.radius;
@@ -890,8 +1000,8 @@
           bubbleBursts[index].age += elapsed;
           if (bubbleBursts[index].age >= bubbleBursts[index].duration) bubbleBursts.splice(index, 1);
         }
-        if (backgroundBubbles.length < 32 && time >= nextBubbleTime) {
-          createBackgroundBubble(Math.random() * bubbleWidth);
+        if (backgroundBubbles.length < 42 && time >= nextBubbleTime) {
+          createBackgroundBubble();
           nextBubbleTime = time + 500 + Math.random() * 800;
         }
         drawBackgroundBubbles(time / 1000);
