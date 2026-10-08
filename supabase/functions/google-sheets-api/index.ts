@@ -377,8 +377,8 @@ async function approveVacancyRecord(
       `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`VACANCY!A${currentRowNumber}:AR${currentRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
     );
     const currentSourceRow = Array.from({ length: 44 }, (_, index) => currentSourceResult.values?.[0]?.[index] ?? '');
-    if (!sameSheetValues(currentSourceRow, sourceRow)) {
-      throw new Error(`VACANCY row ${currentRowNumber} changed before deletion. Both destination copies are retained; the changed source row was not deleted.`);
+    if (!sameSheetValues(currentSourceRow, sourceRow, [14, 26])) {
+      throw new Error(`VACANCY row ${currentRowNumber} changed outside formula columns O and AA before deletion. The source row was not deleted.`);
     }
     await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
       method: 'POST',
@@ -414,7 +414,7 @@ async function approveVacancyRecord(
       emplocVerified ? 'HR EMPLOC G1N copy verified.' : ''
     ].filter(Boolean).join(' ');
     if (copiedDestinations) {
-      throw new Error(`${error.message} ${copiedDestinations} Check VACANCY to confirm whether the source row remains before retrying.`);
+      throw new Error(`${error.message} ${copiedDestinations} The source row remains in VACANCY; retry after resolving the issue.`);
     }
     throw error;
   }

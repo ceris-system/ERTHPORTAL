@@ -1992,7 +1992,7 @@
         if (!vcodes.length) return notify('The selected approval records are no longer available. Refresh the table and try again.');
         const confirmed = await popModal({
           title: 'Approve selected records?',
-          message: `Approve ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}? Each row will be copied to On Board Database and HR EMPLOC G1N, then deleted from VACANCY.`,
+          message: `Approve ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}?`,
           confirmLabel: 'Approve',
           cancelLabel: 'Cancel'
         });
@@ -2005,7 +2005,7 @@
         try {
           await showPopModalProgress(vcodes.length, {
             title: 'Approving records',
-            message: 'Copying selected records to On Board Database and HR EMPLOC G1N. Each source row is deleted only after both copies are verified.',
+            message: `Transferring ${vcodes.length} selected record${vcodes.length === 1 ? '' : 's'}...`,
             progressLabel: 'APPROVED',
             unit: 'record'
           });
@@ -2031,17 +2031,17 @@
           progressOpen = false;
           await loadForApprovalRecords();
           if (failures.length) {
-            const failureSummary = failures.map(item => `${item.vcode}: ${item.error}`).join(' · ');
+            const failureSummary = failures.map(item => `${item.vcode}: ${item.error}`).join('\n');
             await popModal({
               title: 'Approval transfer incomplete',
-              message: `Transferred ${approvedCount} of ${vcodes.length}. Source rows for failed transfers were kept.\n\n${failureSummary}`,
+              message: `${approvedCount} of ${vcodes.length} transferred. Failed source rows remain in VACANCY.\n\n${failureSummary}`,
               confirmLabel: 'Okay',
               cancelLabel: ''
             });
           } else {
             await popModal({
               title: 'Approval transfer complete',
-              message: `Transferred ${approvedCount} record${approvedCount === 1 ? '' : 's'} to On Board Database and HR EMPLOC G1N. Source rows deleted.`,
+              message: `${approvedCount} record${approvedCount === 1 ? '' : 's'} approved.`,
               confirmLabel: 'Okay',
               cancelLabel: ''
             });
