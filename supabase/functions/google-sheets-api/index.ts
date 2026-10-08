@@ -956,7 +956,7 @@ async function readVcode(spreadsheetId: string) {
   return { displayValues: result.values || [] };
 }
 
-async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
+async function readVacancy(spreadsheetId: string, clientNames: string[] = [], includeDeployers = true) {
   const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
   if (!activeClients.size) throw new Error('Select at least one client before loading vacancy records.');
   const range = encodeURIComponent('VACANCY!B5:AL');
@@ -965,7 +965,7 @@ async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`),
-    readDeployers(spreadsheetId)
+    includeDeployers ? readDeployers(spreadsheetId) : Promise.resolve([])
   ]);
   const rowCount = Math.max(raw.values?.length || 0, display.values?.length || 0);
   const filteredRaw: unknown[][] = [];
@@ -992,7 +992,7 @@ async function readVacancy(spreadsheetId: string, clientNames: string[] = []) {
 }
 
 async function readForApproval(spreadsheetId: string, clientNames: string[] = []) {
-  const result = await readVacancy(spreadsheetId, clientNames);
+  const result = await readVacancy(spreadsheetId, clientNames, false);
   const requiredColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
   const eligibleIndexes = result.displayValues.flatMap((displayRow, index) => {
     const rawRow = result.rawValues[index] || [];
