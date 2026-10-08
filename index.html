@@ -90,17 +90,21 @@
     .topbar-avatar > img:first-child { width:100%; height:100%; border-radius:50%; object-fit:cover; }
     .topbar-avatar .topbar-avatar-preview { position:absolute; z-index:30; top:calc(100% + 9px); right:0; width:160px; height:160px; border:3px solid white; border-radius:13px; object-fit:cover; box-shadow:0 14px 34px rgba(16,68,81,.25); opacity:0; visibility:hidden; pointer-events:none; transform:scale(.94); transform-origin:top right; transition:opacity .16s ease,transform .16s ease,visibility .16s; }
     .topbar-avatar:hover .topbar-avatar-preview,.topbar-avatar:focus .topbar-avatar-preview { opacity:1; visibility:visible; transform:scale(1); }
-    .powered-by-badge { position:fixed; z-index:20; left:20px; bottom:20px; width:50px; height:50px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:6px; border:1px solid #dfc17a; border-radius:50%; color:#f7e9bd; background:radial-gradient(circle at 35% 25%,#dfc996 0,#a88d59 34%,#6f5a37 69%,#342b1c 100%); box-shadow:inset 0 0 0 1.5px rgba(70,51,23,.82),inset 0 0 0 2.5px rgba(247,222,161,.74),inset 0 4px 6px rgba(255,243,199,.35),0 4px 9px rgba(15,40,48,.3); text-align:center; cursor:grab; touch-action:none; user-select:none; transition:box-shadow .18s ease,filter .18s ease; }
-    .powered-by-badge::before { position:absolute; inset:4px; border:1px solid rgba(255,238,185,.55); border-radius:50%; content:""; pointer-events:none; }
-    .powered-by-badge:hover { filter:brightness(1.08); box-shadow:inset 0 0 0 1.5px rgba(70,51,23,.82),inset 0 0 0 2.5px rgba(247,222,161,.8),inset 0 4px 6px rgba(255,243,199,.42),0 6px 12px rgba(15,40,48,.35); }
+    .powered-by-badge { position:fixed; z-index:20; left:20px; bottom:20px; min-height:43px; display:inline-flex; align-items:center; gap:10px; padding:6px 13px 6px 7px; border:1px solid rgba(255,255,255,.78); border-radius:999px; color:#14263f; background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(231,241,255,.9)); box-shadow:0 8px 24px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.98); text-align:left; cursor:grab; touch-action:none; user-select:none; transition:box-shadow .18s ease,transform .18s ease,filter .18s ease; }
+    .powered-by-badge-mark { width:29px; height:29px; flex:0 0 29px; display:grid; place-items:center; border-radius:50%; color:#fff; background:linear-gradient(145deg,#59d7c3,#138ca2 72%,#225b98); box-shadow:inset 0 1px 2px rgba(255,255,255,.74),0 2px 6px rgba(16,98,131,.28); }
+    .powered-by-badge > .powered-by-badge-mark { color:#fff; }
+    .powered-by-badge-mark svg { width:17px; height:17px; }
+    .powered-by-badge-copy { display:grid; gap:2px; }
+    .powered-by-badge span { position:relative; z-index:1; color:#62748b; font:700 8px/1 'Roboto Mono',monospace; letter-spacing:.09em; }
+    .powered-by-badge strong { position:relative; z-index:1; color:#14263f; font:800 12px/1 'Roboto Mono',monospace; letter-spacing:.04em; }
+    .powered-by-badge:hover { transform:translateY(-2px); filter:brightness(1.04); box-shadow:0 12px 28px rgba(0,0,0,.34),inset 0 1px 0 white; }
     .powered-by-badge:active,.powered-by-badge.is-dragging { cursor:grabbing; }
-    .powered-by-badge span { position:relative; z-index:1; font-size:4.5px; font-weight:800; letter-spacing:.08em; text-shadow:0 1px 2px #342b1c; }
-    .powered-by-badge strong { position:relative; z-index:1; font:800 11px/1 'Roboto Mono',monospace; letter-spacing:.04em; text-shadow:0 1px 1px #342b1c; }
+    .powered-by-badge:focus-visible { outline:3px solid rgba(121,190,255,.9); outline-offset:3px; }
     @media(max-width:520px) {
-      .powered-by-badge { left:12px; bottom:12px; width:39px; height:39px; gap:1px; padding:4px; }
-      .powered-by-badge::before { inset:3px; }
-      .powered-by-badge span { font-size:3.5px; }
-      .powered-by-badge strong { font-size:8.5px; }
+      .powered-by-badge { left:12px; bottom:12px; min-height:39px; gap:8px; padding:5px 11px 5px 6px; }
+      .powered-by-badge-mark { width:27px; height:27px; flex-basis:27px; }
+      .powered-by-badge span { font-size:7px; }
+      .powered-by-badge strong { font-size:11px; }
       .topbar-avatar .topbar-avatar-preview { width:130px; height:130px; }
     }
     .profile-info { min-width: 0; flex: 1; }
@@ -112,6 +116,19 @@
     .logout svg { width: 17px; height: 17px; }
     .main { min-width: 0; padding: 13px clamp(18px, 3.5vw, 48px) 18px; }
     .topbar { display: flex; align-items:center; justify-content:space-between; gap: 16px; max-width: 1440px; margin: 0 auto 12px; }
+    .dashboard:not(.hidden) .topbar-brand { color:#f0f5ff; font-size:13px; text-shadow:0 1px 8px rgba(0,0,0,.65); }
+    .dashboard:not(.hidden) .header-welcome { border-left-color:rgba(188,210,255,.35); }
+    .dashboard:not(.hidden) .header-welcome strong,
+    .dashboard:not(.hidden) #welcome-name { color:#f2f6ff; text-shadow:0 1px 6px rgba(0,0,0,.48); }
+    .dashboard:not(.hidden) .header-welcome-meta,
+    .dashboard:not(.hidden) .client-label,
+    .dashboard:not(.hidden) .client-badge,
+    .dashboard:not(.hidden) .breadcrumbs { color:#d1dcf2; text-shadow:0 1px 5px rgba(0,0,0,.5); }
+    .dashboard:not(.hidden) .header-welcome-meta { font-size:10px; }
+    .dashboard:not(.hidden) .header-welcome-meta span + span { border-left-color:rgba(213,226,255,.3); }
+    .dashboard:not(.hidden) .picker-heading h2 { color:#f4f7ff; font-size:16px; text-shadow:0 1px 7px rgba(0,0,0,.6); }
+    .dashboard:not(.hidden) .picker-heading p { color:#e2eaff; font-size:13px; }
+    .dashboard:not(.hidden) .workspace-label { color:#d2def8; }
     .topbar-left { min-width:0; display:flex; align-items:center; gap:13px; }
     .topbar-brand { flex:0 0 auto; gap:0; font-size:12px; }
     .header-welcome { min-width:0; display:grid; gap:3px; padding-left:12px; border-left:1px solid rgba(53,139,143,.18); }
@@ -148,16 +165,16 @@
     .alert-heading { position:relative; text-align:center; }
     .required-tag { display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border:1px solid rgba(238,255,255,.78); border-radius:20px; color:#f4ffff; background:linear-gradient(180deg,#7eabb0,#3d6e78 58%,#315763); box-shadow:inset 0 1px 2px rgba(255,255,255,.78),0 3px 7px rgba(24,72,82,.25); font-size:9px; font-weight:800; letter-spacing:.06em; }
     .required-tag::before { content:''; width:6px; height:6px; border-radius:50%; background:#fff3c6; box-shadow:0 0 7px rgba(255,238,175,.95); }
-    .alert-heading h2 { margin:7px 0 4px; font:800 clamp(14px, 1.35vw, 18px)/1.3 'Roboto Mono',monospace; letter-spacing:.035em; color:#244a53; text-shadow:0 1px rgba(255,255,255,.72); }
-    .alert-heading p { margin:0; color:#426871; font-size:12px; }
+    .alert-heading h2 { margin:7px 0 4px; font:800 clamp(15px, 1.45vw, 19px)/1.35 'Roboto Mono',monospace; letter-spacing:.02em; color:#173c47; text-shadow:0 1px rgba(255,255,255,.78); }
+    .alert-heading p { margin:0; color:#294f5a; font-size:14px; }
     .steps { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin-top:31px; }
     .step { position:relative; min-height:139px; padding:30px 12px 12px; border:1px solid color-mix(in srgb,var(--step) 56%,#fff); border-radius:10px 10px 15px 15px; background:linear-gradient(150deg,rgba(255,255,255,.66),var(--wash) 62%,rgba(255,255,255,.45)); text-align:center; box-shadow:inset 0 1px rgba(255,255,255,.94),inset 0 -2px 5px rgba(42,90,99,.08),0 4px 12px color-mix(in srgb,var(--step) 12%,transparent); transition:transform .2s ease,box-shadow .2s ease,filter .2s ease; }
     .step:hover { z-index:1; transform:translateY(-5px); filter:saturate(1.08); box-shadow:inset 0 1px rgba(255,255,255,.98),inset 0 -2px 5px rgba(42,90,99,.1),0 12px 22px color-mix(in srgb,var(--step) 25%,transparent); }
     .step-icon { position:absolute; top:-21px; left:50%; width:39px; height:39px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.98); border-radius:50%; color:#496a70; background:radial-gradient(circle at 32% 24%,#fff 0,rgba(249,255,254,.95) 30%,#bbd2d2 76%,#748f91 100%); box-shadow:inset 0 1px 3px white,0 3px 8px rgba(22,58,71,.24); transform:translateX(-50%); transition:transform .2s ease,box-shadow .2s ease; }
     .step:hover .step-icon { transform:translateX(-50%) scale(1.09); box-shadow:inset 0 1px 3px white,0 6px 12px rgba(22,58,71,.25); }
     .step-icon svg { width:21px; height:21px; }
-    .step h3 { min-height:29px; margin:1px 0 7px; color:#28474e; font-size:10px; line-height:1.35; font-weight:800; }
-    .step p { margin:0; color:#4e666c; font-size:10px; line-height:1.5; }
+    .step h3 { min-height:29px; margin:1px 0 7px; color:#173b45; font-size:12px; line-height:1.4; font-weight:800; }
+    .step p { margin:0; color:#304f57; font-size:12px; line-height:1.55; }
     .step.blue { --step:#77a9c4; --wash:rgba(205,229,239,.78); }
     .step.green { --step:#79aa9d; --wash:rgba(204,233,218,.78); }
     .step.gold { --step:#c3a65e; --wash:rgba(246,231,180,.82); }
@@ -541,8 +558,9 @@
       </section>
     </div>
   </div>
-  <div id="powered-by-badge" class="powered-by-badge" role="group" tabindex="0" aria-label="Powered by ERTH. Drag to move this badge; use arrow keys to reposition it." title="POWERED BY ERTH · Drag to move">
-    <span>POWERED BY</span><strong>ERTH</strong>
+  <div id="powered-by-badge" class="powered-by-badge" role="group" tabindex="0" aria-label="Developed by ERTH. Drag to move this badge; use arrow keys to reposition it." title="Developed by ERTH · Drag to move">
+    <span class="powered-by-badge-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+    <span class="powered-by-badge-copy"><span>DEVELOPED BY</span><strong>ERTH</strong></span>
   </div>
   <dialog id="preview-user-dialog" class="liquid-dialog" aria-labelledby="preview-user-title">
     <section class="dialog-panel">
@@ -724,16 +742,16 @@
     let previousStarFrame = 0;
     const stars = [];
     function resetStars() {
-      const density = Math.min(320, Math.max(160, Math.round(window.innerWidth * window.innerHeight / 4000)));
+      const density = Math.min(420, Math.max(190, Math.round(window.innerWidth * window.innerHeight / 2800)));
       stars.length = 0;
       for (let index = 0; index < density; index++) {
         stars.push({
           x: Math.random(),
           y: Math.random(),
-          radius: Math.random() < .12 ? .95 + Math.random() * .55 : .35 + Math.random() * .55,
+          radius: Math.random() < .16 ? 1.1 + Math.random() * .8 : .5 + Math.random() * .7,
           phase: Math.random() * Math.PI * 2,
-          speed: .45 + Math.random() * 1.8,
-          brightness: .52 + Math.random() * .48,
+          speed: 1.7 + Math.random() * 3.2,
+          brightness: .72 + Math.random() * .28,
           tint: Math.random() < .16 ? 205 + Math.random() * 35 : 0
         });
       }
@@ -754,7 +772,10 @@
       if (!starWidth || !starHeight) return;
       starContext.clearRect(0, 0, starWidth, starHeight);
       for (const star of stars) {
-        const pulse = reducedStarMotion.matches ? .78 : .34 + .66 * ((Math.sin(time * star.speed + star.phase) + 1) / 2);
+        const wave = (Math.sin(time * star.speed + star.phase) + 1) / 2;
+        const pulse = reducedStarMotion.matches
+          ? .46 + .44 * ((Math.sin(time * star.speed * .35 + star.phase) + 1) / 2)
+          : .06 + .94 * Math.pow(wave, 2.2);
         const alpha = star.brightness * pulse;
         const x = star.x * starWidth;
         const y = star.y * starHeight;
@@ -766,44 +787,44 @@
         starContext.shadowColor = star.tint
           ? `rgba(105,162,255,${alpha * .75})`
           : `rgba(207,225,255,${alpha * .65})`;
-        starContext.shadowBlur = star.radius > 1 ? 5 * alpha : 2.5 * alpha;
+        starContext.shadowBlur = star.radius > 1.35 ? 9 * alpha : 4.5 * alpha;
         starContext.fill();
         starContext.shadowBlur = 0;
-        if (star.radius > 1.25 && alpha > .76) {
-          starContext.globalAlpha = (alpha - .65) * .7;
-          starContext.strokeStyle = 'rgba(220,237,255,.85)';
-          starContext.lineWidth = .45;
+        if (star.radius > 1.55 && alpha > .68) {
+          starContext.globalAlpha = (alpha - .58) * .8;
+          starContext.strokeStyle = 'rgba(230,242,255,.95)';
+          starContext.lineWidth = .65;
           starContext.beginPath();
-          starContext.moveTo(x - star.radius * 2.3, y);
-          starContext.lineTo(x + star.radius * 2.3, y);
-          starContext.moveTo(x, y - star.radius * 2.3);
-          starContext.lineTo(x, y + star.radius * 2.3);
+          starContext.moveTo(x - star.radius * 3, y);
+          starContext.lineTo(x + star.radius * 3, y);
+          starContext.moveTo(x, y - star.radius * 3);
+          starContext.lineTo(x, y + star.radius * 3);
           starContext.stroke();
           starContext.globalAlpha = 1;
         }
       }
     }
     function animateStars(now) {
-      if (now - previousStarFrame >= 40) {
+      const frameInterval = reducedStarMotion.matches ? 140 : 40;
+      if (now - previousStarFrame >= frameInterval) {
         drawStars(now / 1000);
         previousStarFrame = now;
       }
-      if (!reducedStarMotion.matches && !document.hidden) starFrame = requestAnimationFrame(animateStars);
+      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
     }
     resizeStarCanvas();
     window.addEventListener('resize', resizeStarCanvas);
     document.addEventListener('visibilitychange', () => {
       cancelAnimationFrame(starFrame);
       previousStarFrame = 0;
-      if (!document.hidden && !reducedStarMotion.matches) starFrame = requestAnimationFrame(animateStars);
+      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
     });
     reducedStarMotion.addEventListener('change', () => {
       cancelAnimationFrame(starFrame);
       previousStarFrame = 0;
-      if (reducedStarMotion.matches) drawStars(performance.now() / 1000);
-      else if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
     });
-    if (!reducedStarMotion.matches) starFrame = requestAnimationFrame(animateStars);
+    if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
   </script>
   <script type="module">
     const canvas = document.querySelector('#water-scene');
