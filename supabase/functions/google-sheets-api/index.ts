@@ -189,6 +189,265 @@ function sameSheetValues(actual: unknown[], expected: unknown[], ignoredIndexes:
     .every(index => String(actual[index] ?? '') === String(expected[index] ?? ''));
 }
 
+function sheetColumnName(columnNumber: number) {
+  let name = '';
+  let remaining = columnNumber;
+  while (remaining > 0) {
+    const remainder = (remaining - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    remaining = Math.floor((remaining - 1) / 26);
+  }
+  return name;
+}
+
+async function getAssignedPlantillaDestinations(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string
+) {
+  const [assignmentResult, profileResult] = await Promise.all([
+    adminClient.from('dashboard_assignments').select('sheet_urls, client_names')
+      .eq('user_id', targetUserId).eq('dashboard_name', 'PLANTILLA').maybeSingle(),
+    adminClient.from('profiles').select('sheet_url, client_name, client_names').eq('id', targetUserId).single()
+  ]);
+  if (assignmentResult.error) throw new Error('Could not load the assigned PLANTILLA spreadsheet.');
+  if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for PLANTILLA.');
+  const assignment = assignmentResult.data;
+  const urls = Array.isArray(assignment?.sheet_urls) && assignment.sheet_urls.length
+    ? assignment.sheet_urls
+    : [profileResult.data.sheet_url].filter(Boolean);
+  if (!urls.length) throw new Error('No PLANTILLA spreadsheet is assigned to this account.');
+  const assignedClients = Array.isArray(assignment?.client_names) && assignment.client_names.length
+    ? assignment.client_names
+    : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
+      ? profileResult.data.client_names
+      : [profileResult.data.client_name];
+  const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
+  if (!clientNames.length) throw new Error('No clients are assigned to the PLANTILLA spreadsheet.');
+  return urls.map((url: unknown) => ({
+    spreadsheetId: spreadsheetIdFromAssignedUrl(url, 'PLANTILLA'),
+    clientNames
+  }));
+}
+
+async function ensureSheetGridSize(spreadsheetId: string, sheet: any, rowNumber: number, columnNumber: number) {
+  const grid = sheet.properties.gridProperties || {};
+  const requests = [];
+  const rowsToAdd = rowNumber - Number(grid.rowCount || 0);
+  const columnsToAdd = columnNumber - Number(grid.columnCount || 0);
+  if (rowsToAdd > 0) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheet.properties.sheetId,
+        dimension: 'ROWS',
+        length: rowsToAdd
+      }
+    });
+  }
+  if (columnsToAdd > 0) {
+    requests.push({
+      appendDimension: {
+        sheetId: sheet.properties.sheetId,
+        dimension: 'COLUMNS',
+        length: columnsToAdd
+      }
+    });
+  }
+  if (requests.length) {
+    await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({ requests })
+    });
+  }
+}
+
+async function transferEligibleHrEmplocRows(
+  adminClient: ReturnType<typeof createClient>,
+  targetUserId: string,
+  hrSpreadsheetId: string,
+  activeClientNames: string[]
+) {
+  const activeClients = new Set(activeClientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
+  if (!activeClients.size) return;
+  const hrMetadata = await googleRequest(
+    `spreadsheets/${hrSpreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+  );
+  const g1nTab = hrMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'G1N');
+  if (!g1nTab) throw new Error('The assigned HR EMPLOC spreadsheet needs a tab named G1N.');
+  const sourceWidth = Math.max(29, Number(g1nTab.properties.gridProperties?.columnCount || 29));
+  const sourceLastColumn = sheetColumnName(sourceWidth);
+  const sourceRange = `G1N!A9:${sourceLastColumn}`;
+  const [sourceRawResult, sourceDisplayResult] = await Promise.all([
+    googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(sourceRange)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+    googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(sourceRange)}?valueRenderOption=FORMATTED_VALUE`)
+  ]);
+  const sourceRawRows = sourceRawResult.values || [];
+  const sourceDisplayRows = sourceDisplayResult.values || [];
+  const eligibleVcodes = new Set<string>();
+  for (let index = 0; index < Math.max(sourceRawRows.length, sourceDisplayRows.length); index += 1) {
+    const rawRow = sourceRawRows[index] || [];
+    const displayRow = sourceDisplayRows[index] || [];
+    const vcode = String(displayRow[6] ?? rawRow[6] ?? '').trim();
+    const clientName = String(displayRow[1] ?? rawRow[1] ?? '').trim().toLocaleLowerCase();
+    const employeeNumber = String(displayRow[13] ?? rawRow[13] ?? '');
+    const status = String(displayRow[24] ?? rawRow[24] ?? '').trim().toLocaleUpperCase();
+    if (vcode && activeClients.has(clientName) && /^\d{4}-\d{5}$/.test(employeeNumber) && status !== 'PENDING') {
+      eligibleVcodes.add(vcode);
+    }
+  }
+  if (!eligibleVcodes.size) return;
+
+  const plantillaDestinations = await getAssignedPlantillaDestinations(adminClient, targetUserId);
+  const [bumpTab, plantillaTabs] = await Promise.all([
+    Promise.resolve(hrMetadata.sheets?.find((sheet: any) => sheet.properties?.title === 'BUMP')),
+    Promise.all(plantillaDestinations.map(async destination => {
+      const metadata = await googleRequest(
+        `spreadsheets/${destination.spreadsheetId}?fields=sheets.properties.sheetId,sheets.properties.title,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+      );
+      const tab = metadata.sheets?.find((sheet: any) => sheet.properties?.title === 'PLANTILLA');
+      if (!tab) throw new Error('The assigned PLANTILLA spreadsheet needs a tab named PLANTILLA.');
+      return { ...destination, tab };
+    }))
+  ]);
+  if (!bumpTab) throw new Error('The assigned HR EMPLOC spreadsheet needs a tab named BUMP.');
+
+  const bumpLastColumn = sheetColumnName(Math.max(sourceWidth, Number(bumpTab.properties.gridProperties?.columnCount || 1)));
+  const [bumpRowsResult, plantillaRowsResults] = await Promise.all([
+    googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'BUMP'!A:${bumpLastColumn}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+    Promise.all(plantillaTabs.map(destination =>
+      googleRequest(`spreadsheets/${destination.spreadsheetId}/values/${encodeURIComponent('PLANTILLA!A9:AR')}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`)
+    ))
+  ]);
+  const bumpRows = bumpRowsResult.values || [];
+  const plantillaRows = plantillaRowsResults.map(result => result.values || []);
+
+  for (const vcode of eligibleVcodes) {
+    const freshVcodesResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const sourceMatches = (freshVcodesResult.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (sourceMatches.length !== 1) {
+      if (sourceMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in G1N; no source row was deleted.`);
+      continue;
+    }
+    const sourceRowNumber = sourceMatches[0];
+    const sourceRowResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`G1N!A${sourceRowNumber}:${sourceLastColumn}${sourceRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    const sourceRow = Array.from({ length: sourceWidth }, (_, index) => sourceRowResult.values?.[0]?.[index] ?? '');
+    const employeeNumberResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`G1N!N${sourceRowNumber}:N${sourceRowNumber}`)}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const statusResult = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`G1N!Y${sourceRowNumber}:Y${sourceRowNumber}`)}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const employeeNumber = String(employeeNumberResult.values?.[0]?.[0] ?? '');
+    const status = String(statusResult.values?.[0]?.[0] ?? '').trim().toLocaleUpperCase();
+    const sourceClient = String(sourceRow[1] ?? '').trim().toLocaleLowerCase();
+    if (!activeClients.has(sourceClient) || !/^\d{4}-\d{5}$/.test(employeeNumber) || status === 'PENDING') continue;
+
+    const bumpMatches = bumpRows.flatMap((row: unknown[], index: number) =>
+      String(row[6] ?? '').trim() === vcode ? [index + 1] : []
+    );
+    if (bumpMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in BUMP.`);
+    let bumpRowNumber: number;
+    if (bumpMatches.length) {
+      bumpRowNumber = bumpMatches[0];
+      const existingBumpResult = await googleRequest(
+        `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'BUMP'!A${bumpRowNumber}:${bumpLastColumn}${bumpRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      const existingBumpRow = Array.from({ length: sourceWidth }, (_, index) => existingBumpResult.values?.[0]?.[index] ?? '');
+      if (!sameSheetValues(existingBumpRow, sourceRow)) {
+        throw new Error(`VCODE ${vcode} already exists in BUMP with different data; the G1N source row was kept.`);
+      }
+    } else {
+      const lastBumpRow = bumpRows.reduce((lastRow: number, row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
+      bumpRowNumber = lastBumpRow + 1;
+      await ensureSheetGridSize(hrSpreadsheetId, bumpTab, bumpRowNumber, sourceWidth);
+      await googleRequest(`spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'BUMP'!A${bumpRowNumber}:${sourceLastColumn}${bumpRowNumber}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [sourceRow] })
+      });
+      const verifyBumpResult = await googleRequest(
+        `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent(`'BUMP'!A${bumpRowNumber}:${sourceLastColumn}${bumpRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(verifyBumpResult.values?.[0] || [], sourceRow)) {
+        throw new Error(`The BUMP copy for VCODE ${vcode} could not be verified; the G1N source row was kept.`);
+      }
+      bumpRows[bumpRowNumber - 1] = sourceRow;
+    }
+
+    const destination = plantillaTabs.find(item => item.clientNames.includes(sourceClient));
+    if (!destination) throw new Error(`No PLANTILLA spreadsheet is assigned for client ${sourceRow[1]}.`);
+    const destinationIndex = plantillaTabs.indexOf(destination);
+    const plantillaRowsForSheet = plantillaRows[destinationIndex];
+    const plantillaMatches = plantillaRowsForSheet.flatMap((row: unknown[], index: number) =>
+      String(row[1] ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (plantillaMatches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in the assigned PLANTILLA sheet.`);
+    const plantillaValues = [sourceRow[6], sourceRow[13], sourceRow[2], sourceRow[3], sourceRow[4]];
+    let plantillaRowNumber: number;
+    if (plantillaMatches.length) {
+      plantillaRowNumber = plantillaMatches[0];
+      const existingPlantilla = (plantillaRowsForSheet[plantillaRowNumber - 9] || []).slice(1, 6);
+      if (!sameSheetValues(existingPlantilla, plantillaValues)) {
+        throw new Error(`VCODE ${vcode} already exists in PLANTILLA with different data; the G1N source row was kept.`);
+      }
+    } else {
+      const lastPlantillaIndex = plantillaRowsForSheet.reduce((lastIndex: number, row: unknown[], index: number) =>
+        row.some(value => String(value ?? '').trim()) ? index : lastIndex, -1);
+      plantillaRowNumber = Math.max(9, lastPlantillaIndex + 10);
+      await ensureSheetGridSize(destination.spreadsheetId, destination.tab, plantillaRowNumber, 6);
+      await googleRequest(`spreadsheets/${destination.spreadsheetId}/values/${encodeURIComponent(`PLANTILLA!B${plantillaRowNumber}:F${plantillaRowNumber}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [plantillaValues] })
+      });
+      const verifyPlantillaResult = await googleRequest(
+        `spreadsheets/${destination.spreadsheetId}/values/${encodeURIComponent(`PLANTILLA!B${plantillaRowNumber}:F${plantillaRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(verifyPlantillaResult.values?.[0] || [], plantillaValues)) {
+        throw new Error(`The PLANTILLA copy for VCODE ${vcode} could not be verified; the G1N source row was kept.`);
+      }
+      const appendedPlantillaRow = [...(plantillaRowsForSheet[plantillaRowNumber - 9] || [])];
+      appendedPlantillaRow.splice(1, 5, ...plantillaValues);
+      plantillaRowsForSheet[plantillaRowNumber - 9] = appendedPlantillaRow;
+    }
+
+    const currentVcodes = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const currentMatches = (currentVcodes.values || []).flatMap((row: unknown[], index: number) =>
+      String(row[0] ?? '').trim() === vcode ? [index + 9] : []
+    );
+    if (currentMatches.length > 1) throw new Error(`VCODE ${vcode} became duplicated in G1N before deletion.`);
+    if (!currentMatches.length) continue;
+    const rowNumber = currentMatches[0];
+    await googleRequest(`spreadsheets/${hrSpreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: g1nTab.properties.sheetId,
+              dimension: 'ROWS',
+              startIndex: rowNumber - 1,
+              endIndex: rowNumber
+            }
+          }
+        }]
+      })
+    });
+    const verifyDelete = await googleRequest(
+      `spreadsheets/${hrSpreadsheetId}/values/${encodeURIComponent('G1N!G9:G')}?valueRenderOption=FORMATTED_VALUE`
+    );
+    if ((verifyDelete.values || []).some((row: unknown[]) => String(row[0] ?? '').trim() === vcode)) {
+      throw new Error(`Both destination copies were verified, but VCODE ${vcode} remains in G1N after source-row deletion.`);
+    }
+  }
+}
+
 async function approveVacancyRecord(
   sourceSpreadsheetId: string,
   hrEmplocSpreadsheetId: string,
@@ -822,7 +1081,10 @@ Deno.serve(async request => {
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames));
     if (body.action === 'read-for-approval') return respond(await readForApproval(spreadsheetId, clientNames));
-    if (body.action === 'read-hr-emploc') return respond(await readHrEmploc(spreadsheetId, clientNames));
+    if (body.action === 'read-hr-emploc') {
+      await transferEligibleHrEmplocRows(adminClient, targetUserId, spreadsheetId, clientNames);
+      return respond(await readHrEmploc(spreadsheetId, clientNames));
+    }
 
     if (body.action === 'update-vacancy') {
       const vcode = String(body.vcode || '').trim();

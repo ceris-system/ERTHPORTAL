@@ -2442,9 +2442,10 @@
         let rawValues;
         let displayValues;
         let serverFiltered = false;
-        if (usesAssignedSheetAccess()) {
+        if (usesAssignedSheetAccess() || content.querySelector('#hr-emploc-table-body')) {
           const result = await callSheetsFunction('read-hr-emploc', {
             clientName: getActiveClient(),
+            spreadsheetUrl: getDashboardSources('HR EMPLOC MONITORING')[0],
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           rawValues = result.rawValues || [];
