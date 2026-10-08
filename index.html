@@ -766,6 +766,7 @@
     let dashboardAssignments = {};
     let dashboardClientAssignments = {};
     let dashboardClientSheetUrls = {};
+    let dashboardAssignmentUsesClientUrlPairs = false;
     let selectedDashboardClients = {};
     let activeDashboardForData = '';
     let availableClientOptions = [];
@@ -3010,7 +3011,7 @@
       const clientOptions = document.querySelector('#dashboard-client-options');
       const addUrlButton = document.querySelector('#add-dashboard-url');
       let activeClientUrlMap = {};
-      let userUsesClientUrlPairs = false;
+      dashboardAssignmentUsesClientUrlPairs = false;
       try {
         await loadClientOptions();
       } catch (error) {
@@ -3025,18 +3026,18 @@
         const selectedUser = clientUsers.find(user => user.username === userSelect.value);
         const assignedUrls = urls?.length ? urls : (name === 'PLANTILLA' && selectedUser?.sheet_url ? [selectedUser.sheet_url] : []);
         const canFetchMultiple = selectedUser?.role === 'admin';
-        userUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin;
+        dashboardAssignmentUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin;
         const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
         const selectedClients = assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean);
         clientSelect.multiple = false;
         clientSelect.size = 1;
-        clientSelect.required = !userUsesClientUrlPairs && !isClientListSourceSetup;
-        clientSelect.hidden = userUsesClientUrlPairs;
-        clientOptions.classList.toggle('hidden', !userUsesClientUrlPairs);
+        clientSelect.required = !dashboardAssignmentUsesClientUrlPairs && !isClientListSourceSetup;
+        clientSelect.hidden = dashboardAssignmentUsesClientUrlPairs;
+        clientOptions.classList.toggle('hidden', !dashboardAssignmentUsesClientUrlPairs);
         clientSelect.setAttribute('aria-label', 'Client to fetch for this user');
         fillClientSelect(clientSelect, selectedClients);
         list.replaceChildren();
-        addUrlButton.hidden = userUsesClientUrlPairs;
+        addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs;
         activeClientUrlMap = { ...clientSheetUrls };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
           (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
@@ -3044,7 +3045,7 @@
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === 1) {
           (assignedClients || selectedUser?.client_names || []).forEach(client => { activeClientUrlMap[client] = assignedUrls[0]; });
         }
-        if (userUsesClientUrlPairs) {
+        if (dashboardAssignmentUsesClientUrlPairs) {
           fillDashboardClientOptions(selectedClients, () => {
             const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
@@ -3757,16 +3758,16 @@
       }
       const username = document.querySelector('#dialog-user-select').value;
       if (!username) return showAssignmentError('Choose a user to assign this dashboard.');
-      const clientNames = selectedClientValues(userUsesClientUrlPairs
+      const clientNames = selectedClientValues(dashboardAssignmentUsesClientUrlPairs
         ? document.querySelector('#dashboard-client-options')
         : document.querySelector('#dashboard-client-select'));
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
-      if (userUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
+      if (dashboardAssignmentUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
       if (!clientNames.length && !sourceSetup) return showAssignmentError('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
       const clientSheetUrls = Object.fromEntries([...document.querySelectorAll('.dashboard-url-input[data-client-url]')]
         .map(input => [input.dataset.clientUrl, input.value.trim()]));
-      if (userUsesClientUrlPairs) {
+      if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
       }
@@ -3789,7 +3790,7 @@
             dashboardName: selectedDashboard,
             urls: sources,
             clientNames,
-            ...(userUsesClientUrlPairs ? { clientSheetUrls } : {})
+            ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;
           dashboardDialog.close();
