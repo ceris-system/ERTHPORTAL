@@ -321,6 +321,7 @@
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
     .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
+    .plantilla-summary-total td { position:sticky; bottom:0; z-index:1; border-top:2px solid #168d91; background:#e7f5f2; font-weight:800; }
     .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
     .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
     .plantilla-empty { color:#80979c !important; text-align:center; }
@@ -1400,8 +1401,8 @@
         return label;
       }));
       document.querySelector('#new-admin-managed-users-help').textContent = eligibleUsers.length
-        ? 'These checkboxes limit which existing User accounts this Regular Admin can administer, such as changing their access or assignments.'
-        : 'No existing User accounts match the selected client(s). Select a client assigned to an existing user first.';
+        ? 'Optional: select the existing User accounts this Regular Admin can administer. Leaving this empty creates the Regular Admin without managed User accounts.'
+        : 'No existing User accounts match the selected client(s). You can still create this Regular Admin; it will start without managed User accounts.';
     }
     function updateAccountClientControls() {
       const isAdminAccount = document.querySelector('#new-user-role').value === 'admin';
@@ -3131,6 +3132,14 @@
           const gap = summary.requiredHc - summary.actualHc;
           return `<tr><td>${escapeHtml(summary.position)}</td><td>${formatHc(summary.requiredHc)}</td><td>${formatHc(summary.actualHc)}</td><td>${formatHc(gap)}</td></tr>`;
         }).join('');
+        const totals = summaries.reduce((total, summary) => ({
+          requiredHc: total.requiredHc + summary.requiredHc,
+          actualHc: total.actualHc + summary.actualHc
+        }), { requiredHc: 0, actualHc: 0 });
+        const totalGap = totals.requiredHc - totals.actualHc;
+        body.insertAdjacentHTML('beforeend',
+          `<tr class="plantilla-summary-total"><td>TOTAL</td><td>${formatHc(totals.requiredHc)}</td><td>${formatHc(totals.actualHc)}</td><td>${formatHc(totalGap)}</td></tr>`
+        );
         status.textContent = `${summaries.length} unique position${summaries.length === 1 ? '' : 's'} · GAP = REQUIRED HC − ACTUAL HC`;
         return true;
       } catch (error) {
@@ -3850,10 +3859,6 @@
       const managedUserIds = [...document.querySelectorAll('#new-admin-managed-users input[type="checkbox"]:checked')].map(input => input.value);
       if (role === 'admin' && !selectedClientValues(document.querySelector('#new-user-client-options')).length) {
         document.querySelector('#admin-account-feedback').textContent = 'Select at least one client this Regular Admin can access.';
-        return;
-      }
-      if (role === 'admin' && !managedUserIds.length) {
-        document.querySelector('#admin-account-feedback').textContent = 'Select at least one User account this Regular Admin can manage.';
         return;
       }
       const assignedSheetUrl = form.elements.sheetUrl.value.trim();

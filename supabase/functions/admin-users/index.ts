@@ -318,7 +318,6 @@ Deno.serve(async request => {
       }
       if (role === 'user' && clientNames.length !== 1) throw new Error('Choose exactly one client for a user account.');
       if (role === 'admin' && (clientNames.length < 1 || clientNames.length > 30)) throw new Error('Choose between 1 and 30 clients for an administrator.');
-      if (role === 'admin' && !managedUserIds.length) throw new Error('Select at least one user account for this administrator to manage.');
       if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error("If provided, Google email must be a valid email address.");
 
       const { data: existingProfiles, error: existingProfilesError } = await adminClient.from('profiles').select('username');
@@ -327,7 +326,7 @@ Deno.serve(async request => {
         throw new Error('That username is already in use.');
       }
 
-      if (role === 'admin') {
+      if (role === 'admin' && managedUserIds.length) {
         const { data: managedUsers, error: managedUsersError } = await adminClient.from('profiles')
           .select('id, role, is_master_admin, client_name, client_names')
           .in('id', managedUserIds);
