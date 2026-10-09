@@ -113,6 +113,28 @@ function sheetRange(tabName: string, cells: string) {
   return encodeURIComponent(sheetA1(tabName, cells)).replace(/'/g, '%27');
 }
 
+async function readSheetGridRanges(
+  spreadsheetId: string,
+  sheetTab: string,
+  gridRanges: Record<string, number>[]
+) {
+  const metadata = await googleRequest(
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount`
+  );
+  const sheet = (metadata.sheets || []).find((item: any) => item.properties?.title === sheetTab);
+  if (!sheet?.properties?.sheetId) throw new Error(`The assigned spreadsheet does not have a ${sheetTab} tab.`);
+  const sheetId = Number(sheet.properties.sheetId);
+  const data = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGetByDataFilter`, {
+    method: 'POST',
+    body: JSON.stringify({
+      dataFilters: gridRanges.map(range => ({
+        gridRange: { sheetId, ...range }
+      }))
+    })
+  });
+  return data.valueRanges || [];
+}
+
 const bufferDetailClientColumns: Record<string, number> = {
   plantillaNotInMika: 18,
   mikaNotInPlantilla: 9,
@@ -1090,12 +1112,19 @@ async function validateVcodeVarianceSelection(
   clientName: string,
   rows: { rowNumber: number; vcode: string }[]
 ) {
-  const ranges = rows.map(row => `ranges=${sheetRange(sheetTab, `B${row.rowNumber}:F${row.rowNumber}`)}`).join('&');
-  const result = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${ranges}&valueRenderOption=FORMATTED_VALUE`);
-  const values = result.valueRanges || [];
+  const values = await readSheetGridRanges(
+    spreadsheetId,
+    sheetTab,
+    rows.map(row => ({
+      startRowIndex: row.rowNumber - 1,
+      endRowIndex: row.rowNumber,
+      startColumnIndex: 1,
+      endColumnIndex: 6
+    }))
+  );
   const clientKey = clientName.trim().toLocaleLowerCase();
   return rows.map((row, index) => {
-    const valuesAtRow = values[index]?.values?.[0] || [];
+    const valuesAtRow = values[index]?.valueRange?.values?.[0] || [];
     const currentVcode = String(valuesAtRow[0] ?? '').trim();
     const currentClient = String(valuesAtRow[4] ?? '').trim().toLocaleLowerCase();
     if (currentVcode !== row.vcode || currentClient !== clientKey) {
@@ -1156,10 +1185,12 @@ async function archiveAndDeleteVcodes(
 ) {
   const selectedRows = parseVcodeVarianceSelection(selection);
   await validateVcodeVarianceSelection(spreadsheetId, summarySheetTab, clientName, selectedRows);
-  const sourceIndex = await googleRequest(
-    `spreadsheets/${spreadsheetId}/values/${sheetRange(sourceSheetTab, 'B3:F')}?valueRenderOption=FORMATTED_VALUE`
-  );
-  const sourceRowsByVcode: unknown[][] = sourceIndex.values || [];
+  const sourceIndex = await readSheetGridRanges(spreadsheetId, sourceSheetTab, [{
+    startRowIndex: 2,
+    startColumnIndex: 1,
+    endColumnIndex: 6
+  }]);
+  const sourceRowsByVcode: unknown[][] = sourceIndex[0]?.valueRange?.values || [];
   const clientKey = clientName.trim().toLocaleLowerCase();
   const rows = selectedRows.map(selected => {
     const matches = sourceRowsByVcode.flatMap((row, index) =>
@@ -1177,11 +1208,17 @@ async function archiveAndDeleteVcodes(
     return matches[0];
   });
   await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
-  const rowRanges = rows.map(row => `ranges=${sheetRange(sourceSheetTab, `A${row.rowNumber}:S${row.rowNumber}`)}`).join('&');
-  const sourceValues = await googleRequest(
-    `spreadsheets/${spreadsheetId}/values:batchGet?${rowRanges}&valueRenderOption=FORMATTED_VALUE`
+  const sourceValues = await readSheetGridRanges(
+    spreadsheetId,
+    sourceSheetTab,
+    rows.map(row => ({
+      startRowIndex: row.rowNumber - 1,
+      endRowIndex: row.rowNumber,
+      startColumnIndex: 0,
+      endColumnIndex: 19
+    }))
   );
-  const sourceRows = sourceValues.valueRanges || [];
+  const sourceRows = sourceValues.map((item: any) => item.valueRange);
   if (sourceRows.length !== rows.length) throw new Error('Could not read all selected VCODE rows; no rows were deleted.');
   const archivedAt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Manila',
