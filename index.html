@@ -4170,7 +4170,7 @@
       }
       return result;
     }
-    function addDashboardVcodeDeletedTabInput(clientName, sourceTabName = '', deletedTabName = '', sourceUrl = '') {
+    function addDashboardVcodeDeletedTabInput(clientName, sourceUrl = '', sourceTabName = '', deletedTabName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const group = document.createElement('fieldset');
       group.className = 'buffer-detail-tab-settings';
@@ -4179,14 +4179,16 @@
       group.append(legend);
       const urlField = document.createElement('label');
       urlField.className = 'buffer-detail-tab-field';
-      urlField.textContent = 'Archive spreadsheet URL (same as VCODE)';
+      urlField.textContent = 'VCODE spreadsheet URL (also used for archive)';
       const urlInput = document.createElement('input');
-      urlInput.className = 'vcode-deleted-sheet-url';
+      urlInput.className = 'vcode-source-sheet-url';
       urlInput.type = 'url';
-      urlInput.readOnly = true;
+      urlInput.inputMode = 'url';
+      urlInput.autocomplete = 'url';
       urlInput.value = sourceUrl;
-      urlInput.placeholder = 'Enter the VCODE spreadsheet URL above';
-      urlInput.setAttribute('aria-label', `Deleted VCODE archive spreadsheet URL for ${clientName}; same as the VCODE source`);
+      urlInput.placeholder = 'https://docs.google.com/spreadsheets/d/...';
+      urlInput.dataset.vcodeSourceUrlClient = clientName;
+      urlInput.setAttribute('aria-label', `VCODE source and archive spreadsheet URL for ${clientName}`);
       urlField.append(urlInput);
       group.append(urlField);
       const sourceField = document.createElement('label');
@@ -4218,12 +4220,11 @@
       field.append(input);
       group.append(field);
       list.append(group);
-      const sourceUrlInput = [...list.querySelectorAll('.dashboard-url-input')]
-        .find(item => item.dataset.clientUrl === clientName) || list.querySelector('.dashboard-url-input');
-      if (sourceUrlInput) {
-        if (!urlInput.value) urlInput.value = sourceUrlInput.value.trim();
-        sourceUrlInput.addEventListener('input', () => { urlInput.value = sourceUrlInput.value.trim(); });
-      }
+    }
+    function collectDashboardVcodeSourceUrls() {
+      return Object.fromEntries([...document.querySelectorAll('.vcode-source-sheet-url')]
+        .map(input => [input.dataset.vcodeSourceUrlClient, input.value.trim()])
+        .filter(([client]) => client));
     }
     function collectDashboardVcodeSourceTabs() {
       return Object.fromEntries([...document.querySelectorAll('.vcode-source-tab-input')]
@@ -4454,6 +4455,7 @@
       let activeClientUrlMap = {};
       let activeClientTabMap = {};
       let activeClientBufferDetailTabMap = {};
+      let activeClientVcodeSourceUrlMap = {};
       let activeClientVcodeSourceTabMap = {};
       let activeClientVcodeDeletedTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
@@ -4471,7 +4473,7 @@
         ])];
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {}, clientVcodeSourceTabs = {}, clientVcodeDeletedTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {}, clientVcodeSourceUrls = {}, clientVcodeSourceTabs = {}, clientVcodeDeletedTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
@@ -4493,6 +4495,7 @@
         activeClientUrlMap = { ...clientSheetUrls };
         activeClientTabMap = { ...clientSheetTabs };
         activeClientBufferDetailTabMap = { ...clientBufferDetailTabs };
+        activeClientVcodeSourceUrlMap = { ...clientVcodeSourceUrls };
         activeClientVcodeSourceTabMap = { ...clientVcodeSourceTabs };
         activeClientVcodeDeletedTabMap = { ...clientVcodeDeletedTabs };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
@@ -4506,6 +4509,7 @@
             const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
             const currentTabs = Object.fromEntries([...list.querySelectorAll('[data-client-tab]')].map(input => [input.dataset.clientTab, input.value.trim()]));
             activeClientBufferDetailTabMap = { ...activeClientBufferDetailTabMap, ...collectDashboardBufferDetailTabs() };
+            activeClientVcodeSourceUrlMap = { ...activeClientVcodeSourceUrlMap, ...collectDashboardVcodeSourceUrls() };
             activeClientVcodeSourceTabMap = { ...activeClientVcodeSourceTabMap, ...collectDashboardVcodeSourceTabs() };
             activeClientVcodeDeletedTabMap = { ...activeClientVcodeDeletedTabMap, ...collectDashboardVcodeDeletedTabs() };
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
@@ -4514,13 +4518,13 @@
             selectedClientValues(clientOptions).forEach(client => {
               addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
               if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
-              if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '', activeClientUrlMap[client] || '');
+              if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceUrlMap[client] || '', activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '');
             });
           });
           selectedClientValues(clientOptions).forEach(client => {
             addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
             if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
-            if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '', activeClientUrlMap[client] || '');
+            if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceUrlMap[client] || '', activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '');
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
@@ -4531,7 +4535,7 @@
             addDashboardBufferDetailTabInputs(assignedClient, activeClientBufferDetailTabMap[assignedClient] || {});
           }
           if (name === 'VCODE VARIANCE' && assignedClient) {
-            addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeSourceTabMap[assignedClient] || '', activeClientVcodeDeletedTabMap[assignedClient] || '', activeClientUrlMap[assignedClient] || assignedUrls[0] || '');
+            addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeSourceUrlMap[assignedClient] || '', activeClientVcodeSourceTabMap[assignedClient] || '', activeClientVcodeDeletedTabMap[assignedClient] || '');
           }
         }
         openDashboardUrl.disabled = !assignedUrls.length;
@@ -5259,6 +5263,8 @@
         .map(input => [input.dataset.clientTab, input.value.trim()]));
       const clientBufferDetailTabs = Object.fromEntries(Object.entries(collectDashboardBufferDetailTabs())
         .filter(([client]) => clientNames.includes(client)));
+      const clientVcodeSourceUrls = Object.fromEntries(Object.entries(collectDashboardVcodeSourceUrls())
+        .filter(([client]) => clientNames.includes(client)));
       const clientVcodeDeletedTabs = Object.fromEntries(Object.entries(collectDashboardVcodeDeletedTabs())
         .filter(([client]) => clientNames.includes(client)));
       const clientVcodeSourceTabs = Object.fromEntries(Object.entries(collectDashboardVcodeSourceTabs())
@@ -5289,11 +5295,20 @@
         return showAssignmentError('VCODE source tab names must be 100 characters or fewer and cannot contain /, \\, ?, *, :, or square brackets.');
       }
       if (selectedDashboard === 'VCODE VARIANCE') {
+        const missingVcodeUrl = clientNames.find(client => !clientVcodeSourceUrls[client]);
+        if (missingVcodeUrl) {
+          return showAssignmentError(`Enter the separate VCODE spreadsheet URL for ${missingVcodeUrl}. The SUMMARY and VCODE workbooks can be different.`);
+        }
+        for (const client of clientNames) {
+          let parsed;
+          try { parsed = new URL(clientVcodeSourceUrls[client]); } catch { return showAssignmentError(`Enter a complete VCODE spreadsheet URL for ${client}.`); }
+          if (!['http:', 'https:'].includes(parsed.protocol)) return showAssignmentError(`Use an HTTP or HTTPS VCODE spreadsheet link for ${client}.`);
+          try { spreadsheetIdFromUrl(parsed.href); } catch { return showAssignmentError(`Use the Google Sheets document link for the VCODE spreadsheet assigned to ${client}.`); }
+        }
         const collidingArchiveClient = clientNames.find(client => {
           const sourceTab = (clientVcodeSourceTabs[client] || 'VCODE').trim().toLocaleLowerCase();
           const archiveTab = (clientVcodeDeletedTabs[client] || 'DELETED VCODES').trim().toLocaleLowerCase();
-          const fetchTab = (clientSheetTabs[client] || sheetTab).trim().toLocaleLowerCase();
-          return archiveTab === sourceTab || archiveTab === fetchTab;
+          return archiveTab === sourceTab;
         });
         if (collidingArchiveClient) {
           return showAssignmentError(`The deleted VCODE archive tab for ${collidingArchiveClient} must be different from its fetch and VCODE source tabs.`);
@@ -5321,7 +5336,7 @@
             sheetTab,
             clientSheetTabs,
             ...(selectedDashboard === '+-5% BUFFER' ? { clientBufferDetailTabs } : {}),
-            ...(selectedDashboard === 'VCODE VARIANCE' ? { clientVcodeSourceTabs, clientVcodeDeletedTabs } : {}),
+            ...(selectedDashboard === 'VCODE VARIANCE' ? { clientVcodeSourceUrls, clientVcodeSourceTabs, clientVcodeDeletedTabs } : {}),
             ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;

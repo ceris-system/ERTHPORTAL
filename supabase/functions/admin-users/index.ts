@@ -99,7 +99,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_tabs, client_vcode_deleted_tabs')
+        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_tabs, client_vcode_deleted_tabs')
+          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -227,6 +227,7 @@ Deno.serve(async request => {
           sheetTab: data?.sheet_tab || '',
           clientSheetTabs: data?.client_sheet_tabs || {},
           clientBufferDetailTabs: data?.client_buffer_detail_tabs || {},
+          clientVcodeSourceUrls: data?.client_vcode_source_urls || {},
           clientVcodeSourceTabs: data?.client_vcode_source_tabs || {},
           clientVcodeDeletedTabs: data?.client_vcode_deleted_tabs || {}
         });
@@ -334,6 +335,28 @@ Deno.serve(async request => {
           throw new Error('Each detail tab name must match a selected client.');
         }
       }
+      const clientVcodeSourceUrls: Record<string, string> = {};
+      if (body.clientVcodeSourceUrls !== undefined) {
+        if (!body.clientVcodeSourceUrls || typeof body.clientVcodeSourceUrls !== 'object' || Array.isArray(body.clientVcodeSourceUrls)) {
+          throw new Error('Provide a separate VCODE spreadsheet URL for each assigned client.');
+        }
+        for (const clientName of clientNames) {
+          const assignedUrl = body.clientVcodeSourceUrls[clientName];
+          if (typeof assignedUrl !== 'string' || !assignedUrl.trim()) {
+            throw new Error(`Provide a separate VCODE spreadsheet URL for ${clientName}.`);
+          }
+          let parsed: URL;
+          try { parsed = new URL(assignedUrl.trim()); } catch { throw new Error(`Enter a complete VCODE spreadsheet URL for ${clientName}.`); }
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.hostname !== 'docs.google.com' ||
+            !/^\/spreadsheets\/d\/[A-Za-z0-9_-]+/.test(parsed.pathname)) {
+            throw new Error(`Use a Google Sheets document link for the VCODE spreadsheet assigned to ${clientName}.`);
+          }
+          clientVcodeSourceUrls[clientName] = parsed.href;
+        }
+        if (Object.keys(body.clientVcodeSourceUrls).some(client => !clientNames.includes(client))) {
+          throw new Error('Each VCODE spreadsheet URL must match a selected client.');
+        }
+      }
       const clientVcodeDeletedTabs: Record<string, string> = {};
       const clientVcodeSourceTabs: Record<string, string> = {};
       if (body.clientVcodeSourceTabs !== undefined) {
@@ -383,6 +406,7 @@ Deno.serve(async request => {
         sheet_tab: sheetTab,
         client_sheet_tabs: clientSheetTabs,
         client_buffer_detail_tabs: clientBufferDetailTabs,
+        client_vcode_source_urls: clientVcodeSourceUrls,
         client_vcode_source_tabs: clientVcodeSourceTabs,
         client_vcode_deleted_tabs: clientVcodeDeletedTabs,
         updated_at: new Date().toISOString()
@@ -399,7 +423,7 @@ Deno.serve(async request => {
           .eq('id', target.id);
         if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
       }
-      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs, clientVcodeSourceTabs, clientVcodeDeletedTabs });
+      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs, clientVcodeSourceUrls, clientVcodeSourceTabs, clientVcodeDeletedTabs });
     }
 
     if (body.action === 'create') {

@@ -183,7 +183,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_tabs, client_vcode_deleted_tabs')
+    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
@@ -258,6 +258,14 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     : {};
   const matchedVcodeSourceClient = Object.keys(vcodeSourceTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   const vcodeSourceTab = String((matchedVcodeSourceClient ? vcodeSourceTabs[matchedVcodeSourceClient] : '') || 'VCODE').trim();
+  const vcodeSourceUrls = assignment?.client_vcode_source_urls && typeof assignment.client_vcode_source_urls === 'object'
+    ? assignment.client_vcode_source_urls
+    : {};
+  const matchedVcodeSourceUrlClient = Object.keys(vcodeSourceUrls).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
+  const vcodeSourceUrl = String((matchedVcodeSourceUrlClient ? vcodeSourceUrls[matchedVcodeSourceUrlClient] : '') || '').trim();
+  const vcodeSourceSpreadsheetId = body.action === 'delete-vcodes'
+    ? spreadsheetIdFromAssignedUrl(vcodeSourceUrl, `VCODE source for ${requestedClient || 'this client'}`)
+    : '';
   const deletedVcodeTabs = assignment?.client_vcode_deleted_tabs && typeof assignment.client_vcode_deleted_tabs === 'object'
     ? assignment.client_vcode_deleted_tabs
     : {};
@@ -277,6 +285,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     clientNames: scopedClientNames,
     targetRole: target.role,
     sheetTab,
+    vcodeSourceSpreadsheetId,
     vcodeSourceTab,
     deletedVcodeTab
   };
@@ -1176,7 +1185,8 @@ async function appendVcodesToVacancy(
 }
 
 async function archiveAndDeleteVcodes(
-  spreadsheetId: string,
+  summarySpreadsheetId: string,
+  sourceSpreadsheetId: string,
   summarySheetTab: string,
   sourceSheetTab: string,
   archiveSheetTab: string,
@@ -1184,8 +1194,8 @@ async function archiveAndDeleteVcodes(
   selection: unknown
 ) {
   const selectedRows = parseVcodeVarianceSelection(selection);
-  await validateVcodeVarianceSelection(spreadsheetId, summarySheetTab, clientName, selectedRows);
-  const sourceIndex = await readSheetGridRanges(spreadsheetId, sourceSheetTab, [{
+  await validateVcodeVarianceSelection(summarySpreadsheetId, summarySheetTab, clientName, selectedRows);
+  const sourceIndex = await readSheetGridRanges(sourceSpreadsheetId, sourceSheetTab, [{
     startRowIndex: 2,
     startColumnIndex: 1,
     endColumnIndex: 6
@@ -1207,9 +1217,9 @@ async function archiveAndDeleteVcodes(
     }
     return matches[0];
   });
-  await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
+  await validateVcodeVarianceSelection(sourceSpreadsheetId, sourceSheetTab, clientName, rows);
   const sourceValues = await readSheetGridRanges(
-    spreadsheetId,
+    sourceSpreadsheetId,
     sourceSheetTab,
     rows.map(row => ({
       startRowIndex: row.rowNumber - 1,
@@ -1239,35 +1249,35 @@ async function archiveAndDeleteVcodes(
     }
     return [...Array.from({ length: 19 }, (_, column) => sourceRow[column] ?? ''), archivedAt];
   });
-  const metadata = await googleRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
+  const metadata = await googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
   const sheets = metadata.sheets || [];
   const sourceSheet = sheets.find((sheet: any) => sheet.properties?.title === sourceSheetTab);
   if (!sourceSheet) throw new Error(`The VCODE source tab ${sourceSheetTab} was not found.`);
   let archiveSheet = sheets.find((sheet: any) => sheet.properties?.title === archiveSheetTab);
   if (!archiveSheet) {
     try {
-      const created = await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+      const created = await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({ requests: [{ addSheet: { properties: { title: archiveSheetTab } } }] })
       });
       archiveSheet = { properties: created.replies?.[0]?.addSheet?.properties };
     } catch (error) {
-      const refreshed = await googleRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
+      const refreshed = await googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
       archiveSheet = (refreshed.sheets || []).find((sheet: any) => sheet.properties?.title === archiveSheetTab);
       if (!archiveSheet) throw error;
     }
   }
   if (!archiveSheet?.properties?.sheetId) throw new Error(`Could not prepare the ${archiveSheetTab} archive tab.`);
   try {
-    const appendResult = await googleRequest(`spreadsheets/${spreadsheetId}/values/${sheetRange(archiveSheetTab, 'A:T')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    const appendResult = await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values/${sheetRange(archiveSheetTab, 'A:T')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
       method: 'POST',
       body: JSON.stringify({ values: archiveRows })
     });
     const appendedRange = appendResult.updates?.updatedRange;
     if (!appendedRange) throw new Error('The Sheets API did not confirm the archive destination range.');
-    const verifyRange = encodeURIComponent(appendedRange);
+    const verifyRange = encodeURIComponent(appendedRange).replace(/'/g, '%27');
     const verification = await googleRequest(
-      `spreadsheets/${spreadsheetId}/values/${verifyRange}?valueRenderOption=FORMATTED_VALUE`
+      `spreadsheets/${sourceSpreadsheetId}/values/${verifyRange}?valueRenderOption=FORMATTED_VALUE`
     );
     const copiedRows = verification.values || [];
     const sameArchive = archiveRows.every((expected: unknown[], index: number) =>
@@ -1278,8 +1288,8 @@ async function archiveAndDeleteVcodes(
     throw new Error(`The archive copy to ${archiveSheetTab} failed; the original VCODE rows were kept. ${error instanceof Error ? error.message : ''}`.trim());
   }
   try {
-    await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
-    await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+    await validateVcodeVarianceSelection(sourceSpreadsheetId, sourceSheetTab, clientName, rows);
+    await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
         requests: rows
@@ -1486,7 +1496,7 @@ Deno.serve(async request => {
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
@@ -1502,10 +1512,18 @@ Deno.serve(async request => {
     if (body.action === 'delete-vcodes') {
       const normalizedArchiveTab = deletedVcodeTab.toLocaleLowerCase();
       if (normalizedArchiveTab === vcodeSourceTab.toLocaleLowerCase() ||
-        normalizedArchiveTab === sheetTab.toLocaleLowerCase()) {
-        throw new Error('The deleted VCODE archive tab must be different from both the fetch tab and the VCODE source tab.');
+        (vcodeSourceSpreadsheetId === spreadsheetId && normalizedArchiveTab === sheetTab.toLocaleLowerCase())) {
+        throw new Error('The deleted VCODE archive tab must be different from the VCODE source tab and, when both URLs are the same workbook, the fetch tab.');
       }
-      return respond(await archiveAndDeleteVcodes(spreadsheetId, sheetTab, vcodeSourceTab, deletedVcodeTab, clientName, body.rows));
+      return respond(await archiveAndDeleteVcodes(
+        spreadsheetId,
+        vcodeSourceSpreadsheetId,
+        sheetTab,
+        vcodeSourceTab,
+        deletedVcodeTab,
+        clientName,
+        body.rows
+      ));
     }
 
     if (body.action === 'approve-vacancy') {
