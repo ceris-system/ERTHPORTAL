@@ -334,6 +334,9 @@
     .url-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:7px; }
     .url-row:has(.dashboard-url-client) { grid-template-columns:minmax(120px,.45fr) minmax(0,1fr); align-items:center; }
     .url-row-fields { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(120px,.7fr); gap:7px; }
+    .url-row-fields.url-row-fields-labeled { grid-template-columns:minmax(0,1.4fr) minmax(150px,.8fr); align-items:end; }
+    .url-row-input-field { display:grid; min-width:0; gap:5px; color:#52737a; font-size:9px; font-weight:800; }
+    .url-row-input-field input { width:100%; min-width:0; }
     .dashboard-url-client { color:#365e68; font-size:11px; }
     .url-row input { min-width:0; }
     .dashboard-tab-input { font-size:11px; }
@@ -670,10 +673,11 @@
         <label id="dashboard-client-select-label" class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
         <select id="dashboard-client-select" multiple size="4" required aria-label="Clients to fetch for this dashboard"></select>
         <div id="dashboard-client-options" class="client-checklist hidden" role="group" aria-labelledby="dashboard-client-select-label"></div>
+        <p id="dashboard-assignment-hint" class="dialog-scope hidden"></p>
         <label id="dashboard-url-list-label" class="dialog-label">Spreadsheet URL and tab name for each selected client</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
-        <div class="dialog-scope">Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.</div>
+        <div id="dashboard-tab-hint" class="dialog-scope">Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.</div>
         <p id="dashboard-assignment-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
         <div class="dialog-actions"><button id="save-dashboard-urls" class="primary-button" type="button">Save Assignment</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
@@ -4273,16 +4277,16 @@
       const group = document.createElement('fieldset');
       group.className = 'deactivation-mika-tab-settings';
       const legend = document.createElement('legend');
-      legend.textContent = clientName ? `${clientName} · EMPLOC/name lookup` : 'EMPLOC/name lookup';
+      legend.textContent = 'EMPLOC-TO-NAME LOOKUP';
       const field = document.createElement('label');
       field.className = 'buffer-detail-tab-field';
-      field.textContent = 'MIKA FILE tab name (EMPLOC in column A, name in column B)';
+      field.textContent = 'MIKA FILE TAB NAME (EMPLOC A → NAME B)';
       const input = document.createElement('input');
       input.className = 'deactivation-mika-tab-input';
       input.type = 'text';
       input.maxLength = 100;
       input.autocomplete = 'off';
-      input.placeholder = 'MIKA FILE';
+      input.placeholder = 'Enter lookup tab name (default: MIKA FILE)';
       input.dataset.deactivationMikaClient = clientName;
       input.setAttribute('aria-label', `MIKA FILE tab name for ${clientName || 'this client'}`);
       input.value = tabName;
@@ -4313,22 +4317,36 @@
         : clientName ? `Spreadsheet URL for ${clientName}` : `Spreadsheet URL ${list.children.length + 1}`);
       if (clientName) input.dataset.clientUrl = clientName;
       input.value = value;
+      const urlField = document.createElement('label');
+      urlField.className = 'url-row-input-field';
+      if (selectedDashboard === 'DEACTIVATION') {
+        urlField.textContent = 'SPREADSHEET URL — FETCH AND SAVE';
+        urlField.append(input);
+      }
       const tabInput = document.createElement('input');
       tabInput.className = 'dashboard-tab-input';
       tabInput.type = 'text';
       tabInput.maxLength = 100;
       tabInput.autocomplete = 'off';
       tabInput.placeholder = selectedDashboard === 'DEACTIVATION'
-        ? 'Data tab name (fetch/save)'
+        ? 'Enter the data tab name'
         : `Tab name (default: ${defaultDashboardSheetTab(selectedDashboard)})`;
       tabInput.setAttribute('aria-label', selectedDashboard === 'DEACTIVATION'
         ? `Data tab name for deactivation records${clientName ? ` for ${clientName}` : ''}`
         : clientName ? `Tab name for ${clientName}` : `Tab name ${list.children.length + 1}`);
       if (clientName) tabInput.dataset.clientTab = clientName;
-      tabInput.value = tabName || defaultDashboardSheetTab(selectedDashboard);
+      tabInput.value = tabName || (selectedDashboard === 'DEACTIVATION' ? '' : defaultDashboardSheetTab(selectedDashboard));
       const fields = document.createElement('div');
-      fields.className = 'url-row-fields';
-      fields.append(input, tabInput);
+      fields.className = `url-row-fields${selectedDashboard === 'DEACTIVATION' ? ' url-row-fields-labeled' : ''}`;
+      if (selectedDashboard === 'DEACTIVATION') {
+        const tabField = document.createElement('label');
+        tabField.className = 'url-row-input-field';
+        tabField.textContent = 'DATA TAB NAME — FETCH AND SAVE';
+        tabField.append(tabInput);
+        fields.append(urlField, tabField);
+      } else {
+        fields.append(input, tabInput);
+      }
       const remove = document.createElement('button');
       remove.className = 'remove-source';
       remove.type = 'button';
@@ -4642,8 +4660,15 @@
         ? 'Spreadsheet URL and data tab for fetching/saving records'
         : 'Spreadsheet URL and tab name for each selected client';
       document.querySelector('#dashboard-dialog-copy').textContent = name === 'DEACTIVATION'
-        ? 'Use the assigned spreadsheet for both functions. Set the data tab for deactivation records and the MIKA FILE tab for EMPLOC-to-name lookup.'
+        ? 'Set the actual spreadsheet URL and the two tab names below. The selected client only sets account access; it does not choose where records are fetched or saved.'
         : 'Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.';
+      const clientLabel = document.querySelector('#dashboard-client-select-label');
+      clientLabel.textContent = name === 'DEACTIVATION' ? 'Client access (permission scope only)' : 'Fetch data from client';
+      document.querySelector('#dashboard-assignment-hint').classList.toggle('hidden', name !== 'DEACTIVATION');
+      document.querySelector('#dashboard-assignment-hint').textContent = 'This client selection controls who may use the assignment. The spreadsheet URL and tab fields below explicitly determine the data source and save destination.';
+      document.querySelector('#dashboard-tab-hint').textContent = name === 'DEACTIVATION'
+        ? 'Enter the exact worksheet tab names shown at the bottom of the spreadsheet. The data tab is used for both loading existing records and saving new ones.'
+        : 'Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.';
       const userSelect = document.querySelector('#dialog-user-select');
       let users;
       try {
@@ -4706,7 +4731,7 @@
         clientSelect.setAttribute('aria-label', 'Client to fetch for this user');
         fillClientSelect(clientSelect, selectedClients);
         list.replaceChildren();
-        addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs;
+        addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs || name === 'DEACTIVATION';
         activeClientUrlMap = { ...clientSheetUrls };
         activeClientTabMap = { ...clientSheetTabs };
         activeClientBufferDetailTabMap = { ...clientBufferDetailTabs };
@@ -4747,7 +4772,7 @@
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
-          (assignedUrls.length ? assignedUrls : ['']).forEach((source, index) =>
+          (assignedUrls.length ? (name === 'DEACTIVATION' ? assignedUrls.slice(0, 1) : assignedUrls) : ['']).forEach((source, index) =>
             addDashboardUrlRow(source, '', activeClientTabMap[assignedClient] || sheetTab)
           );
           if (name === 'DEACTIVATION' && assignedClient) {
@@ -5493,6 +5518,14 @@
         .filter(([client]) => clientNames.includes(client)));
       const clientDeactivationMikaTabs = Object.fromEntries(Object.entries(collectDashboardDeactivationMikaTabs())
         .filter(([client]) => clientNames.includes(client)));
+      if (selectedDashboard === 'DEACTIVATION') {
+        const missingDataTab = dashboardAssignmentUsesClientUrlPairs
+          ? clientNames.find(client => !clientSheetTabs[client])
+          : !tabInputs[0]?.value.trim() ? clientNames[0] : '';
+        if (missingDataTab) {
+          return showAssignmentError(`Enter the data tab name where DEACTIVATION records will be fetched and saved${dashboardAssignmentUsesClientUrlPairs ? ` for ${missingDataTab}` : ''}.`);
+        }
+      }
       if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
