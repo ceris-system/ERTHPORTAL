@@ -2045,7 +2045,7 @@
         cancel.onclick = () => dialog.close('cancel');
       });
     }
-    async function showPopModalProgress(total = null, { title = 'Updating statuses', message, progressLabel = 'NEWLY HIRED', unit = 'cell' } = {}) {
+    async function showPopModalProgress(total = null, { title = 'Updating statuses', message, progressLabel = 'NEWLY HIRED', unit = 'cell', indeterminateLabel = 'checking cells' } = {}) {
       const dialog = document.querySelector('#pop-modal');
       document.querySelector('#pop-modal-title').textContent = title;
       document.querySelector('#pop-modal-message').textContent = message || (total === null
@@ -2057,8 +2057,8 @@
       document.querySelector('.pop-modal-progress-count span:first-child').textContent = progressLabel;
       if (total === null) {
         document.querySelector('#pop-modal-progress-step').textContent = '...';
-        document.querySelector('#pop-modal-progress-total').textContent = 'checking cells';
-        document.querySelector('#pop-modal-progress-percent').textContent = 'Please wait';
+        document.querySelector('#pop-modal-progress-total').textContent = indeterminateLabel;
+        document.querySelector('#pop-modal-progress-percent').textContent = 'In progress';
         document.querySelector('#pop-modal-progress-bar').removeAttribute('value');
       } else {
         updatePopModalProgress(0, total, unit);
@@ -2580,20 +2580,49 @@
         .map(selector => document.querySelector(selector))
         .filter(Boolean);
       buttons.forEach(button => { button.disabled = true; });
+      let progressOpen = false;
       try {
+        await showPopModalProgress(null, {
+          title: deleting ? 'Archiving and deleting VCODEs' : 'Transferring VCODEs',
+          message: deleting
+            ? `Archiving ${rows.length} selected row${rows.length === 1 ? '' : 's'} and deleting them from the VCODE sheet. Please wait...`
+            : `Copying ${rows.length} selected VCODE${rows.length === 1 ? '' : 's'} to the assigned VACANCY sheet. Please wait...`,
+          progressLabel: 'Selected VCODEs',
+          indeterminateLabel: 'working on rows'
+        });
+        progressOpen = true;
         const result = await callSheetsFunction(action, {
           clientName: getActiveClient(),
           rows,
           ...(previewedUser ? { targetUsername: previewedUser.username } : {})
         });
         selectedVcodeVarianceRows = new Set();
-        notify(deleting
-          ? `${result.deletedCount} VCODE row${result.deletedCount === 1 ? '' : 's'} archived to ${result.archiveSheetTab} and deleted.`
-          : `${result.transferredCount} VCODE${result.transferredCount === 1 ? '' : 's'} copied to the assigned VACANCY tab.`);
+        if (progressOpen) {
+          closePopModalProgress();
+          progressOpen = false;
+        }
         await loadVcodeVarianceRecords();
+        await popModal({
+          title: deleting ? 'VCODE archive complete' : 'VCODE transfer complete',
+          message: deleting
+          ? `${result.deletedCount} VCODE row${result.deletedCount === 1 ? '' : 's'} archived to ${result.archiveSheetTab} and deleted.`
+          : `${result.transferredCount} VCODE${result.transferredCount === 1 ? '' : 's'} copied to the assigned VACANCY tab.`,
+          confirmLabel: 'Okay',
+          cancelLabel: ''
+        });
       } catch (error) {
-        notify(error.message || `Could not ${deleting ? 'archive and delete' : 'transfer'} selected VCODEs.`);
+        if (progressOpen) {
+          closePopModalProgress();
+          progressOpen = false;
+        }
+        await popModal({
+          title: deleting ? 'VCODE archive incomplete' : 'VCODE transfer incomplete',
+          message: error.message || `Could not ${deleting ? 'archive and delete' : 'transfer'} selected VCODEs.`,
+          confirmLabel: 'Okay',
+          cancelLabel: ''
+        });
       } finally {
+        if (progressOpen) closePopModalProgress();
         buttons.forEach(button => { button.disabled = false; });
       }
     }
