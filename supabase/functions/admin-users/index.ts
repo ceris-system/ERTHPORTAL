@@ -99,7 +99,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs')
+        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_deleted_tabs')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs')
+          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_deleted_tabs')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -226,7 +226,8 @@ Deno.serve(async request => {
           clientSheetUrls: data?.client_sheet_urls || {},
           sheetTab: data?.sheet_tab || '',
           clientSheetTabs: data?.client_sheet_tabs || {},
-          clientBufferDetailTabs: data?.client_buffer_detail_tabs || {}
+          clientBufferDetailTabs: data?.client_buffer_detail_tabs || {},
+          clientVcodeDeletedTabs: data?.client_vcode_deleted_tabs || {}
         });
       }
 
@@ -332,6 +333,26 @@ Deno.serve(async request => {
           throw new Error('Each detail tab name must match a selected client.');
         }
       }
+      const clientVcodeDeletedTabs: Record<string, string> = {};
+      if (body.clientVcodeDeletedTabs !== undefined) {
+        if (!body.clientVcodeDeletedTabs || typeof body.clientVcodeDeletedTabs !== 'object' || Array.isArray(body.clientVcodeDeletedTabs)) {
+          throw new Error('Provide valid deleted VCODE tab names for assigned clients.');
+        }
+        for (const clientName of clientNames) {
+          const tabName = body.clientVcodeDeletedTabs[clientName];
+          if (tabName === undefined) continue;
+          if (typeof tabName !== 'string' || tabName.trim().length > 100) {
+            throw new Error(`Enter a valid deleted VCODE tab name for ${clientName} (up to 100 characters).`);
+          }
+          if (/[:\\/?*\[\]\r\n]/.test(tabName.trim())) {
+            throw new Error(`The deleted VCODE tab name for ${clientName} contains an unsupported character.`);
+          }
+          clientVcodeDeletedTabs[clientName] = tabName.trim();
+        }
+        if (Object.keys(body.clientVcodeDeletedTabs).some(client => !clientNames.includes(client))) {
+          throw new Error('Each deleted VCODE tab name must match a selected client.');
+        }
+      }
       const { error } = await adminClient.from('dashboard_assignments').upsert({
         user_id: target.id,
         dashboard_name: dashboardName,
@@ -341,6 +362,7 @@ Deno.serve(async request => {
         sheet_tab: sheetTab,
         client_sheet_tabs: clientSheetTabs,
         client_buffer_detail_tabs: clientBufferDetailTabs,
+        client_vcode_deleted_tabs: clientVcodeDeletedTabs,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
@@ -355,7 +377,7 @@ Deno.serve(async request => {
           .eq('id', target.id);
         if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
       }
-      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs });
+      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs, clientVcodeDeletedTabs });
     }
 
     if (body.action === 'create') {

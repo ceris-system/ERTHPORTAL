@@ -385,6 +385,10 @@
     .buffer-detail-tools .buffer-detail-actions,.buffer-detail-tools .plantilla-status { grid-column:1 / -1; }
     .buffer-detail-tab-settings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; }
     .buffer-detail-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
+    .vcode-variance-bulk-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin:0 0 9px; }
+    .vcode-variance-bulk-actions span { margin-right:auto; color:#4b737a; font-size:10px; font-weight:700; }
+    .vcode-variance-checkbox { width:16px; height:16px; min-height:0; margin:0; accent-color:#168d91; cursor:pointer; }
+    .vcode-variance-selected td { background:rgba(226,248,245,.72); }
     .buffer-detail-tab-field { display:grid; gap:4px; color:#4b737a; font-size:9px; font-weight:700; }
     .buffer-detail-tab-field input { width:100%; min-width:0; min-height:34px; padding:0 8px; border:1px solid rgba(53,139,143,.2); border-radius:7px; color:var(--ink); font-size:10px; }
     .plantilla-summary-total td { position:sticky; bottom:0; z-index:1; border-top:2px solid #168d91; background:#e7f5f2; font-weight:800; }
@@ -1311,6 +1315,7 @@
         'SIL': 'PLANTILLA',
         '+-5% BUFFER': '-+5% GAP',
         'VCODE MASTERLIST': 'VCODE',
+        'VCODE VARIANCE': 'VCODE',
         'VACANCY MONITORING': 'VACANCY',
         'FOR APPROVAL': 'VACANCY',
         'HR EMPLOC MONITORING': 'G1N',
@@ -2302,6 +2307,8 @@
     let plantillaRecords = [];
     let plantillaDuplicateVcodes = [];
     let vcodeRecords = [];
+    let vcodeVarianceRecords = [];
+    let selectedVcodeVarianceRows = new Set();
     let vcodeSpreadsheetId = '';
     let vacancyRecords = [];
     let vacancyDeployers = [];
@@ -2447,6 +2454,142 @@
       document.querySelector('#vcode-home').addEventListener('click', showHome);
       document.querySelector('#vcode-search').addEventListener('input', renderVcodeTable);
       loadVcodeRecords();
+    }
+    function showVcodeVariance() {
+      saveCurrentView('dashboard', 'VCODE VARIANCE');
+      const clientName = getActiveClient();
+      selectedVcodeVarianceRows = new Set();
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE VARIANCE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('VCODE VARIANCE'))} · Source: VCODE!B3:F</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="vcode-variance-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="vcode-variance-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-variance-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-variance-search" class="plantilla-search" type="search" aria-label="Search VCODE variance records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off">${dashboardClientSwitcherMarkup('VCODE VARIANCE')}<p id="vcode-variance-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div id="vcode-variance-bulk-actions" class="vcode-variance-bulk-actions hidden"><span id="vcode-variance-selected-count" aria-live="polite"></span><button id="vcode-variance-transfer" type="button">Transfer to Vacancy</button><button id="vcode-variance-delete" type="button">Delete selected</button></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col"><input id="vcode-variance-select-all" class="vcode-variance-checkbox" type="checkbox" aria-label="Select all visible VCODE rows"></th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">ACTION</th></tr></thead><tbody id="vcode-variance-table-body"><tr><td colspan="6" class="plantilla-empty">Loading VCODE variance records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE variance rows matching the selected client</span><span>Source tab: ${escapeHtml(getDashboardSheetTab('VCODE VARIANCE', clientName))}</span></div>`;
+      applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('VCODE VARIANCE');
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VCODE VARIANCE')} · Source: ${getDashboardSheetTab('VCODE VARIANCE', clientName)}!B3:F`;
+      document.querySelector('#vcode-variance-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VCODE VARIANCE'));
+      document.querySelector('#vcode-variance-refresh').addEventListener('click', loadVcodeVarianceRecords);
+      document.querySelector('#vcode-variance-home').addEventListener('click', showHome);
+      document.querySelector('#vcode-variance-search').addEventListener('input', renderVcodeVarianceTable);
+      document.querySelector('#vcode-variance-select-all').addEventListener('change', event => {
+        const visibleRecords = getVisibleVcodeVarianceRecords();
+        if (event.currentTarget.checked) visibleRecords.forEach(record => selectedVcodeVarianceRows.add(record.rowNumber));
+        else visibleRecords.forEach(record => selectedVcodeVarianceRows.delete(record.rowNumber));
+        renderVcodeVarianceTable();
+      });
+      document.querySelector('#vcode-variance-table-body').addEventListener('change', event => {
+        const checkbox = event.target.closest('[data-vcode-variance-select]');
+        if (!checkbox) return;
+        const rowNumber = Number(checkbox.dataset.vcodeVarianceSelect);
+        if (checkbox.checked) selectedVcodeVarianceRows.add(rowNumber);
+        else selectedVcodeVarianceRows.delete(rowNumber);
+        renderVcodeVarianceTable();
+      });
+      document.querySelector('#vcode-variance-table-body').addEventListener('click', event => {
+        const button = event.target.closest('[data-vcode-variance-toggle]');
+        if (!button) return;
+        const rowNumber = Number(button.dataset.vcodeVarianceToggle);
+        if (selectedVcodeVarianceRows.has(rowNumber)) selectedVcodeVarianceRows.delete(rowNumber);
+        else selectedVcodeVarianceRows.add(rowNumber);
+        renderVcodeVarianceTable();
+      });
+      document.querySelector('#vcode-variance-transfer').addEventListener('click', () => performVcodeVarianceAction('transfer-vcodes'));
+      document.querySelector('#vcode-variance-delete').addEventListener('click', () => performVcodeVarianceAction('delete-vcodes'));
+      loadVcodeVarianceRecords();
+    }
+    async function loadVcodeVarianceRecords() {
+      const status = document.querySelector('#vcode-variance-status');
+      const body = document.querySelector('#vcode-variance-table-body');
+      if (!status || !body) return false;
+      const generation = ++dashboardReadGeneration;
+      const clientName = getActiveClient();
+      status.textContent = 'Loading records...';
+      body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">Loading VCODE variance records...</td></tr>';
+      try {
+        const result = await callSheetsFunction('read-vcode-variance', {
+          clientName,
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        if (generation !== dashboardReadGeneration) return false;
+        vcodeVarianceRecords = result.records || [];
+        const loadedRows = new Set(vcodeVarianceRecords.map(record => record.rowNumber));
+        selectedVcodeVarianceRows = new Set([...selectedVcodeVarianceRows].filter(rowNumber => loadedRows.has(rowNumber)));
+        renderVcodeVarianceTable();
+        return true;
+      } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
+        status.textContent = error?.message || 'Could not load VCODE variance records.';
+        body.innerHTML = `<tr><td colspan="6" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function getVisibleVcodeVarianceRecords() {
+      const search = document.querySelector('#vcode-variance-search')?.value.trim().toLocaleLowerCase() || '';
+      return search
+        ? vcodeVarianceRecords.filter(record => [record.vcode, record.outlet, record.position, record.hc]
+          .some(value => String(value ?? '').toLocaleLowerCase().includes(search)))
+        : vcodeVarianceRecords;
+    }
+    function renderVcodeVarianceTable() {
+      const status = document.querySelector('#vcode-variance-status');
+      const body = document.querySelector('#vcode-variance-table-body');
+      if (!status || !body) return;
+      const filteredRecords = getVisibleVcodeVarianceRecords();
+      const totalHc = filteredRecords.reduce((total, record) => {
+        const hc = Number(String(record.hc).replace(/,/g, '').trim());
+        return total + (Number.isFinite(hc) ? hc : 0);
+      }, 0);
+      status.textContent = `TOTAL HC: ${totalHc.toLocaleString(undefined, { maximumFractionDigits: 2 })} · ${filteredRecords.length} record${filteredRecords.length === 1 ? '' : 's'} shown`;
+      const selectedCount = selectedVcodeVarianceRows.size;
+      const actions = document.querySelector('#vcode-variance-bulk-actions');
+      actions?.classList.toggle('hidden', selectedCount === 0);
+      const count = document.querySelector('#vcode-variance-selected-count');
+      if (count) count.textContent = `${selectedCount} row${selectedCount === 1 ? '' : 's'} selected`;
+      const selectAll = document.querySelector('#vcode-variance-select-all');
+      if (selectAll) {
+        const selectedVisibleCount = filteredRecords.filter(record => selectedVcodeVarianceRows.has(record.rowNumber)).length;
+        selectAll.checked = !!filteredRecords.length && selectedVisibleCount === filteredRecords.length;
+        selectAll.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < filteredRecords.length;
+      }
+      if (!vcodeVarianceRecords.length) {
+        body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">No VCODE rows match the selected client.</td></tr>';
+        return;
+      }
+      if (!filteredRecords.length) {
+        body.innerHTML = '<tr><td colspan="6" class="plantilla-empty">No records match your search.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRecords.map(record => {
+        const selected = selectedVcodeVarianceRows.has(record.rowNumber);
+        return `<tr class="${selected ? 'vcode-variance-selected' : ''}"><td><input class="vcode-variance-checkbox" type="checkbox" data-vcode-variance-select="${record.rowNumber}" aria-label="Select VCODE ${escapeHtml(record.vcode)}" ${selected ? 'checked' : ''}></td><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button type="button" data-vcode-variance-toggle="${record.rowNumber}">${selected ? 'Deselect' : 'Select'}</button></td></tr>`;
+      }).join('');
+    }
+    async function performVcodeVarianceAction(action) {
+      const rows = vcodeVarianceRecords
+        .filter(record => selectedVcodeVarianceRows.has(record.rowNumber))
+        .map(({ rowNumber, vcode }) => ({ rowNumber, vcode }));
+      if (!rows.length) return notify('Select at least one VCODE row.');
+      const deleting = action === 'delete-vcodes';
+      const confirmation = deleting
+        ? `Archive and permanently delete ${rows.length} selected VCODE row${rows.length === 1 ? '' : 's'}?`
+        : `Copy ${rows.length} selected VCODE${rows.length === 1 ? '' : 's'} to the assigned VACANCY tab?`;
+      if (!window.confirm(confirmation)) return;
+      const buttons = ['#vcode-variance-transfer', '#vcode-variance-delete']
+        .map(selector => document.querySelector(selector))
+        .filter(Boolean);
+      buttons.forEach(button => { button.disabled = true; });
+      try {
+        const result = await callSheetsFunction(action, {
+          clientName: getActiveClient(),
+          rows,
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        selectedVcodeVarianceRows = new Set();
+        notify(deleting
+          ? `${result.deletedCount} VCODE row${result.deletedCount === 1 ? '' : 's'} archived to ${result.archiveSheetTab} and deleted.`
+          : `${result.transferredCount} VCODE${result.transferredCount === 1 ? '' : 's'} copied to the assigned VACANCY tab.`);
+        await loadVcodeVarianceRecords();
+      } catch (error) {
+        notify(error.message || `Could not ${deleting ? 'archive and delete' : 'transfer'} selected VCODEs.`);
+      } finally {
+        buttons.forEach(button => { button.disabled = false; });
+      }
     }
     async function loadVcodeRecords() {
       const status = document.querySelector('#vcode-status');
@@ -3992,6 +4135,34 @@
       }
       return result;
     }
+    function addDashboardVcodeDeletedTabInput(clientName, value = '') {
+      const list = document.querySelector('#dashboard-url-list');
+      const group = document.createElement('fieldset');
+      group.className = 'buffer-detail-tab-settings';
+      const legend = document.createElement('legend');
+      legend.textContent = `VCODE deletion archive for ${clientName}`;
+      group.append(legend);
+      const field = document.createElement('label');
+      field.className = 'buffer-detail-tab-field';
+      field.textContent = 'Deleted VCODE tab name';
+      const input = document.createElement('input');
+      input.className = 'vcode-deleted-tab-input';
+      input.type = 'text';
+      input.maxLength = 100;
+      input.autocomplete = 'off';
+      input.placeholder = 'Default: DELETED VCODES';
+      input.dataset.vcodeDeletedClient = clientName;
+      input.setAttribute('aria-label', `Deleted VCODE archive tab name for ${clientName}`);
+      input.value = value;
+      field.append(input);
+      group.append(field);
+      list.append(group);
+    }
+    function collectDashboardVcodeDeletedTabs() {
+      return Object.fromEntries([...document.querySelectorAll('.vcode-deleted-tab-input')]
+        .map(input => [input.dataset.vcodeDeletedClient, input.value.trim()])
+        .filter(([client]) => client));
+    }
     function addDashboardUrlRow(value = '', clientName = '', tabName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const row = document.createElement('div');
@@ -4066,6 +4237,7 @@
       else if (name === 'PLANTILLA SUMMARY') showPlantillaSummary();
       else if (name === 'SIL') showSilDashboard();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
+      else if (name === 'VCODE VARIANCE') showVcodeVariance();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
       else if (name === 'FOR APPROVAL') showForApproval();
@@ -4210,6 +4382,7 @@
       let activeClientUrlMap = {};
       let activeClientTabMap = {};
       let activeClientBufferDetailTabMap = {};
+      let activeClientVcodeDeletedTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
       if (name === 'HR EMPLOC MONITORING') {
         try {
@@ -4225,7 +4398,7 @@
         ])];
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {}, clientVcodeDeletedTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
@@ -4247,6 +4420,7 @@
         activeClientUrlMap = { ...clientSheetUrls };
         activeClientTabMap = { ...clientSheetTabs };
         activeClientBufferDetailTabMap = { ...clientBufferDetailTabs };
+        activeClientVcodeDeletedTabMap = { ...clientVcodeDeletedTabs };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
           (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
         }
@@ -4258,17 +4432,20 @@
             const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
             const currentTabs = Object.fromEntries([...list.querySelectorAll('[data-client-tab]')].map(input => [input.dataset.clientTab, input.value.trim()]));
             activeClientBufferDetailTabMap = { ...activeClientBufferDetailTabMap, ...collectDashboardBufferDetailTabs() };
+            activeClientVcodeDeletedTabMap = { ...activeClientVcodeDeletedTabMap, ...collectDashboardVcodeDeletedTabs() };
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
             activeClientTabMap = { ...activeClientTabMap, ...currentTabs };
             list.replaceChildren();
             selectedClientValues(clientOptions).forEach(client => {
               addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
               if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
+              if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '');
             });
           });
           selectedClientValues(clientOptions).forEach(client => {
             addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
             if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
+            if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '');
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
@@ -4277,6 +4454,9 @@
           );
           if (name === '+-5% BUFFER' && assignedClient) {
             addDashboardBufferDetailTabInputs(assignedClient, activeClientBufferDetailTabMap[assignedClient] || {});
+          }
+          if (name === 'VCODE VARIANCE' && assignedClient) {
+            addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeDeletedTabMap[assignedClient] || '');
           }
         }
         openDashboardUrl.disabled = !assignedUrls.length;
@@ -4738,6 +4918,7 @@
       button.textContent = 'Refreshing...';
       try {
         if (content.querySelector('#plantilla-table-body')) await loadPlantillaRecords();
+        else if (content.querySelector('#vcode-variance-table-body')) await loadVcodeVarianceRecords();
         else if (content.querySelector('#vcode-table-body')) await loadVcodeRecords();
         else if (content.querySelector('#vacancy-table-body')) await loadVacancyRecords();
         else if (content.querySelector('#approval-table-body')) await loadForApprovalRecords();
@@ -5003,6 +5184,8 @@
         .map(input => [input.dataset.clientTab, input.value.trim()]));
       const clientBufferDetailTabs = Object.fromEntries(Object.entries(collectDashboardBufferDetailTabs())
         .filter(([client]) => clientNames.includes(client)));
+      const clientVcodeDeletedTabs = Object.fromEntries(Object.entries(collectDashboardVcodeDeletedTabs())
+        .filter(([client]) => clientNames.includes(client)));
       if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
@@ -5021,6 +5204,9 @@
         tab.length > 100 || /[:\\/?*\[\]\r\n]/.test(tab)
       ))) {
         return showAssignmentError('Detail tab names must be 100 characters or fewer and cannot contain /, \\, ?, *, :, or square brackets.');
+      }
+      if (Object.values(clientVcodeDeletedTabs).some(tab => tab.length > 100 || /[:\\/?*\[\]\r\n]/.test(tab))) {
+        return showAssignmentError('Deleted VCODE tab names must be 100 characters or fewer and cannot contain /, \\, ?, *, :, or square brackets.');
       }
       const sources = [];
       for (const value of values) {
@@ -5044,6 +5230,7 @@
             sheetTab,
             clientSheetTabs,
             ...(selectedDashboard === '+-5% BUFFER' ? { clientBufferDetailTabs } : {}),
+            ...(selectedDashboard === 'VCODE VARIANCE' ? { clientVcodeDeletedTabs } : {}),
             ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;

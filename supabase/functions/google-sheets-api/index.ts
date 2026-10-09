@@ -91,6 +91,7 @@ function defaultSheetTab(dashboardName: string) {
     'PLANTILLA': 'PLANTILLA',
     '+-5% BUFFER': '-+5% GAP',
     'VCODE MASTERLIST': 'VCODE',
+    'VCODE VARIANCE': 'VCODE',
     'VACANCY MONITORING': 'VACANCY',
     'FOR APPROVAL': 'VACANCY',
     'HR EMPLOC MONITORING': 'G1N',
@@ -129,6 +130,9 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'read-buffer': '+-5% BUFFER',
     'read-buffer-detail': '+-5% BUFFER',
     'read-vcode': 'VCODE MASTERLIST',
+    'read-vcode-variance': 'VCODE VARIANCE',
+    'transfer-vcodes': 'VCODE VARIANCE',
+    'delete-vcodes': 'VCODE VARIANCE',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
     'approve-vacancy': 'FOR APPROVAL',
@@ -154,7 +158,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs')
+    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_deleted_tabs')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
@@ -224,14 +228,23 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     sheetTab = String(clientTabs?.[detailType] || '').trim();
     if (!sheetTab) throw new Error(`No sheet tab is assigned for this buffer detail dashboard and client ${requestedClient}. Add its tab name in the +-5% BUFFER assignment.`);
   }
+  const deletedVcodeTabs = assignment?.client_vcode_deleted_tabs && typeof assignment.client_vcode_deleted_tabs === 'object'
+    ? assignment.client_vcode_deleted_tabs
+    : {};
+  const matchedDeletedVcodeClient = Object.keys(deletedVcodeTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
+  const deletedVcodeTab = String((matchedDeletedVcodeClient ? deletedVcodeTabs[matchedDeletedVcodeClient] : '') || 'DELETED VCODES').trim();
   if (!sheetTab || sheetTab.length > 100) throw new Error(`The assigned tab name for ${dashboardName} is invalid.`);
+  if (!deletedVcodeTab || deletedVcodeTab.length > 100 || /[:\\/?*\[\]\r\n]/.test(deletedVcodeTab)) {
+    throw new Error('The assigned deleted VCODE tab name is invalid.');
+  }
   return {
     spreadsheetId: match[1],
     targetUserId: target.id,
     clientName: requestedClient || String(target.client_name || '').trim(),
     clientNames: scopedClientNames,
     targetRole: target.role,
-    sheetTab
+    sheetTab,
+    deletedVcodeTab
   };
 }
 
@@ -1021,6 +1034,204 @@ async function readVcode(spreadsheetId: string, tabName = 'VCODE') {
   return { displayValues: result.values || [] };
 }
 
+async function readVcodeVariance(spreadsheetId: string, tabName: string, clientName: string) {
+  const result = await googleRequest(
+    `spreadsheets/${spreadsheetId}/values/${sheetRange(tabName, 'B3:F')}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const targetClient = clientName.trim().toLocaleLowerCase();
+  if (!targetClient) throw new Error('A client must be selected to load VCODE variance records.');
+  const records = (result.values || []).flatMap((row: unknown[], index: number) => {
+    const vcode = String(row[0] ?? '').trim();
+    const client = String(row[4] ?? '').trim().toLocaleLowerCase();
+    if (!vcode || client !== targetClient) return [];
+    return [{
+      rowNumber: index + 3,
+      vcode,
+      outlet: String(row[1] ?? '').trim(),
+      position: String(row[2] ?? '').trim(),
+      hc: String(row[3] ?? '').trim()
+    }];
+  });
+  return { records, count: records.length };
+}
+
+function parseVcodeVarianceSelection(value: unknown) {
+  if (!Array.isArray(value) || !value.length || value.length > 100) {
+    throw new Error('Select between 1 and 100 VCODE records.');
+  }
+  const rows = value.map((item: unknown) => {
+    if (!item || typeof item !== 'object') throw new Error('A selected VCODE row is invalid.');
+    const rowNumber = Number((item as { rowNumber?: unknown }).rowNumber);
+    const vcode = String((item as { vcode?: unknown }).vcode ?? '').trim();
+    if (!Number.isInteger(rowNumber) || rowNumber < 3 || !vcode) throw new Error('A selected VCODE row is invalid. Refresh and try again.');
+    return { rowNumber, vcode };
+  });
+  if (new Set(rows.map(row => row.rowNumber)).size !== rows.length) {
+    throw new Error('A VCODE row was selected more than once. Refresh and try again.');
+  }
+  return rows;
+}
+
+async function validateVcodeVarianceSelection(
+  spreadsheetId: string,
+  sheetTab: string,
+  clientName: string,
+  rows: { rowNumber: number; vcode: string }[]
+) {
+  const ranges = rows.map(row => `ranges=${sheetRange(sheetTab, `B${row.rowNumber}:F${row.rowNumber}`)}`).join('&');
+  const result = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGet?${ranges}&valueRenderOption=FORMATTED_VALUE`);
+  const values = result.valueRanges || [];
+  const clientKey = clientName.trim().toLocaleLowerCase();
+  return rows.map((row, index) => {
+    const valuesAtRow = values[index]?.values?.[0] || [];
+    const currentVcode = String(valuesAtRow[0] ?? '').trim();
+    const currentClient = String(valuesAtRow[4] ?? '').trim().toLocaleLowerCase();
+    if (currentVcode !== row.vcode || currentClient !== clientKey) {
+      throw new Error(`VCODE ${row.vcode} changed or no longer belongs to ${clientName}. Refresh the table and try again.`);
+    }
+    return row;
+  });
+}
+
+async function appendVcodesToVacancy(
+  sourceSpreadsheetId: string,
+  sourceSheetTab: string,
+  vacancySpreadsheetId: string,
+  vacancySheetTab: string,
+  clientName: string,
+  selection: unknown
+) {
+  const rows = parseVcodeVarianceSelection(selection);
+  await validateVcodeVarianceSelection(sourceSpreadsheetId, sourceSheetTab, clientName, rows);
+  const [metadata, currentVcodes] = await Promise.all([
+    googleRequest(`spreadsheets/${vacancySpreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`),
+    googleRequest(`spreadsheets/${vacancySpreadsheetId}/values/${sheetRange(vacancySheetTab, 'B5:B')}?valueRenderOption=FORMATTED_VALUE`)
+  ]);
+  const vacancySheet = (metadata.sheets || []).find((sheet: any) => sheet.properties?.title === vacancySheetTab);
+  if (!vacancySheet) throw new Error(`The assigned VACANCY spreadsheet does not have a ${vacancySheetTab} tab.`);
+  const vacancyRows = currentVcodes.values || [];
+  const lastUsedRow = vacancyRows.reduce((lastRow: number, row: unknown[], index: number) =>
+    row.some(value => String(value ?? '').trim()) ? index + 5 : lastRow, 4);
+  const firstDestinationRow = lastUsedRow + 1;
+  const lastDestinationRow = firstDestinationRow + rows.length - 1;
+  await ensureDestinationRow(vacancySpreadsheetId, vacancySheet, lastDestinationRow, 2);
+  await googleRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: [{
+        range: sheetRange(vacancySheetTab, `B${firstDestinationRow}:B${lastDestinationRow}`),
+        values: rows.map(row => [row.vcode])
+      }]
+    })
+  });
+  const verification = await googleRequest(
+    `spreadsheets/${vacancySpreadsheetId}/values/${sheetRange(vacancySheetTab, `B${firstDestinationRow}:B${lastDestinationRow}`)}?valueRenderOption=FORMATTED_VALUE`
+  );
+  if (!rows.every((row, index) => String(verification.values?.[index]?.[0] ?? '').trim() === row.vcode)) {
+    throw new Error('The VCODE copy to VACANCY could not be verified.');
+  }
+  return { transferredCount: rows.length };
+}
+
+async function archiveAndDeleteVcodes(
+  spreadsheetId: string,
+  sourceSheetTab: string,
+  archiveSheetTab: string,
+  clientName: string,
+  selection: unknown
+) {
+  const rows = parseVcodeVarianceSelection(selection);
+  await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
+  const rowRanges = rows.map(row => `ranges=${sheetRange(sourceSheetTab, `A${row.rowNumber}:S${row.rowNumber}`)}`).join('&');
+  const sourceValues = await googleRequest(
+    `spreadsheets/${spreadsheetId}/values:batchGet?${rowRanges}&valueRenderOption=FORMATTED_VALUE`
+  );
+  const sourceRows = sourceValues.valueRanges || [];
+  if (sourceRows.length !== rows.length) throw new Error('Could not read all selected VCODE rows; no rows were deleted.');
+  const archivedAt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Manila',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  }).format(new Date());
+  const archiveRows = rows.map((selected, index) => {
+    const sourceRow = sourceRows[index]?.values?.[0] || [];
+    if (String(sourceRow[1] ?? '').trim() !== selected.vcode ||
+      String(sourceRow[5] ?? '').trim().toLocaleLowerCase() !== clientName.trim().toLocaleLowerCase()) {
+      throw new Error(`VCODE ${selected.vcode} changed while preparing its archive; no rows were deleted.`);
+    }
+    return [...Array.from({ length: 19 }, (_, column) => sourceRow[column] ?? ''), archivedAt];
+  });
+  const metadata = await googleRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
+  const sheets = metadata.sheets || [];
+  const sourceSheet = sheets.find((sheet: any) => sheet.properties?.title === sourceSheetTab);
+  if (!sourceSheet) throw new Error(`The VCODE source tab ${sourceSheetTab} was not found.`);
+  let archiveSheet = sheets.find((sheet: any) => sheet.properties?.title === archiveSheetTab);
+  if (!archiveSheet) {
+    try {
+      const created = await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ requests: [{ addSheet: { properties: { title: archiveSheetTab } } }] })
+      });
+      archiveSheet = { properties: created.replies?.[0]?.addSheet?.properties };
+    } catch (error) {
+      const refreshed = await googleRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
+      archiveSheet = (refreshed.sheets || []).find((sheet: any) => sheet.properties?.title === archiveSheetTab);
+      if (!archiveSheet) throw error;
+    }
+  }
+  if (!archiveSheet?.properties?.sheetId) throw new Error(`Could not prepare the ${archiveSheetTab} archive tab.`);
+  try {
+    const appendResult = await googleRequest(`spreadsheets/${spreadsheetId}/values/${sheetRange(archiveSheetTab, 'A:T')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+      method: 'POST',
+      body: JSON.stringify({ values: archiveRows })
+    });
+    const appendedRange = appendResult.updates?.updatedRange;
+    if (!appendedRange) throw new Error('The Sheets API did not confirm the archive destination range.');
+    const verifyRange = encodeURIComponent(appendedRange);
+    const verification = await googleRequest(
+      `spreadsheets/${spreadsheetId}/values/${verifyRange}?valueRenderOption=FORMATTED_VALUE`
+    );
+    const copiedRows = verification.values || [];
+    const sameArchive = archiveRows.every((expected: unknown[], index: number) =>
+      expected.every((value, column) => String(copiedRows[index]?.[column] ?? '') === String(value ?? ''))
+    );
+    if (!sameArchive) throw new Error('The archived rows did not match the selected source rows.');
+  } catch (error) {
+    throw new Error(`The archive copy to ${archiveSheetTab} failed; the original VCODE rows were kept. ${error instanceof Error ? error.message : ''}`.trim());
+  }
+  try {
+    await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
+    await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: rows
+          .map(row => row.rowNumber - 1)
+          .sort((left, right) => right - left)
+          .map(rowIndex => ({
+            deleteDimension: {
+              range: {
+                sheetId: sourceSheet.properties.sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex,
+                endIndex: rowIndex + 1
+              }
+            }
+          }))
+      })
+    });
+  } catch (error) {
+    throw new Error(`The rows were safely copied to ${archiveSheetTab}, but deleting them from ${sourceSheetTab} failed. No archived copies were removed. ${error instanceof Error ? error.message : ''}`.trim());
+  }
+  return { deletedCount: rows.length, archiveSheetTab };
+}
+
 async function readBuffer(spreadsheetId: string, tabName = '-+5% GAP') {
   const range = sheetRange(tabName, 'C9:T');
   const [raw, display] = await Promise.all([
@@ -1193,7 +1404,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1204,7 +1415,22 @@ Deno.serve(async request => {
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+
+    if (body.action === 'transfer-vcodes') {
+      const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
+      return respond(await appendVcodesToVacancy(
+        spreadsheetId,
+        sheetTab,
+        vacancyDestination.spreadsheetId,
+        vacancyDestination.sheetTab,
+        clientName,
+        body.rows
+      ));
+    }
+    if (body.action === 'delete-vcodes') {
+      return respond(await archiveAndDeleteVcodes(spreadsheetId, sheetTab, deletedVcodeTab, clientName, body.rows));
+    }
 
     if (body.action === 'approve-vacancy') {
       if (!Array.isArray(body.vcodes) || !body.vcodes.length || body.vcodes.length > 100) {
@@ -1285,6 +1511,7 @@ Deno.serve(async request => {
     }
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId, sheetTab));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId, sheetTab));
+    if (body.action === 'read-vcode-variance') return respond(await readVcodeVariance(spreadsheetId, sheetTab, clientName));
     if (body.action === 'read-buffer') return respond(await readBuffer(spreadsheetId, sheetTab));
     if (body.action === 'read-buffer-detail') return respond(await readBufferDetail(spreadsheetId, sheetTab, String(body.detailType || ''), clientName));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames, true, sheetTab));
