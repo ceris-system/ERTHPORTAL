@@ -145,16 +145,11 @@
     #dashboard .remove-source { width:36px; min-height:38px; padding:0; border-color:rgba(194,103,96,.28); color:#a44740; background:linear-gradient(180deg,#fff,#fff1ef); font-size:17px; }
     #dashboard .add-source-button { min-height:34px; padding:0 8px; border-color:transparent; color:#147f83; background:transparent; box-shadow:none; }
     #dashboard .approval-approve-button { border-color:rgba(39,139,109,.3); color:#17684d; background:linear-gradient(180deg,#f6fffa,#e2f7ed); }
-    #dashboard .buffer-detail-actions button { display:grid; grid-template-columns:42px minmax(0,1fr) 18px; align-items:center; gap:13px; min-height:98px; padding:14px 16px; border:1px solid rgba(116,148,162,.27); border-radius:13px; color:#173b4a; background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(239,246,249,.95)); box-shadow:0 4px 12px rgba(12,34,57,.1),inset 0 1px 0 #fff; font-family:inherit; text-align:left; white-space:normal; }
+    #dashboard .buffer-detail-actions button { display:inline-flex; width:fit-content; max-width:min(100%,360px); min-height:0; align-items:center; justify-content:center; gap:11px; padding:11px 15px; border:1px solid rgba(116,148,162,.27); border-radius:13px; color:#173b4a; background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(239,246,249,.95)); box-shadow:0 4px 12px rgba(12,34,57,.1),inset 0 1px 0 #fff; font-family:inherit; text-align:center; white-space:normal; }
     #dashboard .buffer-detail-actions button:hover:not(:disabled) { transform:translateY(-2px); border-color:rgba(26,165,170,.55); color:#126d73; background:#fff; box-shadow:0 9px 20px rgba(12,54,71,.15),0 0 0 3px rgba(26,165,170,.08); }
-    .buffer-detail-icon { width:42px; height:42px; display:grid; place-items:center; border:1px solid rgba(26,143,151,.12); border-radius:12px; color:#16858b; background:linear-gradient(145deg,#e5f8f5,#dcecf5); box-shadow:inset 0 1px #fff; }
+    .buffer-detail-icon { width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center; border:1px solid rgba(26,143,151,.12); border-radius:11px; color:#16858b; background:linear-gradient(145deg,#e5f8f5,#dcecf5); box-shadow:inset 0 1px #fff; }
     .buffer-detail-icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-    .buffer-detail-copy { min-width:0; display:grid; gap:5px; }
-    .buffer-detail-copy small { color:#80929e; font:600 9px/1.2 'Roboto Mono',monospace; letter-spacing:.09em; text-transform:uppercase; }
-    .buffer-detail-copy strong { color:#193c4b; font:700 11px/1.45 'Roboto Mono',monospace; overflow-wrap:anywhere; }
-    .buffer-detail-copy span { color:#718792; font-size:10px; font-weight:500; line-height:1.4; }
-    .buffer-detail-arrow { color:#7e9ba4; font-size:20px; transition:transform .16s ease,color .16s ease; }
-    #dashboard .buffer-detail-actions button:hover .buffer-detail-arrow { color:#148f91; transform:translateX(3px); }
+    .buffer-detail-label { max-width:270px; color:#193c4b; font:700 11px/1.4 'Roboto Mono',monospace; overflow-wrap:anywhere; text-wrap:balance; }
     .workspace-card { display:flex; align-items:center; gap:11px; margin:0 5px; padding:12px 11px; border:1px solid rgba(55,150,151,.16); border-radius:13px; background:rgba(255,255,255,.58); }
     .workspace-card strong, .workspace-card span { display:block; }
     .workspace-card strong { font-size:12px; }
@@ -383,8 +378,8 @@
     .buffer-table td:first-child { border-left:1px solid #111; text-align:left; }
     .buffer-table .buffer-exception-cell,.buffer-table .buffer-range-danger { color:#111; background:#e89a9a; font-weight:800; }
     .buffer-table .buffer-range-safe { color:#111; background:#00ed18; font-weight:700; }
-    .buffer-detail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; }
-    .buffer-detail-actions button { min-height:44px; padding:8px 12px; border:1px solid rgba(53,139,143,.22); border-radius:10px; color:#17636b; background:rgba(255,255,255,.82); font-size:10px; font-weight:800; line-height:1.35; text-align:left; }
+    .buffer-detail-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px; width:100%; }
+    .buffer-detail-actions button { font-size:10px; line-height:1.35; }
     .buffer-detail-actions button:hover { border-color:#168d91; background:#e7f8f4; }
     .buffer-detail-tools { display:grid; grid-template-columns:minmax(0,1fr) auto; }
     .buffer-detail-tools .buffer-detail-actions,.buffer-detail-tools .plantilla-status { grid-column:1 / -1; }
@@ -501,8 +496,8 @@
       .record-drawer-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media(max-width:480px) {
-      .buffer-detail-actions { grid-template-columns:minmax(0,1fr); }
-      #dashboard .buffer-detail-actions button { min-height:86px; }
+      .buffer-detail-actions { gap:8px; }
+      #dashboard .buffer-detail-actions button { max-width:100%; }
       .record-drawer { width:94vw; padding:26px 15px; }
       .record-drawer-fields { grid-template-columns:minmax(0,1fr); }
     }
@@ -3647,7 +3642,7 @@
       for (const [detailType, label, description, icon] of bufferDetailDefinitions) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.innerHTML = `<span class="buffer-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icon}</svg></span><span class="buffer-detail-copy"><small>FILTERED EMPLOYEE LIST</small><strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span></span><span class="buffer-detail-arrow" aria-hidden="true">›</span>`;
+        button.innerHTML = `<span class="buffer-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icon}</svg></span><span class="buffer-detail-label">${escapeHtml(label)}</span>`;
         button.setAttribute('aria-label', `Open ${label} employee details`);
         button.addEventListener('click', () => showBufferDetailDashboard(detailType));
         detailActions.append(button);
