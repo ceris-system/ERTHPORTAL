@@ -348,6 +348,18 @@
     .plantilla-toolbar h1 { margin:0; font:800 20px/1.2 'Roboto Mono',monospace; }
     .plantilla-toolbar p { margin:5px 0 0; color:#718b92; font-size:9px; }
     .plantilla-actions { display:flex; align-items:center; gap:8px; }
+    .deactivation-entry-card { padding:17px 18px; margin:0 0 16px; border:1px solid rgba(53,139,143,.17); border-radius:15px; background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(239,249,247,.9)); box-shadow:0 8px 22px rgba(33,100,111,.06); }
+    .deactivation-entry-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .deactivation-entry-heading h2 { margin:0; color:#254d55; font-size:13px; font-weight:800; letter-spacing:.04em; }
+    .deactivation-entry-heading p { margin:5px 0 0; color:#718b92; font-size:10px; line-height:1.5; }
+    .deactivation-fields { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .deactivation-entry-card .field { min-width:0; margin:0; }
+    .deactivation-entry-card .field label { color:#456a71; font-size:10px; font-weight:800; }
+    .deactivation-entry-card .field input,.deactivation-entry-card .field select { width:100%; min-height:42px; padding:0 11px; border:1px solid #d3e4e1; border-radius:9px; color:#193b42; background:#fff; font:11px 'Roboto Mono',monospace; }
+    .deactivation-entry-card .field input:focus,.deactivation-entry-card .field select:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.11); outline:0; }
+    .deactivation-entry-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+    .deactivation-entry-footer p { margin:0; color:#718b92; font-size:10px; }
+    .deactivation-entry-card .primary-button { width:auto; min-width:145px; min-height:40px; padding:0 16px; }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
@@ -395,6 +407,17 @@
     .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
     .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
     .plantilla-empty { color:#80979c !important; text-align:center; }
+    @media(max-width:900px) {
+      .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
+    @media(max-width:720px) {
+      .deactivation-entry-heading,.deactivation-entry-footer { align-items:stretch; flex-direction:column; }
+      .deactivation-entry-card .primary-button { width:100%; }
+      .plantilla-actions { flex-wrap:wrap; justify-content:flex-end; }
+    }
+    @media(max-width:480px) {
+      .deactivation-fields { grid-template-columns:minmax(0,1fr); }
+    }
     .view-row-button { padding:6px 9px; border:1px solid rgba(53,139,143,.17); border-radius:8px; color:#147f83; background:rgba(255,255,255,.7); font-size:9px; font-weight:700; }
     .drawer-backdrop { position:fixed; z-index:8; inset:0; visibility:hidden; opacity:0; background:rgba(20,55,64,.22); backdrop-filter:blur(3px); transition:opacity .25s,visibility .25s; }
     .drawer-backdrop.open { visibility:visible; opacity:1; }
@@ -4327,8 +4350,9 @@
     function showDeactivationDashboard() {
       saveCurrentView('dashboard', 'DEACTIVATION');
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode('DEACTIVATION'));
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))}</p></div><div class="plantilla-actions"><button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="drawer-update"><h3>ADD DEACTIVATION RECORD</h3><div class="drawer-update-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100"></div><div class="field"><label for="deactivation-fullname">FULLNAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Automatically looked up from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><button id="deactivation-save" class="primary-button" type="submit">Save record</button></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))} · Manage inactive employee records</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" class="secondary-button" type="button">Assign URL</button>' : ''}<button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="deactivation-entry-card"><div class="deactivation-entry-heading"><div><h2>ADD DEACTIVATION RECORD</h2><p>Full name is looked up from MIKA FILE when you enter a matching EMPLOC.</p></div></div><div class="deactivation-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"></div><div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><div class="deactivation-entry-footer"><p>Records are saved to the assigned spreadsheet tab, starting at column A.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULL NAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
       applyDashboardAssignmentPermissions();
+      document.querySelector('#deactivation-assign-sheet')?.addEventListener('click', () => openDashboardEditor('DEACTIVATION'));
       document.querySelector('#deactivation-home').addEventListener('click', showHome);
       document.querySelector('#deactivation-refresh').addEventListener('click', loadDeactivationRecords);
       document.querySelector('#deactivation-search').addEventListener('input', renderDeactivationRecords);
@@ -4374,7 +4398,6 @@
         });
         deactivationRecords = result.records || [];
         renderDeactivationRecords();
-        status.textContent = `${deactivationRecords.length} record${deactivationRecords.length === 1 ? '' : 's'} loaded.`;
       } catch (error) {
         deactivationRecords = [];
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(error.message || 'Could not load deactivation records.')}</td></tr>`;
@@ -4391,11 +4414,13 @@
       );
       if (!rows.length) {
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
+        document.querySelector('#deactivation-status').textContent = `0 shown · ${deactivationRecords.length} total records.`;
         return;
       }
       body.innerHTML = rows.map(record =>
         `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.inactiveDate)}</td></tr>`
       ).join('');
+      document.querySelector('#deactivation-status').textContent = `${rows.length} shown · ${deactivationRecords.length} total record${deactivationRecords.length === 1 ? '' : 's'}.`;
     }
     async function saveDeactivationEntry(event) {
       event.preventDefault();
@@ -5428,6 +5453,9 @@
         if (collidingArchiveClient) {
           return showAssignmentError(`The deleted VCODE archive tab for ${collidingArchiveClient} must be different from its fetch and VCODE source tabs.`);
         }
+      }
+      if (selectedDashboard === 'DEACTIVATION' && !values.length) {
+        return showAssignmentError('Enter the DEACTIVATION Google Sheets URL before saving this assignment.');
       }
       const sources = [];
       for (const value of values) {

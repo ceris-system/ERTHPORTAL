@@ -278,6 +278,9 @@ Deno.serve(async request => {
           throw new Error('Each spreadsheet URL must match a selected client.');
         }
       }
+      if (dashboardName === 'DEACTIVATION' && urls.length === 0 && Object.keys(clientSheetUrls).length === 0) {
+        throw new Error('Enter the DEACTIVATION Google Sheets URL before saving this assignment.');
+      }
       const sheetTab = typeof body.sheetTab === 'string' ? body.sheetTab.trim() : '';
       if (sheetTab.length > 100) throw new Error('Tab names must be 100 characters or fewer.');
       if (/[:\\/?*\[\]\r\n]/.test(sheetTab)) throw new Error('Tab names cannot contain /, \\, ?, *, :, or square brackets.');
