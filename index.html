@@ -680,6 +680,162 @@
     @media(prefers-reduced-motion:reduce) {
       *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
     }
+
+    /* =====================================================================
+       ERTH PORTAL — refinement layer
+       Same concept (night sky, liquid glass, aqua bubbles, pastel notice
+       board, monospace voice). This layer only polishes: depth, contrast,
+       spacing, alignment and readability. No behaviour is changed.
+       ===================================================================== */
+    :root {
+      --glass-edge: rgba(255,255,255,.18);
+      --glass-fill: rgba(255,255,255,.06);
+      --night-ink: #07122a;
+      --teal-deep: #0e7f86;
+      --teal-glow: rgba(60,214,205,.35);
+      --on-night: #eaf2ff;
+      --on-night-2: #b6c6e6;
+      --on-night-3: #8ea1c6;
+    }
+    body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-size: 13px; }
+    ::selection { background: rgba(26,164,160,.28); }
+    .scene { background: radial-gradient(ellipse at 50% -12%, rgba(52,92,172,.46), transparent 50%), radial-gradient(ellipse at 85% 80%, rgba(20,160,160,.14), transparent 45%), radial-gradient(ellipse at 10% 90%, rgba(40,60,140,.28), transparent 45%), linear-gradient(145deg, #030712, #071329 52%, #020611); }
+
+    /* ---------- Login ---------- */
+    .intro h1 { letter-spacing: -.04em; text-wrap: balance; }
+    .intro h1 span { color: #a9cdff; text-wrap: balance; }
+    .intro-copy { color: rgba(236,243,255,.88); }
+    .eyebrow { letter-spacing: .12em; }
+    .brand-mark { box-shadow: 0 8px 22px rgba(18,190,184,.35), inset 0 1px 0 rgba(255,255,255,.35); }
+    .login-card { border: 1px solid rgba(255,255,255,.9); background: linear-gradient(160deg, rgba(255,255,255,.97), rgba(240,250,249,.94)); box-shadow: 0 34px 90px rgba(0,0,0,.42), 0 0 0 10px rgba(255,255,255,.035), inset 0 1px 0 #fff; }
+    .field input { height: 49px; border-color: #cfe3e0; background: #fff; transition: border-color .16s, box-shadow .16s; }
+    .field input:hover { border-color: #a9cfcb; }
+    .field input:focus { border-color: #14a39f; box-shadow: 0 0 0 4px rgba(20,163,159,.16); outline: 0; }
+    .primary-button { background: linear-gradient(180deg, #17a7a3 0%, #0f7b86 100%); box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 12px 24px rgba(15,123,134,.28); letter-spacing: .02em; }
+    .primary-button:hover { box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 16px 30px rgba(15,123,134,.36); }
+
+    /* ---------- Top bar: floating glass rail ---------- */
+    .main { padding-top: 14px; }
+    .topbar { position: sticky; top: 10px; z-index: 20; max-width: 1320px; margin: 0 auto 16px; padding: 9px 14px 9px 18px; border: 1px solid rgba(255,255,255,.12); border-radius: 18px; background: linear-gradient(180deg, rgba(255,255,255,.09), rgba(255,255,255,.035)); box-shadow: 0 14px 40px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.12); backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); }
+    .topbar-brand { gap: 11px !important; letter-spacing: .04em; }
+    .topbar-brand .brand-mark { width: 32px; height: 32px; border-radius: 11px 11px 13px 6px; }
+    .topbar-brand .brand-mark svg { width: 18px; height: 18px; }
+    .dashboard:not(.hidden) .client-label { font-size: 10px; letter-spacing: .1em; opacity: .85; }
+    .dashboard:not(.hidden) .client-badge { padding: 5px 11px; border: 1px solid rgba(120,235,225,.35); border-radius: 999px; color: #b5f5ee; background: rgba(40,200,190,.12); font-size: 10px; letter-spacing: .06em; text-shadow: none; }
+    .utility-button, .secondary-button { min-height: 38px; border: 1px solid rgba(255,255,255,.7); border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #e9f6f5 100%); box-shadow: 0 6px 16px rgba(0,20,40,.2), inset 0 1px 0 #fff; letter-spacing: .01em; }
+    .utility-button:hover, .secondary-button:hover { background: #fff; box-shadow: 0 10px 22px rgba(0,20,40,.26), 0 0 0 3px rgba(80,225,215,.18), inset 0 1px 0 #fff; }
+    .topbar-logout { border: 1px solid rgba(255,255,255,.14); color: #cfe0f5; background: rgba(255,255,255,.08); }
+    .topbar-logout:hover { color: #ffb1a8; background: rgba(255,255,255,.14); }
+    .topbar-avatar { border: 2px solid rgba(255,255,255,.35); box-shadow: 0 6px 16px rgba(0,0,0,.35); }
+    .dashboard:not(.hidden) .header-welcome strong { font-size: 14px; }
+    #topbar-clock, #topbar-date { font-variant-numeric: tabular-nums; }
+
+    /* ---------- Home: dashboard picker (bubbles) ---------- */
+    .dashboard-picker { margin: 0 0 18px; padding: 14px 22px; border: 1px solid rgba(255,255,255,.1); border-radius: 22px; background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.025)); box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 16px 40px rgba(0,0,0,.25); backdrop-filter: blur(14px); }
+    .picker-heading { margin: 0; gap: 20px; }
+    .dashboard:not(.hidden) .picker-heading h2 { font-size: 15px; letter-spacing: .08em; color: #fff; }
+    .bubble-grid { gap: 12px 16px; padding: 4px 0 6px; }
+    .bubble-button { width: 62px; height: 62px; flex-basis: 62px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.2), inset 0 2px 5px rgba(255,255,255,.98), inset 3px 0 8px rgba(255,255,255,.48), inset -5px -7px 13px rgba(31,115,142,.24), 0 1px 2px rgba(255,255,255,.9), 0 10px 20px rgba(0,12,32,.38), 0 0 18px rgba(80,225,235,.12); }
+    .bubble-button:hover { box-shadow: inset 0 2px 4px #fff, inset 0 -5px 8px rgba(35,122,136,.3), 0 14px 26px rgba(0,12,32,.45), 0 0 26px rgba(80,225,235,.38); }
+    .bubble-button::after { padding: 7px 11px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; background: rgba(8,22,48,.94); box-shadow: 0 10px 24px rgba(0,0,0,.4); font-size: 11px; letter-spacing: .03em; }
+    .bubble-emoji { font-size: 22px; }
+
+    /* ---------- Home: notice board ---------- */
+    .alert-board { padding: 26px 28px 20px; border: 1px solid rgba(255,255,255,.85); border-radius: 22px; background: linear-gradient(150deg, rgba(228,248,247,.9), rgba(184,222,223,.72) 46%, rgba(230,244,241,.88)); box-shadow: 0 24px 60px rgba(0,10,30,.38), inset 0 1px 0 #fff, inset 0 -4px 14px rgba(46,111,120,.12); }
+    .alert-board:hover { transform: translateY(-2px); box-shadow: 0 30px 70px rgba(0,10,30,.45), inset 0 1px 0 #fff, inset 0 -4px 14px rgba(46,111,120,.14); }
+    .required-tag { padding: 6px 14px; font-size: 10px; letter-spacing: .1em; }
+    .alert-heading h2 { margin: 10px 0 6px; font-size: clamp(16px, 1.55vw, 21px); letter-spacing: .02em; }
+    .alert-heading p { color: #2c525d; font-size: 13.5px; }
+    .steps { gap: 14px; margin-top: 34px; }
+    .step { min-height: 150px; padding: 32px 14px 16px; border-radius: 14px; box-shadow: inset 0 1px rgba(255,255,255,.95), inset 0 -2px 6px rgba(42,90,99,.08), 0 8px 18px color-mix(in srgb, var(--step) 16%, transparent); }
+    .step:hover { transform: translateY(-4px); box-shadow: inset 0 1px rgba(255,255,255,.98), inset 0 -2px 6px rgba(42,90,99,.1), 0 16px 28px color-mix(in srgb, var(--step) 30%, transparent); }
+    .step-icon { top: -22px; width: 42px; height: 42px; box-shadow: inset 0 1px 3px #fff, 0 6px 14px rgba(22,58,71,.28); }
+    .step h3 { margin: 2px 0 8px; font-size: 12.5px; letter-spacing: .01em; }
+    .step p { color: #2b4a52; font-size: 12.5px; line-height: 1.6; }
+    .alert-footer { margin-top: 18px; padding: 10px 16px; font-size: 11px; letter-spacing: .02em; box-shadow: inset 0 1px 2px rgba(255,255,255,.52), 0 6px 14px rgba(31,76,85,.2); }
+
+    /* ---------- Module pages (readable on the night sky) ---------- */
+    .plantilla-toolbar { align-items: flex-end; gap: 16px; margin: 6px 0 14px; }
+    .plantilla-toolbar h1, .module-heading h1 { color: #fff; font-size: clamp(21px, 2vw, 26px); letter-spacing: -.02em; text-shadow: 0 2px 14px rgba(0,0,0,.4); }
+    .plantilla-toolbar p, .module-heading p { margin-top: 7px; color: var(--on-night-2); font-size: 11px; letter-spacing: .02em; }
+    .plantilla-actions, .sil-toolbar-controls { flex-wrap: wrap; justify-content: flex-end; }
+    .plantilla-status { margin-left: auto; color: var(--on-night-3); font-size: 11.5px; }
+    .module-footer { color: var(--on-night-3); font-size: 10.5px; }
+    .module-index { color: var(--on-night-2); border-color: rgba(255,255,255,.14); background: rgba(255,255,255,.06); }
+    .dashboard-client-switcher, .sil-filters label, .vcode-variance-bulk-actions span { color: var(--on-night-2); }
+    .vcode-variance-bulk-actions { padding: 9px 14px; border: 1px solid rgba(120,235,225,.28); border-radius: 13px; background: rgba(40,200,190,.1); }
+    .vcode-variance-bulk-actions span { color: #c3f6f0; font-size: 11px; }
+    .plantilla-search, .dashboard-client-switcher select, .sil-filters select { min-height: 42px; border: 1px solid rgba(255,255,255,.75); border-radius: 12px; color: var(--ink); background-color: rgba(255,255,255,.94); box-shadow: 0 6px 16px rgba(0,16,40,.18), inset 0 1px 0 #fff; transition: box-shadow .16s, border-color .16s; }
+    .plantilla-search { padding-left: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23529a9e' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: 13px 50%; background-size: 17px; }
+    .plantilla-search::placeholder { color: #86a0a6; }
+    .plantilla-search:focus, .dashboard-client-switcher select:focus, .sil-filters select:focus { border-color: #14a39f; box-shadow: 0 0 0 4px rgba(60,214,205,.25), 0 6px 16px rgba(0,16,40,.18); outline: 0; }
+    .sil-total { border: 1px solid rgba(255,255,255,.8); border-radius: 14px; background: linear-gradient(135deg, rgba(240,252,250,.95), rgba(214,242,238,.9)); box-shadow: 0 10px 24px rgba(0,16,40,.2); }
+
+    /* ---------- Data tables ---------- */
+    .plantilla-table-wrap { max-height: min(70vh, 760px); border: 1px solid rgba(255,255,255,.7); border-radius: 18px; background: rgba(255,255,255,.97); box-shadow: 0 28px 70px rgba(0,10,30,.46), inset 0 1px 0 #fff; backdrop-filter: none; scrollbar-color: #9fbfc2 transparent; }
+    .plantilla-table th { padding: 14px 14px; border-bottom: 0; color: #e6f1f3; background: linear-gradient(180deg, #131a24, #0b1018); font-size: 10.5px; letter-spacing: .09em; box-shadow: inset 0 -2px 0 rgba(60,214,205,.55); }
+    .plantilla-table td { padding: 12px 14px; border-bottom: 1px solid #e6eeee; color: #14262d; background: #fff; font-size: 12px; transition: background .14s; }
+    .plantilla-table tbody tr:nth-child(even) td { background: #f6faf9; }
+    .plantilla-table tbody tr:hover td { background: #e6f6f4; }
+    .plantilla-table tbody tr:last-child td { border-bottom: 0; }
+    .plantilla-table td:first-child { color: #0a5b63; font-weight: 700; }
+    .plantilla-empty { color: #7d969b !important; padding: 34px 14px !important; }
+    .vcode-variance-selected td, .plantilla-table tbody tr.vcode-variance-selected:hover td { background: #d9f3ef !important; }
+    .plantilla-summary-total td { border-top: 2px solid #14a39f; background: #dff3f0 !important; color: #0b3c43; font-weight: 800; }
+    .buffer-table th { border: 1px solid #2a3340; background: linear-gradient(180deg, #2b3340, #1c2330); }
+    .buffer-table td { border-right: 1px solid #dde8e8; border-bottom: 1px solid #dde8e8; }
+    .buffer-table td:first-child { border-left: 0; }
+    .buffer-table .buffer-exception-cell, .buffer-table .buffer-range-danger { color: #7d1f1a; background: #f6c9c5 !important; }
+    .buffer-table .buffer-range-safe { color: #0f5a33; background: #c9f2d8 !important; }
+    .view-row-button { border-color: rgba(20,150,150,.28); border-radius: 9px; font-size: 10px; transition: background .15s, box-shadow .15s; }
+    .view-row-button:hover { background: #e6f6f4; }
+    #dashboard .view-row-button { display: inline-flex; align-items: center; justify-content: center; min-height: 30px; padding: 0 12px; }
+
+    /* ---------- Deactivation / Attrition ---------- */
+    .deactivation-dashboard { border: 1px solid rgba(255,255,255,.85); border-radius: 24px; box-shadow: 0 30px 80px rgba(0,10,30,.5); }
+    .deactivation-page-header { border-radius: 18px; box-shadow: 0 16px 32px rgba(4,50,64,.3); }
+    .deactivation-entry-heading > div { flex: 1; min-width: 0; text-align: left; }
+    .deactivation-entry-heading { align-items: center; justify-content: flex-start; text-align: left; }
+    .deactivation-entry-heading p { text-align: left; }
+    .deactivation-table th { background: linear-gradient(180deg, #131a24, #0b1018); color: #e6f1f3; box-shadow: inset 0 -2px 0 rgba(60,214,205,.55); border-bottom: 0; }
+    .deactivation-stat, .deactivation-toolbar, .attrition-controls, .deactivation-entry-card, .deactivation-table-panel { border-radius: 16px; }
+
+    /* ---------- Dialogs & drawer (liquid glass, tidier) ---------- */
+    .liquid-dialog { box-shadow: 0 40px 110px rgba(0,8,26,.6); }
+    .liquid-dialog::backdrop { background: rgba(3,10,26,.55); backdrop-filter: blur(8px); }
+    .dialog-panel { box-shadow: inset 0 1px 0 #fff; }
+    .dialog-kicker { font-size: 10px; letter-spacing: .14em; }
+    .dialog-copy { font-size: 12.5px; }
+    .dialog-label { font-size: 11.5px; }
+    .dialog-close { transition: background .15s, transform .15s; }
+    .dialog-close:hover { background: #fff; transform: rotate(90deg); }
+    .dialog-close:focus-visible { outline-offset: 1px; }
+    .dialog-panel input, .dialog-panel select, .drawer-update input, .drawer-update select, .drawer-update textarea { border-color: #cfe3e0; transition: border-color .15s, box-shadow .15s; }
+    .dialog-panel input:focus, .dialog-panel select:focus, .drawer-update input:focus, .drawer-update select:focus, .drawer-update textarea:focus { border-color: #14a39f; box-shadow: 0 0 0 4px rgba(20,163,159,.16); outline: 0; }
+    .dialog-panel input[type="file"], .drawer-update input[type="file"] { padding: 9px 10px; font-size: 11.5px; }
+    input[type="file"]::file-selector-button { margin-right: 12px; padding: 6px 12px; border: 1px solid #cfe3e0; border-radius: 9px; color: #1f6168; background: #eef8f6; font: 700 11px var(--font-ui, 'Roboto Mono', monospace); cursor: pointer; }
+    input[type="file"]::file-selector-button:hover { background: #dff2ef; }
+    .user-dialog-tab[aria-selected="true"] { color: #0f7479; }
+    .roster-table th, .duplicate-check-table th { font-size: 10px; letter-spacing: .05em; }
+    .roster-table td, .duplicate-check-table td { font-size: 11px; }
+    .record-drawer { box-shadow: -30px 0 90px rgba(0,8,26,.5); }
+    .drawer-backdrop { background: rgba(3,10,26,.5); backdrop-filter: blur(5px); }
+    .drawer-field strong { font-size: 12.5px; }
+    .drawer-update h3 { letter-spacing: .08em; }
+    .dashboard-opening-card { border: 1px solid rgba(255,255,255,.22); }
+    .dashboard-client-picker { border: 1px solid rgba(255,255,255,.85); border-radius: 22px; background: linear-gradient(160deg, rgba(255,255,255,.96), rgba(236,250,248,.92)); box-shadow: 0 30px 80px rgba(0,10,30,.45); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1000px) { .dashboard-picker { padding: 14px 16px; } .picker-heading { flex-wrap: wrap; } }
+    @media (max-width: 720px) {
+      .topbar { position: static; flex-wrap: wrap; padding: 10px 12px; }
+      .topbar-left { width: 100%; }
+      .topbar-right { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+      .header-welcome { margin-left: 0; }
+      .dashboard-picker { padding: 14px 12px; }
+      .plantilla-status { margin-left: 0; }
+      .alert-board { padding: 18px 12px 14px; }
+    }
   </style>
 </head>
 <body>
@@ -736,7 +892,7 @@
       </aside>
       <section class="main">
         <header class="topbar">
-          <div class="topbar-left"><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home">ERTH PORTAL</a></div>
+          <div class="topbar-left"><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>ERTH PORTAL</a></div>
           <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="dashboard-refresh" class="utility-button" type="button" aria-label="Refresh dashboard" title="Reload dashboard">Refresh</button><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
