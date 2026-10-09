@@ -324,6 +324,8 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   return {
     spreadsheetId: match[1],
     targetUserId: target.id,
+    targetUsername: String(target.username || '').trim().toLocaleLowerCase(),
+    targetIsMasterAdmin: !!target.is_master_admin,
     clientName: requestedClient || String(target.client_name || '').trim(),
     clientNames: scopedClientNames,
     targetRole: target.role,
@@ -1774,11 +1776,12 @@ Deno.serve(async request => {
 
     const body = await request.json();
     if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-attrition', 'list-attrition-clients', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
-    if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
+    if (body.action === 'approve-vacancy' && !actor.is_master_admin && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
     if (body.action === 'approve-vacancy' &&
-      [actor.username, body.targetUsername].some(username => String(username || '').trim().toLocaleLowerCase() === 'annie')) {
+      !actor.is_master_admin && actor.role === 'admin' &&
+      String(actor.username || '').trim().toLocaleLowerCase() === 'annie') {
       return respond({ error: 'ANNIE is not allowed to approve records.' }, 403);
     }
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
@@ -1789,7 +1792,11 @@ Deno.serve(async request => {
       if (!actor.is_master_admin) throw new Error('Only the Master Admin can load ATTRITION client options.');
       return respond(await listAttritionClients(body.spreadsheetUrl, body.sheetTab));
     }
-    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, deactivationMikaTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, targetUsername, targetIsMasterAdmin, sheetTab, deactivationMikaTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    if (body.action === 'approve-vacancy' && targetRole === 'admin' && !targetIsMasterAdmin &&
+      targetUsername.toLocaleLowerCase() === 'annie') {
+      return respond({ error: 'ANNIE is not allowed to approve records.' }, 403);
+    }
 
     if (body.action === 'read-deactivation') return respond(await readDeactivationRecords(spreadsheetId, sheetTab));
     if (body.action === 'lookup-deactivation-emploc') {

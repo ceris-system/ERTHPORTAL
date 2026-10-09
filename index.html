@@ -3056,13 +3056,12 @@
       approvalRecords = [];
       selectedApprovalRows = new Set();
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      const viewedUsername = previewedUser?.username || currentUser?.username;
-      const canApprove = currentUser?.role === 'admin' && viewedUsername?.toLocaleLowerCase() !== 'annie';
+      const canApprove = canApproveApprovalRecords();
       const approvalColumn = canApprove
         ? '<th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th>'
         : '';
       const approvalColumnCount = canApprove ? 9 : 8;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button>${canApprove ? '<button id="approval-confirm" class="secondary-button approval-approve-button" type="button">Approved</button>' : ''}<button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off">${dashboardClientSwitcherMarkup('FOR APPROVAL')}<p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr>${approvalColumn}<th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="${approvalColumnCount}" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Onboard Date (P) · Aging (R)</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button>${canApprove ? '<button id="approval-confirm" class="secondary-button approval-approve-button" type="button" disabled>Approve</button>' : ''}<button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off">${dashboardClientSwitcherMarkup('FOR APPROVAL')}<p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr>${approvalColumn}<th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="${approvalColumnCount}" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Onboard Date (P) · Aging (R)</span></div>`;
       applyDashboardAssignmentPermissions();
       bindDashboardClientSwitcher('FOR APPROVAL');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('FOR APPROVAL')} · Source tab: VACANCY`;
@@ -3087,8 +3086,7 @@
       });
       document.querySelector('#approval-confirm')?.addEventListener('click', async event => {
         const button = event.currentTarget;
-        const activeUsername = previewedUser?.username || currentUser?.username;
-        if (currentUser?.role !== 'admin' || activeUsername?.toLocaleLowerCase() === 'annie') {
+        if (!canApproveApprovalRecords()) {
           return notify('This account is not allowed to approve records.');
         }
         if (!selectedApprovalRows.size) return notify('Select at least one row first.');
@@ -3164,11 +3162,24 @@
             cancelLabel: ''
           });
         } finally {
-          button.disabled = false;
-          button.textContent = 'Approved';
+          updateApprovalButtonState();
         }
       });
       loadForApprovalRecords();
+    }
+    function canApproveApprovalRecords() {
+      const account = previewedUser || currentUser;
+      const username = String(account?.username || '').trim().toLocaleLowerCase();
+      const isAdministrator = !!currentUser && (currentUser.isMasterAdmin || currentUser.role === 'admin');
+      const isAnnieRegularAdmin = account?.role === 'admin' && !account.isMasterAdmin && username === 'annie';
+      return isAdministrator && !isAnnieRegularAdmin;
+    }
+    function updateApprovalButtonState() {
+      const button = document.querySelector('#approval-confirm');
+      if (!button) return;
+      const selectedCount = selectedApprovalRows.size;
+      button.disabled = selectedCount === 0;
+      button.textContent = selectedCount ? `Approve (${selectedCount})` : 'Approve';
     }
     async function loadForApprovalRecords() {
       const status = document.querySelector('#approval-status');
@@ -3265,6 +3276,7 @@
     function renderForApprovalTable() {
       const body = document.querySelector('#approval-table-body');
       if (!body) return;
+      updateApprovalButtonState();
       const visibleRecords = getVisibleApprovalRecords();
       renderApprovalStatus(visibleRecords);
       const selectAll = document.querySelector('#approval-select-all');
