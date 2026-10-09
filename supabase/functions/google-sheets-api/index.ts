@@ -27,6 +27,20 @@ function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+async function readDeactivationMikaFile(spreadsheetId: string, mikaFileTab: string) {
+  const result = await readSheetGridRanges(spreadsheetId, mikaFileTab, [{
+    startColumnIndex: 0,
+    endColumnIndex: 2
+  }]);
+  const values: unknown[][] = result[0]?.valueRange?.values || [];
+  const records = values.flatMap(row => {
+    const emploc = String(row[0] ?? '').trim();
+    const fullname = String(row[1] ?? '').trim();
+    return emploc && fullname ? [{ emploc, fullname }] : [];
+  });
+  return { records };
+}
+
 function base64Url(value: string | Uint8Array) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
   let binary = '';
@@ -160,6 +174,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'delete-vcodes': 'VCODE VARIANCE',
     'read-deactivation': 'DEACTIVATION',
     'lookup-deactivation-emploc': 'DEACTIVATION',
+    'read-deactivation-mika-file': 'DEACTIVATION',
     'save-deactivation': 'DEACTIVATION',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
@@ -186,7 +201,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs')
+    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs, client_deactivation_mika_tabs')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
@@ -245,6 +260,11 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     .filter((value: string) => value && value !== 'My spreadsheets'))];
   const matchedClientTab = Object.keys(clientSheetTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   let sheetTab = String((matchedClientTab ? clientSheetTabs[matchedClientTab] : '') || assignment?.sheet_tab || defaultSheetTab(dashboardName)).trim();
+  const deactivationMikaTabs = assignment?.client_deactivation_mika_tabs && typeof assignment.client_deactivation_mika_tabs === 'object'
+    ? assignment.client_deactivation_mika_tabs
+    : {};
+  const matchedDeactivationMikaClient = Object.keys(deactivationMikaTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
+  const deactivationMikaTab = String((matchedDeactivationMikaClient ? deactivationMikaTabs[matchedDeactivationMikaClient] : '') || 'MIKA FILE').trim();
   if (body.action === 'read-buffer-detail') {
     const detailType = String(body.detailType || '');
     if (!Object.prototype.hasOwnProperty.call(bufferDetailClientColumns, detailType)) throw new Error('Choose a valid buffer detail dashboard.');
@@ -275,6 +295,9 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const matchedDeletedVcodeClient = Object.keys(deletedVcodeTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   const deletedVcodeTab = String((matchedDeletedVcodeClient ? deletedVcodeTabs[matchedDeletedVcodeClient] : '') || 'DELETED VCODES').trim();
   if (!sheetTab || sheetTab.length > 100) throw new Error(`The assigned tab name for ${dashboardName} is invalid.`);
+  if (!deactivationMikaTab || deactivationMikaTab.length > 100 || /[:\\/?*\[\]\r\n]/.test(deactivationMikaTab)) {
+    throw new Error('The assigned MIKA FILE tab name is invalid.');
+  }
   if (!deletedVcodeTab || deletedVcodeTab.length > 100 || /[:\\/?*\[\]\r\n]/.test(deletedVcodeTab)) {
     throw new Error('The assigned deleted VCODE tab name is invalid.');
   }
@@ -288,6 +311,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     clientNames: scopedClientNames,
     targetRole: target.role,
     sheetTab,
+    deactivationMikaTab,
     vcodeSourceSpreadsheetId,
     vcodeSourceTab,
     deletedVcodeTab
@@ -1548,10 +1572,10 @@ async function readDeactivationRecords(spreadsheetId: string, sheetTab: string) 
   return { records, count: records.length };
 }
 
-async function lookupDeactivationEmploc(spreadsheetId: string, emplocValue: unknown) {
+async function lookupDeactivationEmploc(spreadsheetId: string, mikaFileTab: string, emplocValue: unknown) {
   const emploc = String(emplocValue ?? '').trim().toLocaleUpperCase();
   if (!emploc || emploc.length > 100) throw new Error('Enter a valid EMPLOC.');
-  const result = await readSheetGridRanges(spreadsheetId, 'MIKA FILE', [{
+  const result = await readSheetGridRanges(spreadsheetId, mikaFileTab, [{
     startColumnIndex: 0,
     endColumnIndex: 2
   }]);
@@ -1561,20 +1585,21 @@ async function lookupDeactivationEmploc(spreadsheetId: string, emplocValue: unkn
       ? [{ rowNumber: index + 1, fullname: String(row[1] ?? '').trim() }]
       : []
   );
-  if (!matches.length) throw new Error(`EMPLOC ${emploc} was not found in the MIKA FILE tab.`);
-  if (matches.length > 1) throw new Error(`EMPLOC ${emploc} appears more than once in the MIKA FILE tab.`);
-  if (!matches[0].fullname) throw new Error(`EMPLOC ${emploc} has no name in the MIKA FILE tab.`);
+  if (!matches.length) throw new Error(`EMPLOC ${emploc} was not found in the ${mikaFileTab} tab.`);
+  if (matches.length > 1) throw new Error(`EMPLOC ${emploc} appears more than once in the ${mikaFileTab} tab.`);
+  if (!matches[0].fullname) throw new Error(`EMPLOC ${emploc} has no name in the ${mikaFileTab} tab.`);
   return { emploc, fullname: matches[0].fullname };
 }
 
 async function saveDeactivationRecord(
   spreadsheetId: string,
   sheetTab: string,
+  mikaFileTab: string,
   emplocValue: unknown,
   statusValue: unknown,
   inactiveDateValue: unknown
 ) {
-  const { emploc, fullname } = await lookupDeactivationEmploc(spreadsheetId, emplocValue);
+  const { emploc, fullname } = await lookupDeactivationEmploc(spreadsheetId, mikaFileTab, emplocValue);
   const allowedStatuses = new Set([
     'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',
     'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
@@ -1630,7 +1655,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'save-deactivation', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1641,14 +1666,17 @@ Deno.serve(async request => {
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, deactivationMikaTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'read-deactivation') return respond(await readDeactivationRecords(spreadsheetId, sheetTab));
     if (body.action === 'lookup-deactivation-emploc') {
-      return respond(await lookupDeactivationEmploc(spreadsheetId, body.emploc));
+      return respond(await lookupDeactivationEmploc(spreadsheetId, deactivationMikaTab, body.emploc));
+    }
+    if (body.action === 'read-deactivation-mika-file') {
+      return respond(await readDeactivationMikaFile(spreadsheetId, deactivationMikaTab));
     }
     if (body.action === 'save-deactivation') {
-      return respond(await saveDeactivationRecord(spreadsheetId, sheetTab, body.emploc, body.status, body.inactiveDate));
+      return respond(await saveDeactivationRecord(spreadsheetId, sheetTab, deactivationMikaTab, body.emploc, body.status, body.inactiveDate));
     }
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });

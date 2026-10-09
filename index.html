@@ -357,9 +357,13 @@
     .deactivation-entry-card .field label { color:#456a71; font-size:10px; font-weight:800; }
     .deactivation-entry-card .field input,.deactivation-entry-card .field select { width:100%; min-height:42px; padding:0 11px; border:1px solid #d3e4e1; border-radius:9px; color:#193b42; background:#fff; font:11px 'Roboto Mono',monospace; }
     .deactivation-entry-card .field input:focus,.deactivation-entry-card .field select:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.11); outline:0; }
+    .deactivation-lookup-status { min-height:13px; margin:2px 0 0; color:#66828c; font-size:9px; line-height:1.4; }
     .deactivation-entry-footer { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
     .deactivation-entry-footer p { margin:0; color:#718b92; font-size:10px; }
     .deactivation-entry-card .primary-button { width:auto; min-width:145px; min-height:40px; padding:0 16px; }
+    .deactivation-mika-tab-settings { padding:10px 11px; margin-top:8px; border:1px solid rgba(53,139,143,.16); border-radius:9px; background:rgba(255,255,255,.48); }
+    .deactivation-mika-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
+    .deactivation-mika-tab-settings .buffer-detail-tab-field input { min-height:38px; }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
@@ -659,14 +663,14 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">DASHBOARD CONNECTION</span>
       <h2 id="dashboard-dialog-title">Dashboard</h2>
-      <p class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.</p>
+      <p id="dashboard-dialog-copy" class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.</p>
       <form id="dashboard-url-form" novalidate>
         <label class="dialog-label" for="dialog-user-select">Assign to user</label>
         <select id="dialog-user-select" required></select>
         <label id="dashboard-client-select-label" class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
         <select id="dashboard-client-select" multiple size="4" required aria-label="Clients to fetch for this dashboard"></select>
         <div id="dashboard-client-options" class="client-checklist hidden" role="group" aria-labelledby="dashboard-client-select-label"></div>
-        <label class="dialog-label">Spreadsheet URL and tab name for each selected client</label>
+        <label id="dashboard-url-list-label" class="dialog-label">Spreadsheet URL and tab name for each selected client</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
         <div class="dialog-scope">Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.</div>
@@ -4259,6 +4263,33 @@
         .map(input => [input.dataset.vcodeDeletedClient, input.value.trim()])
         .filter(([client]) => client));
     }
+    function collectDashboardDeactivationMikaTabs() {
+      return Object.fromEntries([...document.querySelectorAll('.deactivation-mika-tab-input')]
+        .map(input => [input.dataset.deactivationMikaClient, input.value.trim()])
+        .filter(([client]) => client));
+    }
+    function addDashboardDeactivationMikaTabInput(clientName, tabName = 'MIKA FILE') {
+      const list = document.querySelector('#dashboard-url-list');
+      const group = document.createElement('fieldset');
+      group.className = 'deactivation-mika-tab-settings';
+      const legend = document.createElement('legend');
+      legend.textContent = clientName ? `${clientName} · EMPLOC/name lookup` : 'EMPLOC/name lookup';
+      const field = document.createElement('label');
+      field.className = 'buffer-detail-tab-field';
+      field.textContent = 'MIKA FILE tab name (EMPLOC in column A, name in column B)';
+      const input = document.createElement('input');
+      input.className = 'deactivation-mika-tab-input';
+      input.type = 'text';
+      input.maxLength = 100;
+      input.autocomplete = 'off';
+      input.placeholder = 'MIKA FILE';
+      input.dataset.deactivationMikaClient = clientName;
+      input.setAttribute('aria-label', `MIKA FILE tab name for ${clientName || 'this client'}`);
+      input.value = tabName;
+      field.append(input);
+      group.append(legend, field);
+      list.append(group);
+    }
     function addDashboardUrlRow(value = '', clientName = '', tabName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const row = document.createElement('div');
@@ -4274,8 +4305,12 @@
       input.type = 'url';
       input.inputMode = 'url';
       input.autocomplete = 'url';
-      input.placeholder = clientName ? `Spreadsheet URL for ${clientName}` : 'https://docs.google.com/spreadsheets/d/...';
-      input.setAttribute('aria-label', clientName ? `Spreadsheet URL for ${clientName}` : `Spreadsheet URL ${list.children.length + 1}`);
+      input.placeholder = selectedDashboard === 'DEACTIVATION'
+        ? clientName ? `Data spreadsheet URL for ${clientName}` : 'Google Sheets URL for data fetch and save'
+        : clientName ? `Spreadsheet URL for ${clientName}` : 'https://docs.google.com/spreadsheets/d/...';
+      input.setAttribute('aria-label', selectedDashboard === 'DEACTIVATION'
+        ? `Spreadsheet URL for deactivation data${clientName ? ` for ${clientName}` : ''}`
+        : clientName ? `Spreadsheet URL for ${clientName}` : `Spreadsheet URL ${list.children.length + 1}`);
       if (clientName) input.dataset.clientUrl = clientName;
       input.value = value;
       const tabInput = document.createElement('input');
@@ -4283,8 +4318,12 @@
       tabInput.type = 'text';
       tabInput.maxLength = 100;
       tabInput.autocomplete = 'off';
-      tabInput.placeholder = `Tab name (default: ${defaultDashboardSheetTab(selectedDashboard)})`;
-      tabInput.setAttribute('aria-label', clientName ? `Tab name for ${clientName}` : `Tab name ${list.children.length + 1}`);
+      tabInput.placeholder = selectedDashboard === 'DEACTIVATION'
+        ? 'Data tab name (fetch/save)'
+        : `Tab name (default: ${defaultDashboardSheetTab(selectedDashboard)})`;
+      tabInput.setAttribute('aria-label', selectedDashboard === 'DEACTIVATION'
+        ? `Data tab name for deactivation records${clientName ? ` for ${clientName}` : ''}`
+        : clientName ? `Tab name for ${clientName}` : `Tab name ${list.children.length + 1}`);
       if (clientName) tabInput.dataset.clientTab = clientName;
       tabInput.value = tabName || defaultDashboardSheetTab(selectedDashboard);
       const fields = document.createElement('div');
@@ -4346,44 +4385,73 @@
       'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
     ];
     let deactivationRecords = [];
-    let deactivationLookupTimer = 0;
+    let deactivationLookup = new Map();
+    let deactivationLookupReady = false;
+    let deactivationLookupError = '';
     function showDeactivationDashboard() {
       saveCurrentView('dashboard', 'DEACTIVATION');
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode('DEACTIVATION'));
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))} · Manage inactive employee records</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" class="secondary-button" type="button">Assign URL</button>' : ''}<button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="deactivation-entry-card"><div class="deactivation-entry-heading"><div><h2>ADD DEACTIVATION RECORD</h2><p>Full name is looked up from MIKA FILE when you enter a matching EMPLOC.</p></div></div><div class="deactivation-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"></div><div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><div class="deactivation-entry-footer"><p>Records are saved to the assigned spreadsheet tab, starting at column A.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULL NAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
+      deactivationLookup = new Map();
+      deactivationLookupReady = false;
+      deactivationLookupError = '';
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))} · Manage inactive employee records</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" class="secondary-button" type="button">Assign URL</button>' : ''}<button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="deactivation-entry-card"><div class="deactivation-entry-heading"><div><h2>ADD DEACTIVATION RECORD</h2><p>Full name appears as soon as the EMPLOC matches column A in the assigned MIKA FILE tab (name from column B).</p></div></div><div class="deactivation-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"><p id="deactivation-lookup-status" class="deactivation-lookup-status" role="status" aria-live="polite"></p></div><div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><div class="deactivation-entry-footer"><p>Records are saved to the assigned data tab, starting at column A.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULL NAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
       applyDashboardAssignmentPermissions();
       document.querySelector('#deactivation-assign-sheet')?.addEventListener('click', () => openDashboardEditor('DEACTIVATION'));
       document.querySelector('#deactivation-home').addEventListener('click', showHome);
-      document.querySelector('#deactivation-refresh').addEventListener('click', loadDeactivationRecords);
+      document.querySelector('#deactivation-refresh').addEventListener('click', refreshDeactivationData);
       document.querySelector('#deactivation-search').addEventListener('input', renderDeactivationRecords);
-      document.querySelector('#deactivation-emploc').addEventListener('input', event => {
-        const emploc = event.currentTarget.value.trim();
-        const fullname = document.querySelector('#deactivation-fullname');
-        fullname.value = '';
-        if (deactivationLookupTimer) clearTimeout(deactivationLookupTimer);
-        if (!emploc) return;
-        deactivationLookupTimer = setTimeout(() => lookupDeactivationName(emploc), 350);
-      });
+      document.querySelector('#deactivation-emploc').addEventListener('input', event => lookupDeactivationName(event.currentTarget.value.trim()));
       document.querySelector('#deactivation-form').addEventListener('submit', saveDeactivationEntry);
       loadDeactivationRecords();
+      loadDeactivationMikaFile();
     }
-    async function lookupDeactivationName(emploc) {
-      const status = document.querySelector('#deactivation-status');
-      const fullname = document.querySelector('#deactivation-fullname');
+    async function loadDeactivationMikaFile() {
+      const lookupStatus = document.querySelector('#deactivation-lookup-status');
       try {
-        const result = await callSheetsFunction('lookup-deactivation-emploc', {
-          emploc,
+        const result = await callSheetsFunction('read-deactivation-mika-file', {
           clientName: getActiveClient(),
           ...(previewedUser ? { targetUsername: previewedUser.username } : {})
         });
-        if (document.querySelector('#deactivation-emploc')?.value.trim().toLocaleUpperCase() !== emploc.toLocaleUpperCase()) return;
-        fullname.value = result.fullname || '';
-        status.textContent = fullname.value ? 'EMPLOC found in MIKA FILE.' : '';
+        deactivationLookup = new Map();
+        for (const record of result.records || []) {
+          const key = String(record.emploc || '').trim().toLocaleUpperCase();
+          const fullname = String(record.fullname || '').trim();
+          if (!key || !fullname) continue;
+          const names = deactivationLookup.get(key) || [];
+          names.push(fullname);
+          deactivationLookup.set(key, names);
+        }
+        deactivationLookupReady = true;
+        lookupDeactivationName(document.querySelector('#deactivation-emploc')?.value.trim() || '');
       } catch (error) {
-        if (document.querySelector('#deactivation-emploc')?.value.trim().toLocaleUpperCase() !== emploc.toLocaleUpperCase()) return;
-        fullname.value = '';
-        status.textContent = error.message || 'Could not look up this EMPLOC.';
+        deactivationLookupError = error.message || 'Could not load MIKA FILE EMPLOC/name data.';
+        if (document.querySelector('#deactivation-emploc')?.value.trim()) lookupStatus.textContent = deactivationLookupError;
       }
+    }
+    function lookupDeactivationName(emploc) {
+      const status = document.querySelector('#deactivation-lookup-status');
+      const fullname = document.querySelector('#deactivation-fullname');
+      if (!status || !fullname) return;
+      fullname.value = '';
+      if (!emploc) return;
+      if (!deactivationLookupReady) {
+        status.textContent = deactivationLookupError || 'Loading EMPLOC and name lookup from MIKA FILE...';
+        return;
+      }
+      const matches = deactivationLookup.get(emploc.toLocaleUpperCase()) || [];
+      if (matches.length > 1) {
+        status.textContent = `EMPLOC ${emploc.toLocaleUpperCase()} appears more than once in MIKA FILE.`;
+        return;
+      }
+      if (!matches.length) {
+        status.textContent = `No exact EMPLOC match found in MIKA FILE for ${emploc.toLocaleUpperCase()}.`;
+        return;
+      }
+      fullname.value = matches[0];
+      status.textContent = 'EMPLOC found in MIKA FILE.';
+    }
+    async function refreshDeactivationData() {
+      await Promise.all([loadDeactivationRecords(), loadDeactivationMikaFile()]);
     }
     async function loadDeactivationRecords() {
       const status = document.querySelector('#deactivation-status');
@@ -4570,6 +4638,12 @@
       if (!currentUser?.isMasterAdmin) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
       selectedDashboard = name;
       document.querySelector('#dashboard-dialog-title').textContent = name;
+      document.querySelector('#dashboard-url-list-label').textContent = name === 'DEACTIVATION'
+        ? 'Spreadsheet URL and data tab for fetching/saving records'
+        : 'Spreadsheet URL and tab name for each selected client';
+      document.querySelector('#dashboard-dialog-copy').textContent = name === 'DEACTIVATION'
+        ? 'Use the assigned spreadsheet for both functions. Set the data tab for deactivation records and the MIKA FILE tab for EMPLOC-to-name lookup.'
+        : 'Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.';
       const userSelect = document.querySelector('#dialog-user-select');
       let users;
       try {
@@ -4598,6 +4672,7 @@
       let activeClientVcodeSourceUrlMap = {};
       let activeClientVcodeSourceTabMap = {};
       let activeClientVcodeDeletedTabMap = {};
+      let activeClientDeactivationMikaTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
       if (name === 'HR EMPLOC MONITORING') {
         try {
@@ -4613,7 +4688,7 @@
         ])];
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {}, clientVcodeSourceUrls = {}, clientVcodeSourceTabs = {}, clientVcodeDeletedTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {}, clientVcodeSourceUrls = {}, clientVcodeSourceTabs = {}, clientVcodeDeletedTabs = {}, clientDeactivationMikaTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
@@ -4638,6 +4713,7 @@
         activeClientVcodeSourceUrlMap = { ...clientVcodeSourceUrls };
         activeClientVcodeSourceTabMap = { ...clientVcodeSourceTabs };
         activeClientVcodeDeletedTabMap = { ...clientVcodeDeletedTabs };
+        activeClientDeactivationMikaTabMap = { ...clientDeactivationMikaTabs };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
           (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
         }
@@ -4652,6 +4728,7 @@
             activeClientVcodeSourceUrlMap = { ...activeClientVcodeSourceUrlMap, ...collectDashboardVcodeSourceUrls() };
             activeClientVcodeSourceTabMap = { ...activeClientVcodeSourceTabMap, ...collectDashboardVcodeSourceTabs() };
             activeClientVcodeDeletedTabMap = { ...activeClientVcodeDeletedTabMap, ...collectDashboardVcodeDeletedTabs() };
+            activeClientDeactivationMikaTabMap = { ...activeClientDeactivationMikaTabMap, ...collectDashboardDeactivationMikaTabs() };
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
             activeClientTabMap = { ...activeClientTabMap, ...currentTabs };
             list.replaceChildren();
@@ -4659,18 +4736,23 @@
               addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
               if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
               if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceUrlMap[client] || '', activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '');
+              if (name === 'DEACTIVATION') addDashboardDeactivationMikaTabInput(client, activeClientDeactivationMikaTabMap[client] || 'MIKA FILE');
             });
           });
           selectedClientValues(clientOptions).forEach(client => {
             addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
             if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
             if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeSourceUrlMap[client] || '', activeClientVcodeSourceTabMap[client] || '', activeClientVcodeDeletedTabMap[client] || '');
+            if (name === 'DEACTIVATION') addDashboardDeactivationMikaTabInput(client, activeClientDeactivationMikaTabMap[client] || 'MIKA FILE');
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
           (assignedUrls.length ? assignedUrls : ['']).forEach((source, index) =>
             addDashboardUrlRow(source, '', activeClientTabMap[assignedClient] || sheetTab)
           );
+          if (name === 'DEACTIVATION' && assignedClient) {
+            addDashboardDeactivationMikaTabInput(assignedClient, activeClientDeactivationMikaTabMap[assignedClient] || 'MIKA FILE');
+          }
           if (name === '+-5% BUFFER' && assignedClient) {
             addDashboardBufferDetailTabInputs(assignedClient, activeClientBufferDetailTabMap[assignedClient] || {});
           }
@@ -5409,6 +5491,8 @@
         .filter(([client]) => clientNames.includes(client)));
       const clientVcodeSourceTabs = Object.fromEntries(Object.entries(collectDashboardVcodeSourceTabs())
         .filter(([client]) => clientNames.includes(client)));
+      const clientDeactivationMikaTabs = Object.fromEntries(Object.entries(collectDashboardDeactivationMikaTabs())
+        .filter(([client]) => clientNames.includes(client)));
       if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
@@ -5455,7 +5539,14 @@
         }
       }
       if (selectedDashboard === 'DEACTIVATION' && !values.length) {
-        return showAssignmentError('Enter the DEACTIVATION Google Sheets URL before saving this assignment.');
+        return showAssignmentError('Enter the Google Sheets URL for fetching and saving DEACTIVATION records.');
+      }
+      if (selectedDashboard === 'DEACTIVATION') {
+        const missingMikaTab = clientNames.find(client => !clientDeactivationMikaTabs[client]);
+        if (missingMikaTab) return showAssignmentError(`Enter the MIKA FILE tab name for ${missingMikaTab}.`);
+        if (Object.values(clientDeactivationMikaTabs).some(tab => tab.length > 100 || /[:\\/?*\[\]\r\n]/.test(tab))) {
+          return showAssignmentError('MIKA FILE tab names must be 100 characters or fewer and cannot contain /, \\, ?, *, :, or square brackets.');
+        }
       }
       const sources = [];
       for (const value of values) {
@@ -5480,6 +5571,7 @@
             clientSheetTabs,
             ...(selectedDashboard === '+-5% BUFFER' ? { clientBufferDetailTabs } : {}),
             ...(selectedDashboard === 'VCODE VARIANCE' ? { clientVcodeSourceUrls, clientVcodeSourceTabs, clientVcodeDeletedTabs } : {}),
+            ...(selectedDashboard === 'DEACTIVATION' ? { clientDeactivationMikaTabs } : {}),
             ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;

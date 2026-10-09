@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs')
+          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_urls, client_vcode_source_tabs, client_vcode_deleted_tabs, client_deactivation_mika_tabs')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -229,7 +229,8 @@ Deno.serve(async request => {
           clientBufferDetailTabs: data?.client_buffer_detail_tabs || {},
           clientVcodeSourceUrls: data?.client_vcode_source_urls || {},
           clientVcodeSourceTabs: data?.client_vcode_source_tabs || {},
-          clientVcodeDeletedTabs: data?.client_vcode_deleted_tabs || {}
+          clientVcodeDeletedTabs: data?.client_vcode_deleted_tabs || {},
+          clientDeactivationMikaTabs: data?.client_deactivation_mika_tabs || {}
         });
       }
 
@@ -302,6 +303,31 @@ Deno.serve(async request => {
         if (Object.keys(body.clientSheetTabs).some(client => !clientNames.includes(client))) {
           throw new Error('Each tab name must match a selected client.');
         }
+      }
+      const clientDeactivationMikaTabs: Record<string, string> = {};
+      if (body.clientDeactivationMikaTabs !== undefined) {
+        if (!body.clientDeactivationMikaTabs || typeof body.clientDeactivationMikaTabs !== 'object' || Array.isArray(body.clientDeactivationMikaTabs)) {
+          throw new Error('Provide a valid MIKA FILE tab name for each assigned client.');
+        }
+        for (const clientName of clientNames) {
+          const tabName = body.clientDeactivationMikaTabs[clientName];
+          if (tabName === undefined) continue;
+          if (typeof tabName !== 'string' || !tabName.trim() || tabName.trim().length > 100) {
+            throw new Error(`Enter a valid MIKA FILE tab name for ${clientName} (1-100 characters).`);
+          }
+          if (/[:\\/?*\[\]\r\n]/.test(tabName.trim())) {
+            throw new Error(`The MIKA FILE tab name for ${clientName} contains an unsupported character.`);
+          }
+          clientDeactivationMikaTabs[clientName] = tabName.trim();
+        }
+        if (Object.keys(body.clientDeactivationMikaTabs).some(client => !clientNames.includes(client))) {
+          throw new Error('Each MIKA FILE tab name must match a selected client.');
+        }
+      }
+      if (dashboardName === 'DEACTIVATION') {
+        if (!clientNames.length) throw new Error('Select a client for the DEACTIVATION assignment.');
+        const missingMikaTab = clientNames.find(client => !clientDeactivationMikaTabs[client]);
+        if (missingMikaTab) throw new Error(`Enter the MIKA FILE tab name for ${missingMikaTab}.`);
       }
       const clientBufferDetailTabs: Record<string, Record<string, string>> = {};
       const bufferDetailKeys = [
@@ -412,6 +438,7 @@ Deno.serve(async request => {
         client_vcode_source_urls: clientVcodeSourceUrls,
         client_vcode_source_tabs: clientVcodeSourceTabs,
         client_vcode_deleted_tabs: clientVcodeDeletedTabs,
+        client_deactivation_mika_tabs: clientDeactivationMikaTabs,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
