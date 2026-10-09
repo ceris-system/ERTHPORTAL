@@ -99,7 +99,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs')
+        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs')
+          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -225,7 +225,8 @@ Deno.serve(async request => {
           clientNames,
           clientSheetUrls: data?.client_sheet_urls || {},
           sheetTab: data?.sheet_tab || '',
-          clientSheetTabs: data?.client_sheet_tabs || {}
+          clientSheetTabs: data?.client_sheet_tabs || {},
+          clientBufferDetailTabs: data?.client_buffer_detail_tabs || {}
         });
       }
 
@@ -296,6 +297,41 @@ Deno.serve(async request => {
           throw new Error('Each tab name must match a selected client.');
         }
       }
+      const clientBufferDetailTabs: Record<string, Record<string, string>> = {};
+      const bufferDetailKeys = [
+        'plantillaNotInMika',
+        'mikaNotInPlantilla',
+        'plantillaNotInPayroll',
+        'payrollNotInPlantilla'
+      ];
+      if (body.clientBufferDetailTabs !== undefined) {
+        if (!body.clientBufferDetailTabs || typeof body.clientBufferDetailTabs !== 'object' || Array.isArray(body.clientBufferDetailTabs)) {
+          throw new Error('Provide valid detail tab names for assigned clients.');
+        }
+        for (const clientName of clientNames) {
+          const clientTabs = body.clientBufferDetailTabs[clientName];
+          if (clientTabs === undefined) continue;
+          if (!clientTabs || typeof clientTabs !== 'object' || Array.isArray(clientTabs)) {
+            throw new Error(`Provide valid detail tab names for ${clientName}.`);
+          }
+          const cleanTabs: Record<string, string> = {};
+          for (const key of bufferDetailKeys) {
+            const tabName = clientTabs[key];
+            if (tabName === undefined) continue;
+            if (typeof tabName !== 'string' || tabName.trim().length > 100) {
+              throw new Error(`Enter a valid detail tab name for ${clientName} (up to 100 characters).`);
+            }
+            if (/[:\\/?*\[\]\r\n]/.test(tabName.trim())) {
+              throw new Error(`The detail tab name for ${clientName} contains an unsupported character.`);
+            }
+            cleanTabs[key] = tabName.trim();
+          }
+          clientBufferDetailTabs[clientName] = cleanTabs;
+        }
+        if (Object.keys(body.clientBufferDetailTabs).some(client => !clientNames.includes(client))) {
+          throw new Error('Each detail tab name must match a selected client.');
+        }
+      }
       const { error } = await adminClient.from('dashboard_assignments').upsert({
         user_id: target.id,
         dashboard_name: dashboardName,
@@ -304,6 +340,7 @@ Deno.serve(async request => {
         client_sheet_urls: clientSheetUrls,
         sheet_tab: sheetTab,
         client_sheet_tabs: clientSheetTabs,
+        client_buffer_detail_tabs: clientBufferDetailTabs,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
@@ -318,7 +355,7 @@ Deno.serve(async request => {
           .eq('id', target.id);
         if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
       }
-      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs });
+      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs });
     }
 
     if (body.action === 'create') {

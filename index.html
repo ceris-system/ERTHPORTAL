@@ -363,6 +363,15 @@
     .buffer-table td:first-child { border-left:1px solid #111; text-align:left; }
     .buffer-table .buffer-exception-cell,.buffer-table .buffer-range-danger { color:#111; background:#e89a9a; font-weight:800; }
     .buffer-table .buffer-range-safe { color:#111; background:#00ed18; font-weight:700; }
+    .buffer-detail-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; width:100%; }
+    .buffer-detail-actions button { min-height:44px; padding:8px 12px; border:1px solid rgba(53,139,143,.22); border-radius:10px; color:#17636b; background:rgba(255,255,255,.82); font-size:10px; font-weight:800; line-height:1.35; text-align:left; }
+    .buffer-detail-actions button:hover { border-color:#168d91; background:#e7f8f4; }
+    .buffer-detail-tools { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+    .buffer-detail-tools .buffer-detail-actions,.buffer-detail-tools .plantilla-status { grid-column:1 / -1; }
+    .buffer-detail-tab-settings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; }
+    .buffer-detail-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
+    .buffer-detail-tab-field { display:grid; gap:4px; color:#4b737a; font-size:9px; font-weight:700; }
+    .buffer-detail-tab-field input { width:100%; min-width:0; min-height:34px; padding:0 8px; border:1px solid rgba(53,139,143,.2); border-radius:7px; color:var(--ink); font-size:10px; }
     .plantilla-summary-total td { position:sticky; bottom:0; z-index:1; border-top:2px solid #168d91; background:#e7f5f2; font-weight:800; }
     .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
     .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
@@ -1175,6 +1184,7 @@
     let dashboardClientAssignments = {};
     let dashboardClientSheetUrls = {};
     let dashboardClientSheetTabs = {};
+    let dashboardClientBufferDetailTabs = {};
     let dashboardSheetTabs = {};
     let dashboardAssignmentUsesClientUrlPairs = false;
     let selectedDashboardClients = {};
@@ -1652,6 +1662,7 @@
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
       dashboardClientSheetTabs = {};
+      dashboardClientBufferDetailTabs = {};
       dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
@@ -1671,6 +1682,7 @@
             assignment.client_sheet_urls || {}
           );
           dashboardClientSheetTabs[assignment.dashboard_name] = assignment.client_sheet_tabs || {};
+          dashboardClientBufferDetailTabs[assignment.dashboard_name] = assignment.client_buffer_detail_tabs || {};
           dashboardSheetTabs[assignment.dashboard_name] = assignment.sheet_tab || '';
         }
       } catch (error) {
@@ -3608,14 +3620,67 @@
       saveCurrentView('dashboard', name);
       const clientName = getActiveClient();
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>+-5% BUFFER</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel(name))} · Source tab: ${escapeHtml(getDashboardSheetTab(name, clientName))}</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="buffer-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="buffer-refresh" class="secondary-button" type="button">Refresh</button><button id="buffer-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="buffer-search" class="plantilla-search" type="search" aria-label="Search +-5% buffer records" placeholder="Search account or values..." autocomplete="off">${dashboardClientSwitcherMarkup(name)}<p id="buffer-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table buffer-table"><colgroup><col style="width:13%"><col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:7%"><col style="width:6%"><col style="width:8%"></colgroup><thead><tr><th scope="col">ACCOUNT</th><th scope="col">REQUIRED HC</th><th scope="col">ONBOARD</th><th scope="col">YES PLANTILLA NOT IN MIKA</th><th scope="col">YES MIKA NOT IN PLANTILLA</th><th scope="col">YES PLANTILLA BUT NOT IN PAYROLL (POSSIBLE TAMAD)</th><th scope="col">YES PAYROLL NOT IN PLANTILLA (POSSIBLE GHOST)</th><th colspan="2" scope="colgroup">PAYROLL +-5%</th><th colspan="2" scope="colgroup">MIKA +-5%</th><th scope="col">COMMANDO</th><th scope="col">RELIVER</th><th scope="col">TOTAL ACTIVE</th></tr></thead><tbody id="buffer-table-body"><tr><td colspan="14" class="plantilla-empty">Loading +-5% buffer data...</td></tr></tbody></table></div><div class="module-footer"><span>Accounts containing TOTAL or ALL AREA are excluded</span><span>Source: -+5% GAP · C9:T</span></div>`;
+      const detailActions = document.createElement('div');
+      detailActions.className = 'buffer-detail-actions';
+      for (const [detailType, label] of bufferDetailDefinitions) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = label;
+        button.addEventListener('click', () => showBufferDetailDashboard(detailType));
+        detailActions.append(button);
+      }
+      document.querySelector('#buffer-search').replaceWith(detailActions);
+      document.querySelector('.plantilla-table-tools').classList.add('buffer-detail-tools');
       applyDashboardAssignmentPermissions();
       bindDashboardClientSwitcher(name);
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel(name)} · Source tab: ${getDashboardSheetTab(name, clientName)}`;
       document.querySelector('#buffer-assign-sheet')?.addEventListener('click', () => openDashboardEditor(name));
       document.querySelector('#buffer-refresh').addEventListener('click', loadBufferRecords);
       document.querySelector('#buffer-home').addEventListener('click', showHome);
-      document.querySelector('#buffer-search').addEventListener('input', renderBufferTable);
       loadBufferRecords();
+    }
+    async function showBufferDetailDashboard(detailType) {
+      const definition = bufferDetailDefinitions.find(([key]) => key === detailType);
+      if (!definition) return notify('Choose a valid buffer detail dashboard.');
+      const [name, label] = definition;
+      const bufferName = '+-5% BUFFER';
+      const clientName = getActiveClient();
+      saveCurrentView('dashboard', bufferName);
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>${escapeHtml(label)}</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel(bufferName))}</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="buffer-detail-assign-tabs" class="secondary-button" type="button">Assign tabs</button>' : ''}<button id="buffer-detail-refresh" class="secondary-button" type="button">Refresh</button><button id="buffer-detail-back" class="secondary-button" type="button">Back</button></div></header><p id="buffer-detail-status" class="plantilla-status" role="status" aria-live="polite">Loading ${escapeHtml(label)} records...</p><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">DATE HIRED</th><th scope="col">AGING</th></tr></thead><tbody id="buffer-detail-table-body"><tr><td colspan="4" class="plantilla-empty">Loading records...</td></tr></tbody></table></div>`;
+      document.querySelector('#buffer-detail-assign-tabs')?.addEventListener('click', () => openDashboardEditor(bufferName));
+      document.querySelector('#buffer-detail-refresh').addEventListener('click', () => loadBufferDetailRecords(detailType, clientName));
+      document.querySelector('#buffer-detail-back').addEventListener('click', showBufferDashboard);
+      await loadBufferDetailRecords(detailType, clientName);
+    }
+    async function loadBufferDetailRecords(detailType, clientName) {
+      const status = document.querySelector('#buffer-detail-status');
+      const body = document.querySelector('#buffer-detail-table-body');
+      if (!status || !body) return false;
+      const generation = ++dashboardReadGeneration;
+      try {
+        const result = await callSheetsFunction('read-buffer-detail', {
+          clientName,
+          detailType,
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        if (generation !== dashboardReadGeneration || document.querySelector('#buffer-detail-table-body') !== body) return false;
+        const records = result.records || [];
+        if (!records.length) {
+          status.textContent = `No records found for ${clientName}.`;
+          body.innerHTML = '<tr><td colspan="4" class="plantilla-empty">No matching employee records.</td></tr>';
+          return true;
+        }
+        body.innerHTML = records.map(record =>
+          `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.dateHired)}</td><td>${escapeHtml(record.aging)}</td></tr>`
+        ).join('');
+        status.textContent = `${records.length.toLocaleString()} record${records.length === 1 ? '' : 's'} for ${clientName}.`;
+        return true;
+      } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
+        status.textContent = error?.message || 'Could not load buffer detail records.';
+        body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
     }
     async function loadBufferRecords() {
       const status = document.querySelector('#buffer-status');
@@ -3866,6 +3931,49 @@
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'true');
       document.querySelector('#drawer-backdrop').classList.remove('open');
     }
+    const bufferDetailDefinitions = [
+      ['plantillaNotInMika', 'YES PLANTILLA NOT IN MIKA'],
+      ['mikaNotInPlantilla', 'YES MIKA NOT IN PLANTILLA'],
+      ['plantillaNotInPayroll', 'YES PLANTILLA BUT NOT IN PAYROLL (POSSIBLE TAMAD)'],
+      ['payrollNotInPlantilla', 'YES PAYROLL NOT IN PLANTILLA (POSSIBLE GHOST)']
+    ];
+    function addDashboardBufferDetailTabInputs(clientName, values = {}) {
+      const list = document.querySelector('#dashboard-url-list');
+      const group = document.createElement('fieldset');
+      group.className = 'buffer-detail-tab-settings';
+      const legend = document.createElement('legend');
+      legend.textContent = `Detail dashboard tabs for ${clientName}`;
+      group.append(legend);
+      for (const [key, label] of bufferDetailDefinitions) {
+        const field = document.createElement('label');
+        field.className = 'buffer-detail-tab-field';
+        field.textContent = label;
+        const input = document.createElement('input');
+        input.className = 'buffer-detail-tab-input';
+        input.type = 'text';
+        input.maxLength = 100;
+        input.autocomplete = 'off';
+        input.placeholder = 'Add tab name later';
+        input.dataset.bufferDetailClient = clientName;
+        input.dataset.bufferDetailKey = key;
+        input.setAttribute('aria-label', `${label} tab name for ${clientName}`);
+        input.value = String(values[key] || '');
+        field.append(input);
+        group.append(field);
+      }
+      list.append(group);
+    }
+    function collectDashboardBufferDetailTabs() {
+      const result = {};
+      for (const input of document.querySelectorAll('.buffer-detail-tab-input')) {
+        const client = input.dataset.bufferDetailClient;
+        const key = input.dataset.bufferDetailKey;
+        if (!client || !key) continue;
+        if (!result[client]) result[client] = {};
+        result[client][key] = input.value.trim();
+      }
+      return result;
+    }
     function addDashboardUrlRow(value = '', clientName = '', tabName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const row = document.createElement('div');
@@ -4083,15 +4191,23 @@
       const addUrlButton = document.querySelector('#add-dashboard-url');
       let activeClientUrlMap = {};
       let activeClientTabMap = {};
+      let activeClientBufferDetailTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
-      try {
-        await loadClientOptions();
-      } catch (error) {
-        const isClientListSourceSetup = currentUser?.isMasterAdmin && name === 'HR EMPLOC MONITORING';
-        if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
+      if (name === 'HR EMPLOC MONITORING') {
+        try {
+          await loadClientOptions();
+        } catch (error) {
+          const isClientListSourceSetup = currentUser?.isMasterAdmin;
+          if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
+        }
+      } else {
+        availableClientOptions = [...new Set([
+          ...clientUsers.flatMap(user => [...(user.client_names || []), user.client_name].filter(Boolean)),
+          ...Object.values(dashboardClientAssignments).flat()
+        ])];
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {}, clientBufferDetailTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
@@ -4112,6 +4228,7 @@
         addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs;
         activeClientUrlMap = { ...clientSheetUrls };
         activeClientTabMap = { ...clientSheetTabs };
+        activeClientBufferDetailTabMap = { ...clientBufferDetailTabs };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
           (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
         }
@@ -4122,17 +4239,27 @@
           fillDashboardClientOptions(selectedClients, () => {
             const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
             const currentTabs = Object.fromEntries([...list.querySelectorAll('[data-client-tab]')].map(input => [input.dataset.clientTab, input.value.trim()]));
+            activeClientBufferDetailTabMap = { ...activeClientBufferDetailTabMap, ...collectDashboardBufferDetailTabs() };
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
             activeClientTabMap = { ...activeClientTabMap, ...currentTabs };
             list.replaceChildren();
-            selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || ''));
+            selectedClientValues(clientOptions).forEach(client => {
+              addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
+              if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
+            });
           });
-          selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || ''));
+          selectedClientValues(clientOptions).forEach(client => {
+            addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
+            if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
+          });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
           (assignedUrls.length ? assignedUrls : ['']).forEach((source, index) =>
             addDashboardUrlRow(source, '', activeClientTabMap[assignedClient] || sheetTab)
           );
+          if (name === '+-5% BUFFER' && assignedClient) {
+            addDashboardBufferDetailTabInputs(assignedClient, activeClientBufferDetailTabMap[assignedClient] || {});
+          }
         }
         openDashboardUrl.disabled = !assignedUrls.length;
         clientSelect.onchange = null;
@@ -4310,6 +4437,7 @@
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
       dashboardClientSheetTabs = {};
+      dashboardClientBufferDetailTabs = {};
       dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
@@ -4562,6 +4690,7 @@
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
       dashboardClientSheetTabs = {};
+      dashboardClientBufferDetailTabs = {};
       dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
@@ -4854,6 +4983,8 @@
         .map(input => [input.dataset.clientUrl, input.value.trim()]));
       const clientSheetTabs = Object.fromEntries([...document.querySelectorAll('.dashboard-tab-input[data-client-tab]')]
         .map(input => [input.dataset.clientTab, input.value.trim()]));
+      const clientBufferDetailTabs = Object.fromEntries(Object.entries(collectDashboardBufferDetailTabs())
+        .filter(([client]) => clientNames.includes(client)));
       if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
@@ -4867,6 +4998,11 @@
       }
       if (/[:\\/?*\[\]\r\n]/.test(sheetTab) || Object.values(clientSheetTabs).some(tab => /[:\\/?*\[\]\r\n]/.test(tab))) {
         return showAssignmentError('Tab names cannot contain /, \\, ?, *, :, or square brackets.');
+      }
+      if (Object.values(clientBufferDetailTabs).some(tabs => Object.values(tabs).some(tab =>
+        tab.length > 100 || /[:\\/?*\[\]\r\n]/.test(tab)
+      ))) {
+        return showAssignmentError('Detail tab names must be 100 characters or fewer and cannot contain /, \\, ?, *, :, or square brackets.');
       }
       const sources = [];
       for (const value of values) {
@@ -4889,6 +5025,7 @@
             clientNames,
             sheetTab,
             clientSheetTabs,
+            ...(selectedDashboard === '+-5% BUFFER' ? { clientBufferDetailTabs } : {}),
             ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;
@@ -4898,6 +5035,7 @@
             dashboardClientAssignments[selectedDashboard] = clientNames;
             dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
             dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
+            dashboardClientBufferDetailTabs[selectedDashboard] = clientBufferDetailTabs;
             dashboardSheetTabs[selectedDashboard] = sheetTab;
           }
           if (previewedUser?.username === username) {
@@ -4905,6 +5043,7 @@
             dashboardClientAssignments[selectedDashboard] = clientNames;
             dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
             dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
+            dashboardClientBufferDetailTabs[selectedDashboard] = clientBufferDetailTabs;
             dashboardSheetTabs[selectedDashboard] = sheetTab;
             selectedDashboardClients[selectedDashboard] = '';
             openUserDashboard(selectedDashboard);
