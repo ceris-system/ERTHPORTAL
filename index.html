@@ -375,6 +375,65 @@
     .deactivation-mika-tab-settings { padding:10px 11px; margin-top:8px; border:1px solid rgba(53,139,143,.16); border-radius:9px; background:rgba(255,255,255,.48); }
     .deactivation-mika-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
     .deactivation-mika-tab-settings .buffer-detail-tab-field input { min-height:38px; }
+    .deactivation-dashboard { display:grid; gap:16px; padding:clamp(16px,2.2vw,28px); border:1px solid rgba(255,255,255,.82); border-radius:22px; color:#183b43; background:linear-gradient(145deg,#f4f9fa 0%,#eaf3f4 100%); box-shadow:0 22px 60px rgba(2,15,32,.24); }
+    .deactivation-page-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:0 2px 15px; border-bottom:1px solid #d8e5e8; }
+    .deactivation-page-title { display:flex; align-items:flex-start; gap:13px; }
+    .deactivation-page-mark { display:grid; width:42px; height:42px; flex:0 0 auto; place-items:center; border:1px solid #cbe5e1; border-radius:13px; color:#087e80; background:#e1f2ee; }
+    .deactivation-page-mark svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .deactivation-page-header h1 { margin:0; color:#193c45; font:800 21px/1.2 'Roboto Mono',monospace; letter-spacing:-.035em; }
+    .deactivation-page-header p { margin:5px 0 0; color:#607b83; font-size:11px; line-height:1.5; }
+    .deactivation-page-header p strong { color:#315962; font-weight:800; }
+    .deactivation-page-actions { display:flex; flex:0 0 auto; align-items:center; gap:8px; }
+    .deactivation-page-actions button { min-height:38px; padding:0 13px; border:1px solid #cbdcdf; border-radius:9px; color:#315961; background:#fff; box-shadow:0 2px 6px rgba(18,58,67,.04); font-size:10px; font-weight:700; }
+    .deactivation-page-actions button:hover { border-color:#74b9b5; color:#087e80; background:#f3fbfa; }
+    .deactivation-page-actions #deactivation-assign-sheet { border-color:#0e8e8d; color:#fff; background:#0e8e8d; }
+    .deactivation-page-actions #deactivation-assign-sheet:hover { background:#087879; }
+    .deactivation-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.78); }
+    .deactivation-search-field { display:grid; gap:6px; color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
+    .deactivation-search-field .plantilla-search { width:100%; min-height:39px; border-color:#d5e2e5; background:#fff; font-size:11px; }
+    .deactivation-toolbar-status { justify-self:end; max-width:420px; margin:0; color:#5e7880; font-size:10px; line-height:1.5; text-align:right; overflow-wrap:anywhere; }
+    .deactivation-toolbar-status:empty { display:none; }
+    .deactivation-toolbar-status[data-state] { padding:7px 10px; border:1px solid #dce8e9; border-radius:8px; background:#f6f9f9; }
+    .deactivation-toolbar-status[data-state="success"] { border-color:#cce6d8; color:#28664b; background:#f1faf4; }
+    .deactivation-toolbar-status[data-state="error"] { border-color:#efd1cd; color:#963e37; background:#fff5f3; }
+    .deactivation-toolbar-status[data-state="loading"] { color:#496c75; background:#eff7f7; }
+    .deactivation-entry-card { padding:18px 19px; margin:0; border:1px solid #d7e4e6; border-radius:15px; background:#fff; box-shadow:0 4px 14px rgba(22,68,77,.045); }
+    .deactivation-entry-heading { margin-bottom:16px; }
+    .deactivation-entry-heading h2,.deactivation-table-heading h2 { margin:0; color:#20474f; font-size:13px; font-weight:800; letter-spacing:.015em; }
+    .deactivation-entry-heading p,.deactivation-table-heading p { margin:5px 0 0; color:#71888e; font-size:10px; line-height:1.5; }
+    .deactivation-fields { gap:14px; }
+    .deactivation-entry-card .field label { color:#47676e; font-size:9px; letter-spacing:.04em; }
+    .deactivation-entry-card .field input,.deactivation-entry-card .field select { min-height:43px; border-color:#d5e1e4; border-radius:8px; color:#24474e; background:#fff; font-family:inherit; font-size:11px; }
+    .deactivation-entry-card .field input::placeholder { color:#9aadb1; }
+    .deactivation-lookup-status { min-height:0; margin-top:4px; color:#607980; font-size:9px; }
+    .deactivation-entry-footer { align-items:center; padding-top:13px; margin-top:14px; border-top:1px solid #edf1f2; }
+    .deactivation-entry-footer p { color:#71878c; font-size:10px; }
+    .deactivation-entry-card .primary-button { min-height:39px; border-radius:9px; box-shadow:none; font-size:11px; }
+    .deactivation-table-panel { overflow:hidden; border:1px solid #d6e2e4; border-radius:14px; background:#fff; box-shadow:0 4px 14px rgba(22,68,77,.045); }
+    .deactivation-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 17px; border-bottom:1px solid #e5edef; }
+    .deactivation-record-count { padding:5px 9px; border:1px solid #dce8e9; border-radius:99px; color:#557078; background:#f5f9f9; font-size:9px; font-weight:800; white-space:nowrap; }
+    .deactivation-table-wrap { max-height:min(54vh,560px); overflow:auto; }
+    .deactivation-table { width:100%; min-width:620px; table-layout:fixed; border-collapse:separate; border-spacing:0; text-align:left; }
+    .deactivation-table th { position:sticky; top:0; z-index:1; padding:11px 16px; border-bottom:1px solid #d9e6e8; color:#56727a; background:#f4f8f8; font-size:9px; font-weight:800; letter-spacing:.06em; }
+    .deactivation-table td { padding:12px 16px; border-bottom:1px solid #edf1f2; color:#315159; font-size:11px; line-height:1.45; }
+    .deactivation-table tbody tr:last-child td { border-bottom:0; }
+    .deactivation-table tbody tr:hover td { background:#f8fbfb; }
+    .deactivation-table td:first-child { color:#24464e; font-weight:700; }
+    .deactivation-table td:nth-child(3) { color:#45666c; font-size:10px; font-weight:700; }
+    .deactivation-table td:last-child { color:#536f76; }
+    .deactivation-dashboard .plantilla-empty { padding:22px 16px; color:#71878c !important; font-size:11px; }
+    @media(max-width:850px) { .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:720px) {
+      .deactivation-dashboard { gap:12px; padding:14px; border-radius:16px; }
+      .deactivation-page-header { align-items:flex-start; flex-direction:column; gap:13px; }
+      .deactivation-page-actions { width:100%; }
+      .deactivation-page-actions button { flex:1; }
+      .deactivation-toolbar { grid-template-columns:minmax(0,1fr); gap:9px; }
+      .deactivation-toolbar-status { justify-self:start; text-align:left; }
+      .deactivation-entry-footer { align-items:stretch; flex-direction:column; }
+      .deactivation-entry-card .primary-button { width:100%; }
+    }
+    @media(max-width:480px) { .deactivation-fields { grid-template-columns:minmax(0,1fr); } }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
@@ -4432,7 +4491,39 @@
       deactivationLookup = new Map();
       deactivationLookupReady = false;
       deactivationLookupError = '';
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))} · Manage inactive employee records</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" class="secondary-button" type="button">Assign URL</button>' : ''}<button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="deactivation-entry-card"><div class="deactivation-entry-heading"><div><h2>ADD DEACTIVATION RECORD</h2><p>Full name appears as soon as the EMPLOC matches column A in the assigned MIKA FILE tab (name from column B).</p></div></div><div class="deactivation-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"><p id="deactivation-lookup-status" class="deactivation-lookup-status" role="status" aria-live="polite"></p></div><div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><div class="deactivation-entry-footer"><p>Records are saved to the assigned data tab, starting at column A.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULL NAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
+      content.innerHTML = `<section class="deactivation-dashboard" aria-labelledby="deactivation-title">
+        <header class="deactivation-page-header">
+          <div class="deactivation-page-title">
+            <span class="deactivation-page-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 12.5h5M8 16h3"/></svg></span>
+            <div><h1 id="deactivation-title">Deactivation records</h1><p>Access scope: <strong>${escapeHtml(getDashboardClientLabel('DEACTIVATION'))}</strong> · Record management</p></div>
+          </div>
+          <div class="deactivation-page-actions">
+            ${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" type="button">Assign spreadsheet</button>' : ''}
+            <button id="deactivation-refresh" type="button">Refresh data</button>
+            <button id="deactivation-home" type="button">Home</button>
+          </div>
+        </header>
+        <section class="deactivation-toolbar" aria-label="Search and dashboard status">
+          <label class="deactivation-search-field" for="deactivation-search">SEARCH RECORDS
+            <input id="deactivation-search" class="plantilla-search" type="search" placeholder="EMPLOC, full name, status, or date" aria-label="Search deactivation records" autocomplete="off">
+          </label>
+          <p id="deactivation-status" class="deactivation-toolbar-status" role="status" aria-live="polite"></p>
+        </section>
+        <form id="deactivation-form" class="deactivation-entry-card">
+          <div class="deactivation-entry-heading"><h2>Add a record</h2><p>Enter an EMPLOC to find the employee in the assigned MIKA FILE tab.</p></div>
+          <div class="deactivation-fields">
+            <div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"><p id="deactivation-lookup-status" class="deactivation-lookup-status" role="status" aria-live="polite"></p></div>
+            <div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div>
+            <div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div>
+            <div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div>
+          </div>
+          <div class="deactivation-entry-footer"><p>Saved to the assigned data tab in columns A–D.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div>
+        </form>
+        <section class="deactivation-table-panel" aria-labelledby="deactivation-table-title">
+          <div class="deactivation-table-heading"><div><h2 id="deactivation-table-title">Saved records</h2><p>Records loaded from the assigned deactivation data tab.</p></div><span id="deactivation-record-count" class="deactivation-record-count">0 records</span></div>
+          <div class="deactivation-table-wrap"><table class="deactivation-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULL NAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading records...</td></tr></tbody></table></div>
+        </section>
+      </section>`;
       applyDashboardAssignmentPermissions();
       document.querySelector('#deactivation-assign-sheet')?.addEventListener('click', () => openDashboardEditor('DEACTIVATION'));
       document.querySelector('#deactivation-home').addEventListener('click', showHome);
@@ -4462,8 +4553,13 @@
         deactivationLookupReady = true;
         lookupDeactivationName(document.querySelector('#deactivation-emploc')?.value.trim() || '');
       } catch (error) {
-        deactivationLookupError = error.message || 'Could not load MIKA FILE EMPLOC/name data.';
-        if (document.querySelector('#deactivation-emploc')?.value.trim()) lookupStatus.textContent = deactivationLookupError;
+        const message = error.message || 'Could not load MIKA FILE EMPLOC/name data.';
+        deactivationLookupError = /unknown sheets action/i.test(message)
+          ? 'MIKA FILE lookup is unavailable until the Google Sheets service is redeployed.'
+          : message;
+        if (document.querySelector('#deactivation-emploc')?.value.trim() && lookupStatus) {
+          lookupStatus.textContent = deactivationLookupError;
+        }
       }
     }
     function lookupDeactivationName(emploc) {
@@ -4496,6 +4592,8 @@
       const body = document.querySelector('#deactivation-table-body');
       if (!status || !body) return;
       status.textContent = 'Loading deactivation records...';
+      status.dataset.state = 'loading';
+      document.querySelector('#deactivation-record-count').textContent = 'Loading...';
       body.innerHTML = '<tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr>';
       try {
         const result = await callSheetsFunction('read-deactivation', {
@@ -4504,10 +4602,16 @@
         });
         deactivationRecords = result.records || [];
         renderDeactivationRecords();
+        if (!deactivationRecords.length) {
+          status.textContent = 'Data loaded. No saved records found.';
+          status.dataset.state = 'success';
+        }
       } catch (error) {
         deactivationRecords = [];
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(error.message || 'Could not load deactivation records.')}</td></tr>`;
         status.textContent = error.message || 'Could not load deactivation records.';
+        status.dataset.state = 'error';
+        document.querySelector('#deactivation-record-count').textContent = 'Unavailable';
       }
     }
     function renderDeactivationRecords() {
@@ -4518,15 +4622,20 @@
         [record.emploc, record.fullname, record.status, record.inactiveDate]
           .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
       );
+      const count = document.querySelector('#deactivation-record-count');
+      if (count) count.textContent = `${rows.length} shown · ${deactivationRecords.length} total`;
       if (!rows.length) {
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
-        document.querySelector('#deactivation-status').textContent = `0 shown · ${deactivationRecords.length} total records.`;
+        document.querySelector('#deactivation-status').textContent = deactivationRecords.length ? 'No records match this search.' : 'No saved records found.';
+        document.querySelector('#deactivation-status').dataset.state = deactivationRecords.length ? 'info' : 'success';
         return;
       }
       body.innerHTML = rows.map(record =>
         `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.inactiveDate)}</td></tr>`
       ).join('');
-      document.querySelector('#deactivation-status').textContent = `${rows.length} shown · ${deactivationRecords.length} total record${deactivationRecords.length === 1 ? '' : 's'}.`;
+      const status = document.querySelector('#deactivation-status');
+      status.textContent = `${rows.length} record${rows.length === 1 ? '' : 's'} shown.`;
+      status.dataset.state = 'success';
     }
     async function saveDeactivationEntry(event) {
       event.preventDefault();
@@ -4539,11 +4648,13 @@
       const inactiveDate = form.elements.inactiveDate.value;
       if (!emploc || !fullname || !recordStatus || !inactiveDate) {
         status.textContent = 'Enter an EMPLOC that exists in MIKA FILE, choose a status, and select the inactive date.';
+        status.dataset.state = 'error';
         return;
       }
       button.disabled = true;
       button.textContent = 'Saving...';
       status.textContent = 'Saving record to the assigned DEACTIVATION tab...';
+      status.dataset.state = 'loading';
       try {
         const result = await callSheetsFunction('save-deactivation', {
           emploc,
@@ -4553,11 +4664,13 @@
           ...(previewedUser ? { targetUsername: previewedUser.username } : {})
         });
         status.textContent = `${result.emploc} saved to row ${result.rowNumber}.`;
+        status.dataset.state = 'success';
         form.reset();
         document.querySelector('#deactivation-fullname').value = '';
         await loadDeactivationRecords();
       } catch (error) {
         status.textContent = error.message || 'Could not save this deactivation record.';
+        status.dataset.state = 'error';
       } finally {
         button.disabled = false;
         button.textContent = 'Save record';
