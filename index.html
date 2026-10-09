@@ -375,9 +375,9 @@
     .deactivation-mika-tab-settings { padding:10px 11px; margin-top:8px; border:1px solid rgba(53,139,143,.16); border-radius:9px; background:rgba(255,255,255,.48); }
     .deactivation-mika-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
     .deactivation-mika-tab-settings .buffer-detail-tab-field input { min-height:38px; }
-    .deactivation-dashboard { position:relative; display:grid; gap:17px; padding:clamp(16px,2.2vw,28px); overflow:hidden; border:1px solid rgba(255,255,255,.76); border-radius:22px; color:#183b43; background:linear-gradient(145deg,#f5fafb 0%,#eaf3f5 100%); box-shadow:0 24px 68px rgba(2,15,32,.3); }
+    .deactivation-dashboard { position:relative; display:grid; gap:17px; padding:clamp(16px,2.2vw,28px); overflow:clip; border:1px solid rgba(255,255,255,.76); border-radius:22px; color:#183b43; background:linear-gradient(145deg,#f5fafb 0%,#eaf3f5 100%); box-shadow:0 24px 68px rgba(2,15,32,.3); }
     .deactivation-dashboard::before { position:absolute; top:-185px; right:-120px; width:430px; height:330px; border-radius:50%; background:radial-gradient(ellipse,rgba(47,205,191,.2),rgba(74,140,220,.08) 45%,transparent 72%); content:""; pointer-events:none; }
-    .deactivation-page-header { position:relative; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:19px 21px; overflow:hidden; border:1px solid rgba(255,255,255,.15); border-radius:16px; color:#fff; background:linear-gradient(112deg,#092e43 0%,#0b5365 55%,#087b7d 100%); box-shadow:0 12px 27px rgba(7,67,77,.2); }
+    .deactivation-page-header { position:sticky; top:10px; z-index:5; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:19px 21px; overflow:hidden; border:1px solid rgba(255,255,255,.15); border-radius:16px; color:#fff; background:linear-gradient(112deg,#092e43 0%,#0b5365 55%,#087b7d 100%); box-shadow:0 12px 27px rgba(7,67,77,.2); }
     .deactivation-page-header::after { position:absolute; top:-90px; right:17%; width:240px; height:240px; border:1px solid rgba(255,255,255,.1); border-radius:50%; box-shadow:0 0 0 24px rgba(255,255,255,.035),0 0 0 50px rgba(255,255,255,.025); content:""; pointer-events:none; }
     .deactivation-page-title { display:flex; align-items:flex-start; gap:13px; }
     .deactivation-page-mark { position:relative; z-index:1; display:grid; width:48px; height:48px; flex:0 0 auto; place-items:center; border:1px solid rgba(255,255,255,.25); border-radius:15px; color:#baf4e8; background:rgba(255,255,255,.12); box-shadow:inset 0 1px rgba(255,255,255,.16); }
@@ -398,8 +398,8 @@
     .deactivation-stat-copy { position:relative; z-index:1; display:grid; min-width:0; gap:2px; }
     .deactivation-stat-copy span { color:#718990; font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
     .deactivation-stat-copy strong { overflow:hidden; color:#214951; font:800 19px/1.1 'Roboto Mono',monospace; text-overflow:ellipsis; white-space:nowrap; }
-    .deactivation-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 4px 13px rgba(22,68,77,.04); }
-    .deactivation-search-field { display:grid; gap:6px; color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
+    .deactivation-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 4px 13px rgba(22,68,77,.04); }
+    .deactivation-search-field { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:8px 12px; min-width:0; color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
     .deactivation-search-field .plantilla-search { width:100%; min-height:39px; border-color:#d5e2e5; background:#fff; font-size:11px; }
     .deactivation-toolbar-status { justify-self:end; max-width:420px; margin:0; color:#5e7880; font-size:10px; line-height:1.5; text-align:right; overflow-wrap:anywhere; }
     .deactivation-toolbar-status:empty { display:none; }
@@ -412,20 +412,22 @@
     .deactivation-entry-heading::before { width:4px; height:28px; flex:0 0 auto; border-radius:5px; background:linear-gradient(180deg,#11b5a7,#087c86); content:""; }
     .deactivation-entry-heading h2,.deactivation-table-heading h2 { margin:0; color:#20474f; font-size:13px; font-weight:800; letter-spacing:.015em; }
     .deactivation-entry-heading p,.deactivation-table-heading p { margin:5px 0 0; color:#71888e; font-size:10px; line-height:1.5; }
-    .deactivation-fields { gap:14px; }
+    .deactivation-fields { grid-template-columns:repeat(4,minmax(0,1fr)) minmax(120px,.72fr); gap:10px; }
+    .deactivation-entry-card .field { display:grid; grid-template-rows:13px 43px 13px; gap:5px; align-content:start; }
     .deactivation-entry-card .field label { color:#47676e; font-size:9px; letter-spacing:.04em; }
-    .deactivation-entry-card .field input,.deactivation-entry-card .field select { min-height:43px; border-color:#d5e1e4; border-radius:8px; color:#24474e; background:#fff; font-family:inherit; font-size:11px; }
+    .deactivation-entry-card .field input,.deactivation-entry-card .field select { box-sizing:border-box; min-height:43px; height:43px; border-color:#d5e1e4; border-radius:8px; color:#24474e; background:#fff; font-family:inherit; font-size:11px; }
     .deactivation-entry-card .field input::placeholder { color:#9aadb1; }
-    .deactivation-lookup-status { min-height:0; margin-top:4px; color:#607980; font-size:9px; }
-    .deactivation-entry-footer { align-items:center; padding-top:13px; margin-top:14px; border-top:1px solid #edf1f2; }
+    .deactivation-lookup-status { min-height:0; margin:0; color:#607980; font-size:9px; }
+    .deactivation-entry-card .primary-button { grid-column:5; grid-row:1; align-self:center; width:100%; min-width:0; }
+    .deactivation-entry-footer { align-items:center; padding-top:10px; margin-top:10px; border-top:1px solid #edf1f2; }
     .deactivation-entry-footer p { color:#71878c; font-size:10px; }
     .deactivation-entry-card .primary-button { min-height:39px; border-radius:9px; box-shadow:none; font-size:11px; }
     .deactivation-table-panel { overflow:hidden; border:1px solid #d6e2e4; border-radius:14px; background:#fff; box-shadow:0 6px 19px rgba(22,68,77,.055); }
     .deactivation-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid #e5edef; background:linear-gradient(110deg,#fff,#f8fbfb); }
     .deactivation-record-count { padding:5px 9px; border:1px solid #dce8e9; border-radius:99px; color:#557078; background:#f5f9f9; font-size:9px; font-weight:800; white-space:nowrap; }
-    .deactivation-table-wrap { max-height:min(54vh,560px); overflow:auto; }
+    .deactivation-table-wrap { max-height:min(54vh,560px); overflow:auto; isolation:isolate; }
     .deactivation-table { width:100%; min-width:620px; table-layout:fixed; border-collapse:separate; border-spacing:0; text-align:left; }
-    .deactivation-table th { position:sticky; top:0; z-index:1; padding:12px 16px; border-bottom:1px solid #d9e6e8; color:#56727a; background:#f2f7f7; font-size:9px; font-weight:800; letter-spacing:.075em; }
+    .deactivation-table th { position:sticky; top:0; z-index:2; padding:12px 16px; border-bottom:1px solid #d9e6e8; color:#56727a; background:#f2f7f7; background-clip:padding-box; box-shadow:0 1px 0 #d9e6e8; font-size:9px; font-weight:800; letter-spacing:.075em; }
     .deactivation-table td { padding:12px 16px; border-bottom:1px solid #edf1f2; color:#315159; font-size:11px; line-height:1.45; }
     .deactivation-table tbody tr:last-child td { border-bottom:0; }
     .deactivation-table tbody tr:nth-child(even) td { background:#fbfdfd; }
@@ -434,7 +436,10 @@
     .deactivation-table td:nth-child(3) { color:#45666c; font-size:10px; font-weight:700; }
     .deactivation-table td:last-child { color:#536f76; }
     .deactivation-dashboard .plantilla-empty { padding:22px 16px; color:#71878c !important; font-size:11px; }
-    @media(max-width:850px) { .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media(max-width:850px) {
+      .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .deactivation-entry-card .primary-button { grid-column:2; grid-row:auto; justify-self:end; width:auto; min-width:145px; }
+    }
     @media(max-width:720px) {
       .deactivation-dashboard { gap:12px; padding:14px; border-radius:16px; }
       .deactivation-page-header { align-items:flex-start; flex-direction:column; gap:13px; padding:16px; }
@@ -445,12 +450,12 @@
       .deactivation-stat-icon { width:32px; height:32px; }
       .deactivation-stat-copy strong { font-size:16px; }
       .deactivation-toolbar { grid-template-columns:minmax(0,1fr); gap:9px; }
+      .deactivation-search-field { grid-template-columns:minmax(0,1fr); gap:6px; }
       .deactivation-toolbar-status { justify-self:start; text-align:left; }
-      .deactivation-entry-footer { align-items:stretch; flex-direction:column; }
-      .deactivation-entry-card .primary-button { width:100%; }
     }
     @media(max-width:480px) {
       .deactivation-fields { grid-template-columns:minmax(0,1fr); }
+      .deactivation-entry-card .primary-button { grid-column:1; justify-self:stretch; width:100%; margin-top:0; }
       .deactivation-stats { grid-template-columns:minmax(0,1fr); }
       .deactivation-stat { padding:10px 13px; }
       .deactivation-stat-copy strong { font-size:18px; }
@@ -4534,17 +4539,18 @@
           <label class="deactivation-search-field" for="deactivation-search">SEARCH RECORDS
             <input id="deactivation-search" class="plantilla-search" type="search" placeholder="EMPLOC, full name, status, or date" aria-label="Search deactivation records" autocomplete="off">
           </label>
-          <p id="deactivation-status" class="deactivation-toolbar-status" role="status" aria-live="polite"></p>
+          <p id="deactivation-feedback" class="deactivation-toolbar-status" role="status" aria-live="polite"></p>
         </section>
         <form id="deactivation-form" class="deactivation-entry-card">
           <div class="deactivation-entry-heading"><h2>Add a record</h2><p>Enter an EMPLOC to find the employee in the assigned MIKA FILE tab.</p></div>
           <div class="deactivation-fields">
             <div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100" placeholder="Enter employee code"><p id="deactivation-lookup-status" class="deactivation-lookup-status" role="status" aria-live="polite"></p></div>
             <div class="field"><label for="deactivation-fullname">FULL NAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Auto-filled from MIKA FILE"></div>
-            <div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div>
+            <div class="field"><label for="deactivation-record-status">STATUS</label><select id="deactivation-record-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div>
             <div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div>
+            <button id="deactivation-save" class="primary-button" type="submit">Save record</button>
           </div>
-          <div class="deactivation-entry-footer"><p>Saved to the assigned data tab in columns A–D.</p><button id="deactivation-save" class="primary-button" type="submit">Save record</button></div>
+          <div class="deactivation-entry-footer"><p>Saved to the assigned data tab in columns A–D.</p></div>
         </form>
         <section class="deactivation-table-panel" aria-labelledby="deactivation-table-title">
           <div class="deactivation-table-heading"><div><h2 id="deactivation-table-title">Saved records</h2><p>Records loaded from the assigned deactivation data tab.</p></div><span id="deactivation-record-count" class="deactivation-record-count">0 records</span></div>
@@ -4625,7 +4631,7 @@
       await Promise.all([loadDeactivationRecords(), loadDeactivationMikaFile()]);
     }
     async function loadDeactivationRecords() {
-      const status = document.querySelector('#deactivation-status');
+      const status = document.querySelector('#deactivation-feedback');
       const body = document.querySelector('#deactivation-table-body');
       if (!status || !body) return;
       status.textContent = 'Loading deactivation records...';
@@ -4670,14 +4676,14 @@
       if (statusStat) statusStat.textContent = distinctStatuses.size.toLocaleString();
       if (!rows.length) {
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
-        document.querySelector('#deactivation-status').textContent = deactivationRecords.length ? 'No records match this search.' : 'No saved records found.';
-        document.querySelector('#deactivation-status').dataset.state = deactivationRecords.length ? 'info' : 'success';
+        document.querySelector('#deactivation-feedback').textContent = deactivationRecords.length ? 'No records match this search.' : 'No saved records found.';
+        document.querySelector('#deactivation-feedback').dataset.state = deactivationRecords.length ? 'info' : 'success';
         return;
       }
       body.innerHTML = rows.map(record =>
         `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.inactiveDate)}</td></tr>`
       ).join('');
-      const status = document.querySelector('#deactivation-status');
+      const status = document.querySelector('#deactivation-feedback');
       status.textContent = `${rows.length} record${rows.length === 1 ? '' : 's'} shown.`;
       status.dataset.state = 'success';
     }
@@ -4685,7 +4691,7 @@
       event.preventDefault();
       const form = event.currentTarget;
       const button = document.querySelector('#deactivation-save');
-      const status = document.querySelector('#deactivation-status');
+      const status = document.querySelector('#deactivation-feedback');
       const emploc = form.elements.emploc.value.trim();
       const fullname = form.elements.fullname.value.trim();
       const recordStatus = form.elements.status.value;
