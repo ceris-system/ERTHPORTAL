@@ -442,8 +442,8 @@
     .attrition-date-range { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
     .attrition-toolbar-actions { display:flex; align-items:center; gap:8px; }
     .attrition-toolbar-actions button { min-height:39px; white-space:nowrap; }
-    .attrition-table { min-width:1180px; }
-    .attrition-table td { white-space:nowrap; }
+    .attrition-table { width:max-content; min-width:100%; table-layout:auto; }
+    .attrition-table th,.attrition-table td { white-space:nowrap; }
     .attrition-status { min-height:18px; margin:0; color:#647e85; font-size:10px; }
     .attrition-empty { text-align:center; }
     @media(max-width:1050px) {
