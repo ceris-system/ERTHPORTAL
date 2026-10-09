@@ -116,6 +116,13 @@ const bufferDetailClientColumns: Record<string, number> = {
   payrollNotInPlantilla: 10
 };
 
+const bufferDetailDataColumns: Record<string, { emploc: number; fullname: number; dateHired: number; aging: number }> = {
+  plantillaNotInMika: { emploc: 15, fullname: 16, dateHired: 19, aging: 20 },
+  mikaNotInPlantilla: { emploc: 6, fullname: 7, dateHired: 11, aging: 12 },
+  plantillaNotInPayroll: { emploc: 17, fullname: 18, dateHired: 19, aging: 23 },
+  payrollNotInPlantilla: { emploc: 6, fullname: 7, dateHired: 13, aging: 14 }
+};
+
 async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, actor: any, body: any) {
   if (actor.status !== 'active') throw new Error('This account is inactive.');
   const dashboardNameByAction: Record<string, string> = {
@@ -1026,46 +1033,23 @@ async function readBuffer(spreadsheetId: string, tabName = '-+5% GAP') {
 async function readBufferDetail(spreadsheetId: string, tabName: string, detailType: string, clientName: string) {
   const clientColumn = bufferDetailClientColumns[detailType];
   if (clientColumn === undefined) throw new Error('Choose a valid buffer detail dashboard.');
-  const range = sheetRange(tabName, 'A1:V');
+  const columns = bufferDetailDataColumns[detailType];
+  const range = sheetRange(tabName, 'A7:X');
   const [raw, display] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
   ]);
   const rawRows: unknown[][] = raw.values || [];
   const displayRows: unknown[][] = display.values || [];
-  const normalizeHeader = (value: unknown) => String(value || '').trim().toLocaleLowerCase().replace(/[^a-z0-9]/g, '');
-  const headerAliases: Record<string, string[]> = {
-    emploc: ['emploc', 'employeeid', 'employee code'],
-    fullname: ['fullname', 'full name', 'employee name', 'name'],
-    dateHired: ['datehired', 'date hired', 'datehire'],
-    aging: ['aging', 'age']
-  };
-  let headerRowIndex = -1;
-  let columns: Record<string, number> = {};
-  for (let rowIndex = 0; rowIndex < Math.min(30, Math.max(rawRows.length, displayRows.length)); rowIndex++) {
-    const values = displayRows[rowIndex] || rawRows[rowIndex] || [];
-    const normalized = values.map(normalizeHeader);
-    const candidate: Record<string, number> = {};
-    for (const [field, aliases] of Object.entries(headerAliases)) {
-      const matched = aliases.map(normalizeHeader).map(alias => normalized.indexOf(alias)).find(index => index >= 0);
-      if (matched !== undefined) candidate[field] = matched;
-    }
-    if (Object.keys(candidate).length === Object.keys(headerAliases).length) {
-      headerRowIndex = rowIndex;
-      columns = candidate;
-      break;
-    }
-  }
-  if (headerRowIndex < 0) throw new Error(`The ${tabName} tab must include EMPLOC, FULLNAME, DATE HIRED, and AGING column headers within its first 30 rows.`);
   const targetClient = clientName.trim().toLocaleLowerCase();
   if (!targetClient) throw new Error('A client must be selected to load buffer detail records.');
   const records = [];
-  for (let rowIndex = headerRowIndex + 1; rowIndex < Math.max(rawRows.length, displayRows.length); rowIndex++) {
+  for (let rowIndex = 0; rowIndex < Math.max(rawRows.length, displayRows.length); rowIndex++) {
     const rawRow = rawRows[rowIndex] || [];
     const displayRow = displayRows[rowIndex] || [];
     const client = String(displayRow[clientColumn] ?? rawRow[clientColumn] ?? '').trim().toLocaleLowerCase();
     if (client !== targetClient) continue;
-    const value = (field: string) => String(displayRow[columns[field]] ?? rawRow[columns[field]] ?? '').trim();
+    const value = (field: keyof typeof columns) => String(displayRow[columns[field]] ?? rawRow[columns[field]] ?? '').trim();
     if (!value('emploc') && !value('fullname')) continue;
     records.push({
       emploc: value('emploc'),
