@@ -358,12 +358,11 @@
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
     .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
     .buffer-table { width:100%; min-width:1080px; table-layout:fixed; }
-    .buffer-table th { padding:9px 6px; white-space:normal; overflow-wrap:anywhere; text-align:center; }
-    .buffer-table td { padding:9px 6px; text-align:center; }
-    .buffer-table td:first-child { text-align:left; }
-    .buffer-table .buffer-exception-cell,.buffer-table .buffer-range-danger { color:#991b1b; background:#fee2e2; font-weight:800; }
-    .buffer-table .buffer-range-warning { color:#854d0e; background:#fef3c7; font-weight:700; }
-    .buffer-table .buffer-range-safe { color:#166534; background:#dcfce7; font-weight:700; }
+    .buffer-table th { padding:9px 6px; border:1px solid #111; background:#444; white-space:normal; overflow-wrap:anywhere; text-align:center; }
+    .buffer-table td { padding:9px 6px; border-right:1px solid #111; border-bottom:1px solid #111; text-align:center; }
+    .buffer-table td:first-child { border-left:1px solid #111; text-align:left; }
+    .buffer-table .buffer-exception-cell,.buffer-table .buffer-range-danger { color:#111; background:#e89a9a; font-weight:800; }
+    .buffer-table .buffer-range-safe { color:#111; background:#00ed18; font-weight:700; }
     .plantilla-summary-total td { position:sticky; bottom:0; z-index:1; border-top:2px solid #168d91; background:#e7f5f2; font-weight:800; }
     .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
     .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
@@ -3702,7 +3701,7 @@
           if (sourceColumn >= 5 && sourceColumn <= 7 && value.trim()) className = 'buffer-exception-cell';
           if (sourceColumn >= 11 && sourceColumn <= 14 && value.trim()) {
             const percent = bufferPercentValue(value);
-            if (percent !== null) className = Math.abs(percent) > 5 ? 'buffer-range-danger' : Math.abs(percent) >= 1 ? 'buffer-range-warning' : 'buffer-range-safe';
+            if (percent !== null) className = Math.abs(percent) > 5 ? 'buffer-range-danger' : 'buffer-range-safe';
           }
           const accessibleLabel = columnIndex >= 7 && columnIndex <= 10 ? ` aria-label="${['Payroll N', 'Payroll O', 'MIKA P', 'MIKA Q'][columnIndex - 7]}: ${escapeHtml(value)}"` : '';
           return `<td${className ? ` class="${className}"` : ''}${accessibleLabel}>${escapeHtml(value)}</td>`;
