@@ -135,6 +135,17 @@
     .utility-button, .secondary-button { min-height:38px; padding:0 13px; border:1px solid rgba(53,139,143,.16); border-radius:11px; color:#21686e; background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(237,249,247,.76)); box-shadow:0 3px 9px rgba(25,98,105,.06),inset 0 1px 0 rgba(255,255,255,.9); font-size:11px; font-weight:700; transition:transform .18s ease,box-shadow .18s ease,background .18s ease; }
     .utility-button:hover, .secondary-button:hover { transform:translateY(-1px); background:white; box-shadow:0 6px 14px rgba(25,98,105,.11),inset 0 1px 0 white; }
     .utility-button:active, .secondary-button:active { transform:translateY(0); }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button) { min-height:38px; padding:0 13px; border:1px solid rgba(38,111,120,.2); border-radius:10px; color:#245c65; background:linear-gradient(180deg,#fff,#edf5f5); box-shadow:0 2px 5px rgba(17,52,61,.08),inset 0 1px 0 rgba(255,255,255,.9); font:700 11px/1.35 'Roboto Mono',monospace; cursor:pointer; transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease; }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(20,143,145,.48); color:#126d73; background:#fff; box-shadow:0 5px 12px rgba(17,52,61,.12); }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):active:not(:disabled) { transform:translateY(0); box-shadow:0 1px 3px rgba(17,52,61,.1); }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):focus-visible { outline:3px solid rgba(20,143,145,.3); outline-offset:2px; }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):disabled { cursor:not-allowed; opacity:.55; box-shadow:none; transform:none; }
+    #dashboard .primary-button { border-color:transparent; color:#fff; background:linear-gradient(110deg,#148f91,#176c83); box-shadow:0 5px 12px rgba(20,116,125,.2); }
+    #dashboard .primary-button:hover:not(:disabled) { color:#fff; background:linear-gradient(110deg,#117d80,#155f75); box-shadow:0 7px 16px rgba(20,116,125,.25); }
+    #dashboard .remove-source { width:36px; min-height:38px; padding:0; border-color:rgba(194,103,96,.28); color:#a44740; background:linear-gradient(180deg,#fff,#fff1ef); font-size:17px; }
+    #dashboard .add-source-button { min-height:34px; padding:0 8px; border-color:transparent; color:#147f83; background:transparent; box-shadow:none; }
+    #dashboard .approval-approve-button { border-color:rgba(39,139,109,.3); color:#17684d; background:linear-gradient(180deg,#f6fffa,#e2f7ed); }
+    #dashboard .buffer-detail-actions button { min-height:46px; padding:10px 14px; border-color:rgba(38,111,120,.2); color:#245c65; background:linear-gradient(180deg,#fff,#edf5f5); box-shadow:0 2px 5px rgba(17,52,61,.08); font:700 10px/1.45 'Roboto Mono',monospace; }
     .workspace-card { display:flex; align-items:center; gap:11px; margin:0 5px; padding:12px 11px; border:1px solid rgba(55,150,151,.16); border-radius:13px; background:rgba(255,255,255,.58); }
     .workspace-card strong, .workspace-card span { display:block; }
     .workspace-card strong { font-size:12px; }
