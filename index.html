@@ -390,18 +390,18 @@
     .deactivation-page-actions button:hover { transform:translateY(-1px); border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.18); }
     .deactivation-page-actions #deactivation-assign-sheet { border-color:#a6f1d7; color:#063d49; background:#a6f1d7; }
     .deactivation-page-actions #deactivation-assign-sheet:hover { background:#c1ffe9; }
-    .deactivation-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
-    .deactivation-stat { position:relative; display:flex; align-items:center; gap:12px; min-width:0; padding:13px 15px; overflow:hidden; border:1px solid rgba(255,255,255,.9); border-radius:13px; background:linear-gradient(140deg,rgba(255,255,255,.96),rgba(242,249,249,.88)); box-shadow:0 5px 16px rgba(13,59,68,.06); }
+    .deactivation-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; min-width:0; }
+    .deactivation-stat { position:relative; display:flex; align-items:center; gap:9px; min-width:0; padding:9px 10px; overflow:hidden; border:1px solid rgba(255,255,255,.9); border-radius:11px; background:linear-gradient(140deg,rgba(255,255,255,.96),rgba(242,249,249,.88)); box-shadow:0 5px 16px rgba(13,59,68,.06); }
     .deactivation-stat::after { position:absolute; right:-15px; bottom:-32px; width:90px; height:90px; border-radius:50%; background:rgba(78,198,184,.07); content:""; }
-    .deactivation-stat-icon { position:relative; z-index:1; display:grid; width:37px; height:37px; flex:0 0 auto; place-items:center; border:1px solid #d7ece8; border-radius:11px; color:#078183; background:#eff9f6; }
+    .deactivation-stat-icon { position:relative; z-index:1; display:grid; width:32px; height:32px; flex:0 0 auto; place-items:center; border:1px solid #d7ece8; border-radius:10px; color:#078183; background:#eff9f6; }
     .deactivation-stat-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
     .deactivation-stat-copy { position:relative; z-index:1; display:grid; min-width:0; gap:2px; }
     .deactivation-stat-copy span { color:#718990; font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
-    .deactivation-stat-copy strong { overflow:hidden; color:#214951; font:800 19px/1.1 'Roboto Mono',monospace; text-overflow:ellipsis; white-space:nowrap; }
-    .deactivation-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 4px 13px rgba(22,68,77,.04); }
+    .deactivation-stat-copy strong { overflow:hidden; color:#214951; font:800 17px/1.1 'Roboto Mono',monospace; text-overflow:ellipsis; white-space:nowrap; }
+    .deactivation-toolbar { display:grid; grid-template-columns:minmax(240px,.9fr) minmax(0,1.4fr); align-items:center; gap:9px 14px; padding:10px 12px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 4px 13px rgba(22,68,77,.04); }
     .deactivation-search-field { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:8px 12px; min-width:0; color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
     .deactivation-search-field .plantilla-search { width:100%; min-height:39px; border-color:#d5e2e5; background:#fff; font-size:11px; }
-    .deactivation-toolbar-status { justify-self:end; max-width:420px; margin:0; color:#5e7880; font-size:10px; line-height:1.5; text-align:right; overflow-wrap:anywhere; }
+    .deactivation-toolbar-status { grid-column:1 / -1; justify-self:end; max-width:100%; margin:0; color:#5e7880; font-size:10px; line-height:1.5; text-align:right; overflow-wrap:anywhere; }
     .deactivation-toolbar-status:empty { display:none; }
     .deactivation-toolbar-status[data-state] { padding:7px 10px; border:1px solid #dce8e9; border-radius:8px; background:#f6f9f9; }
     .deactivation-toolbar-status[data-state="success"] { border-color:#cce6d8; color:#28664b; background:#f1faf4; }
@@ -445,19 +445,21 @@
       .deactivation-page-header { align-items:flex-start; flex-direction:column; gap:13px; padding:16px; }
       .deactivation-page-actions { width:100%; }
       .deactivation-page-actions button { flex:1; }
-      .deactivation-stats { gap:8px; }
-      .deactivation-stat { gap:8px; padding:10px; }
-      .deactivation-stat-icon { width:32px; height:32px; }
+      .deactivation-toolbar { grid-template-columns:minmax(0,1fr); }
+      .deactivation-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .deactivation-stat { gap:7px; padding:8px; }
+      .deactivation-stat-icon { width:29px; height:29px; }
       .deactivation-stat-copy strong { font-size:16px; }
-      .deactivation-toolbar { grid-template-columns:minmax(0,1fr); gap:9px; }
       .deactivation-search-field { grid-template-columns:minmax(0,1fr); gap:6px; }
-      .deactivation-toolbar-status { justify-self:start; text-align:left; }
+      .deactivation-toolbar-status { grid-column:1; justify-self:start; text-align:left; }
     }
     @media(max-width:480px) {
       .deactivation-fields { grid-template-columns:minmax(0,1fr); }
       .deactivation-entry-card .primary-button { grid-column:1; justify-self:stretch; width:100%; margin-top:0; }
-      .deactivation-stats { grid-template-columns:minmax(0,1fr); }
-      .deactivation-stat { padding:10px 13px; }
+      .deactivation-stat { gap:6px; padding:7px 6px; }
+      .deactivation-stat-icon { width:25px; height:25px; border-radius:8px; }
+      .deactivation-stat-icon svg { width:15px; height:15px; }
+      .deactivation-stat-copy span { font-size:7px; }
       .deactivation-stat-copy strong { font-size:18px; }
     }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
@@ -4530,15 +4532,15 @@
             <button id="deactivation-home" type="button">Home</button>
           </div>
         </header>
-        <section class="deactivation-stats" aria-label="Deactivation dashboard summary">
-          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span><div class="deactivation-stat-copy"><span>Total records</span><strong id="deactivation-total-stat">—</strong></div></article>
-          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><div class="deactivation-stat-copy"><span>Showing</span><strong id="deactivation-shown-stat">—</strong></div></article>
-          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M9 9h.01M12 9h.01M15 9h.01M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01"/></svg></span><div class="deactivation-stat-copy"><span>Status types</span><strong id="deactivation-status-stat">—</strong></div></article>
-        </section>
         <section class="deactivation-toolbar" aria-label="Search and dashboard status">
           <label class="deactivation-search-field" for="deactivation-search">SEARCH RECORDS
             <input id="deactivation-search" class="plantilla-search" type="search" placeholder="EMPLOC, full name, status, or date" aria-label="Search deactivation records" autocomplete="off">
           </label>
+          <section class="deactivation-stats" aria-label="Deactivation dashboard summary">
+            <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span><div class="deactivation-stat-copy"><span>Total records</span><strong id="deactivation-total-stat">—</strong></div></article>
+            <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-4.8"/></svg></span><div class="deactivation-stat-copy"><span>Showing</span><strong id="deactivation-shown-stat">—</strong></div></article>
+            <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M9 9h.01M12 9h.01M15 9h.01M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01"/></svg></span><div class="deactivation-stat-copy"><span>Status types</span><strong id="deactivation-status-stat">—</strong></div></article>
+          </section>
           <p id="deactivation-feedback" class="deactivation-toolbar-status" role="status" aria-live="polite"></p>
         </section>
         <form id="deactivation-form" class="deactivation-entry-card">
