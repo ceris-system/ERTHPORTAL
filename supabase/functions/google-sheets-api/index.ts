@@ -1172,13 +1172,11 @@ async function readAttritionRecords(
   const values: unknown[][] = result[0]?.valueRange?.values || [];
   const allowedClients = new Set(assignedClients.map(client => client.trim().toLocaleLowerCase()).filter(Boolean));
   if (!allowedClients.size && !isMasterAdmin) throw new Error('No clients are assigned to this ATTRITION dashboard.');
-  const clients = new Map<string, string>();
   const allowedStatuses = new Set(['AWOL', 'BACK OUT', 'ENDO', 'RESIGNED', 'TERMINATED']);
   const records = values.flatMap(row => {
     const account = String(row[46] ?? '').trim();
     const clientKey = account.toLocaleLowerCase();
     if (!account || (allowedClients.size && !allowedClients.has(clientKey))) return [];
-    clients.set(clientKey, clients.get(clientKey) || account);
     const status = String(row[33] ?? '').trim().toLocaleUpperCase();
     if (!allowedStatuses.has(status)) return [];
     const emploc = String(row[2] ?? '').trim();
@@ -1189,7 +1187,7 @@ async function readAttritionRecords(
       account,
       emploc,
       fullname: String(row[35] ?? '').trim(),
-      outlet: String(row[35] ?? '').trim(),
+      outlet: String(row[9] ?? '').trim(),
       area: String(row[8] ?? '').trim(),
       tenure: String(row[15] ?? '').trim(),
       status,
@@ -1199,10 +1197,7 @@ async function readAttritionRecords(
       separationDate: attritionIsoDate(separationValue)
     }];
   });
-  return {
-    clients: [...clients.values()].sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
-    records
-  };
+  return { records };
 }
 
 async function readVcodeVariance(spreadsheetId: string, tabName: string, clientName: string) {

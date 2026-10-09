@@ -434,7 +434,7 @@
     .deactivation-table td:nth-child(3) { color:#45666c; font-size:10px; font-weight:700; }
     .deactivation-table td:last-child { color:#536f76; }
     .deactivation-dashboard .plantilla-empty { padding:22px 16px; color:#71878c !important; font-size:11px; }
-    .attrition-controls { display:grid; grid-template-columns:minmax(230px,1.2fr) minmax(140px,.55fr) minmax(180px,.8fr) auto; align-items:end; gap:12px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.9); box-shadow:0 4px 13px rgba(22,68,77,.04); }
+    .attrition-controls { display:grid; grid-template-columns:minmax(170px,1fr) minmax(170px,1fr) auto; align-items:end; gap:12px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.9); box-shadow:0 4px 13px rgba(22,68,77,.04); }
     .attrition-controls .field { display:grid; min-width:0; gap:6px; margin:0; }
     .attrition-controls .field label { color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
     .attrition-controls .field input,.attrition-controls .field select { box-sizing:border-box; width:100%; min-width:0; min-height:39px; padding:0 10px; border:1px solid #d5e2e5; border-radius:9px; color:#24474e; background:#fff; font:11px 'Roboto Mono',monospace; }
@@ -447,8 +447,8 @@
     .attrition-status { min-height:18px; margin:0; color:#647e85; font-size:10px; }
     .attrition-empty { text-align:center; }
     @media(max-width:1050px) {
-      .attrition-controls { grid-template-columns:minmax(0,1fr) minmax(140px,.55fr); }
-      .attrition-toolbar-actions { justify-content:flex-end; }
+      .attrition-controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .attrition-toolbar-actions { grid-column:1 / -1; justify-content:flex-end; }
     }
     @media(max-width:720px) {
       .attrition-controls { grid-template-columns:minmax(0,1fr); }
@@ -4534,7 +4534,7 @@
     const attritionStatuses = new Set(['AWOL', 'BACK OUT', 'ENDO', 'RESIGNED', 'TERMINATED']);
     const attritionMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     let attritionRecords = [];
-    let attritionClients = [];
+    let attritionClientScope = '';
     let attritionReportMode = 'monthly';
     let attritionReadGeneration = 0;
     let attritionCurrentYear = new Date().getFullYear();
@@ -4542,11 +4542,10 @@
       saveCurrentView('dashboard', 'ATTRITION');
       document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode('ATTRITION'));
       attritionRecords = [];
-      attritionClients = [];
       attritionReportMode = 'monthly';
       attritionCurrentYear = new Date().getFullYear();
+      attritionClientScope = currentUser?.isMasterAdmin && !previewedUser ? '' : getActiveClient();
       const currentMonth = new Date().getMonth();
-      const client = getActiveClient();
       content.innerHTML = `<section class="deactivation-dashboard" aria-labelledby="attrition-title">
         <header class="deactivation-page-header">
           <div class="deactivation-page-title">
@@ -4561,7 +4560,6 @@
         </header>
         <section class="attrition-controls" aria-label="Attrition report filters">
           <label class="field" for="attrition-search"><span>SEARCH RECORDS</span><input id="attrition-search" type="search" placeholder="Search records..." autocomplete="off"></label>
-          <label class="field" for="attrition-client"><span>CLIENT</span><select id="attrition-client" required><option value="">Loading clients...</option></select></label>
           <div id="attrition-month-controls" class="field"><label for="attrition-month">MONTH · ${attritionCurrentYear}</label><select id="attrition-month">${attritionMonths.map((month, index) => `<option value="${index}"${index === currentMonth ? ' selected' : ''}>${month}</option>`).join('')}</select></div>
           <div id="attrition-week-controls" class="field hidden"><span>SEPARATION DATE RANGE</span><div class="attrition-date-range"><label class="field" for="attrition-from"><span>FROM</span><input id="attrition-from" type="date"></label><label class="field" for="attrition-to"><span>TO</span><input id="attrition-to" type="date"></label></div></div>
           <div class="attrition-toolbar-actions"><button id="attrition-mode-toggle" class="secondary-button" type="button">Change to weekly report</button><button id="attrition-download" class="secondary-button" type="button">Download Excel</button></div>
@@ -4581,18 +4579,16 @@
       applyDashboardAssignmentPermissions();
       document.querySelector('#attrition-assign-sheet')?.addEventListener('click', () => openDashboardEditor('ATTRITION'));
       document.querySelector('#attrition-home').addEventListener('click', showHome);
-      document.querySelector('#attrition-refresh').addEventListener('click', () => loadAttritionData(document.querySelector('#attrition-client')?.value || '', false));
+      document.querySelector('#attrition-refresh').addEventListener('click', () => loadAttritionData(attritionClientScope));
       document.querySelector('#attrition-search').addEventListener('input', renderAttritionTable);
-      document.querySelector('#attrition-client').addEventListener('change', event => loadAttritionData(event.currentTarget.value, false));
       document.querySelector('#attrition-month').addEventListener('change', renderAttritionTable);
       document.querySelector('#attrition-from').addEventListener('change', renderAttritionTable);
       document.querySelector('#attrition-to').addEventListener('change', renderAttritionTable);
       document.querySelector('#attrition-mode-toggle').addEventListener('click', toggleAttritionReportMode);
       document.querySelector('#attrition-download').addEventListener('click', downloadAttritionExcel);
-      const initialClient = currentUser?.isMasterAdmin && !previewedUser ? '' : getActiveClient();
-      loadAttritionData(initialClient, true);
+      loadAttritionData(attritionClientScope);
     }
-    async function loadAttritionData(clientName = '', initializeClients = false) {
+    async function loadAttritionData(clientName = '') {
       const status = document.querySelector('#attrition-status');
       const body = document.querySelector('#attrition-table-body');
       if (!status || !body) return;
@@ -4606,19 +4602,6 @@
       try {
         const result = await callSheetsFunction('read-attrition', requestContext);
         if (generation !== attritionReadGeneration) return;
-        if (initializeClients) {
-          attritionClients = Array.isArray(result.clients) ? result.clients : [];
-          const clientSelect = document.querySelector('#attrition-client');
-          const activeClient = getActiveClient();
-          const selectedClient = attritionClients.find(client => client.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) || attritionClients[0] || '';
-          clientSelect.innerHTML = attritionClients.length
-            ? attritionClients.map(client => `<option value="${escapeHtml(client)}"${client === selectedClient ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')
-            : '<option value="">No assigned clients found</option>';
-          if (selectedClient) {
-            await loadAttritionData(selectedClient, false);
-            return;
-          }
-        }
         attritionRecords = Array.isArray(result.records) ? result.records : [];
         renderAttritionTable();
         status.textContent = '';
@@ -4634,13 +4617,11 @@
       }
     }
     function getFilteredAttritionRecords() {
-      const selectedClient = document.querySelector('#attrition-client')?.value.trim().toLocaleLowerCase() || '';
       const query = document.querySelector('#attrition-search')?.value.trim().toLocaleLowerCase() || '';
       const month = Number(document.querySelector('#attrition-month')?.value);
       const from = document.querySelector('#attrition-from')?.value || '';
       const to = document.querySelector('#attrition-to')?.value || '';
       return attritionRecords.filter(record => {
-        if (selectedClient && record.account.trim().toLocaleLowerCase() !== selectedClient) return false;
         if (attritionReportMode === 'monthly') {
           const monthKey = `${attritionCurrentYear}-${String(month + 1).padStart(2, '0')}`;
           if (!record.separationDate.startsWith(monthKey)) return false;
@@ -4657,7 +4638,7 @@
       const body = document.querySelector('#attrition-table-body');
       if (!body) return;
       const rows = getFilteredAttritionRecords();
-      const client = document.querySelector('#attrition-client')?.value || '';
+      const client = attritionClientScope || 'Assigned clients';
       const monthIndex = Number(document.querySelector('#attrition-month')?.value);
       const from = document.querySelector('#attrition-from')?.value || '';
       const to = document.querySelector('#attrition-to')?.value || '';
@@ -4709,7 +4690,7 @@
         return notify('Choose a valid FROM and TO date range before downloading the weekly report.');
       }
       const rows = getFilteredAttritionRecords();
-      const client = document.querySelector('#attrition-client')?.value || 'CLIENT';
+      const client = attritionClientScope || 'ASSIGNED-CLIENTS';
       const monthIndex = Number(document.querySelector('#attrition-month')?.value);
       const period = attritionReportMode === 'monthly'
         ? `${attritionMonths[monthIndex]} ${attritionCurrentYear}`
