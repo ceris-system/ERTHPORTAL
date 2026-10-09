@@ -158,7 +158,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   }
 
   const { data: assignment, error: assignmentError } = await adminClient.from('dashboard_assignments')
-    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_deleted_tabs')
+    .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs, client_buffer_detail_tabs, client_vcode_source_tabs, client_vcode_deleted_tabs')
     .eq('user_id', target.id)
     .eq('dashboard_name', dashboardName)
     .maybeSingle();
@@ -228,6 +228,11 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     sheetTab = String(clientTabs?.[detailType] || '').trim();
     if (!sheetTab) throw new Error(`No sheet tab is assigned for this buffer detail dashboard and client ${requestedClient}. Add its tab name in the +-5% BUFFER assignment.`);
   }
+  const vcodeSourceTabs = assignment?.client_vcode_source_tabs && typeof assignment.client_vcode_source_tabs === 'object'
+    ? assignment.client_vcode_source_tabs
+    : {};
+  const matchedVcodeSourceClient = Object.keys(vcodeSourceTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
+  const vcodeSourceTab = String((matchedVcodeSourceClient ? vcodeSourceTabs[matchedVcodeSourceClient] : '') || 'VCODE').trim();
   const deletedVcodeTabs = assignment?.client_vcode_deleted_tabs && typeof assignment.client_vcode_deleted_tabs === 'object'
     ? assignment.client_vcode_deleted_tabs
     : {};
@@ -237,6 +242,9 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (!deletedVcodeTab || deletedVcodeTab.length > 100 || /[:\\/?*\[\]\r\n]/.test(deletedVcodeTab)) {
     throw new Error('The assigned deleted VCODE tab name is invalid.');
   }
+  if (!vcodeSourceTab || vcodeSourceTab.length > 100 || /[:\\/?*\[\]\r\n]/.test(vcodeSourceTab)) {
+    throw new Error('The assigned VCODE source tab name is invalid.');
+  }
   return {
     spreadsheetId: match[1],
     targetUserId: target.id,
@@ -244,6 +252,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     clientNames: scopedClientNames,
     targetRole: target.role,
     sheetTab,
+    vcodeSourceTab,
     deletedVcodeTab
   };
 }
@@ -1136,12 +1145,34 @@ async function appendVcodesToVacancy(
 
 async function archiveAndDeleteVcodes(
   spreadsheetId: string,
+  summarySheetTab: string,
   sourceSheetTab: string,
   archiveSheetTab: string,
   clientName: string,
   selection: unknown
 ) {
-  const rows = parseVcodeVarianceSelection(selection);
+  const selectedRows = parseVcodeVarianceSelection(selection);
+  await validateVcodeVarianceSelection(spreadsheetId, summarySheetTab, clientName, selectedRows);
+  const sourceIndex = await googleRequest(
+    `spreadsheets/${spreadsheetId}/values/${sheetRange(sourceSheetTab, 'B3:F')}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const sourceRowsByVcode: unknown[][] = sourceIndex.values || [];
+  const clientKey = clientName.trim().toLocaleLowerCase();
+  const rows = selectedRows.map(selected => {
+    const matches = sourceRowsByVcode.flatMap((row, index) =>
+      String(row[0] ?? '').trim() === selected.vcode &&
+      String(row[4] ?? '').trim().toLocaleLowerCase() === clientKey
+        ? [{ rowNumber: index + 3, vcode: selected.vcode }]
+        : []
+    );
+    if (!matches.length) {
+      throw new Error(`VCODE ${selected.vcode} was found in ${summarySheetTab}, but not in the ${sourceSheetTab} tab for ${clientName}.`);
+    }
+    if (matches.length > 1) {
+      throw new Error(`VCODE ${selected.vcode} appears more than once in ${sourceSheetTab} for ${clientName}; no rows were moved.`);
+    }
+    return matches[0];
+  });
   await validateVcodeVarianceSelection(spreadsheetId, sourceSheetTab, clientName, rows);
   const rowRanges = rows.map(row => `ranges=${sheetRange(sourceSheetTab, `A${row.rowNumber}:S${row.rowNumber}`)}`).join('&');
   const sourceValues = await googleRequest(
@@ -1415,7 +1446,7 @@ Deno.serve(async request => {
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
     }
-    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
 
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
@@ -1429,7 +1460,12 @@ Deno.serve(async request => {
       ));
     }
     if (body.action === 'delete-vcodes') {
-      return respond(await archiveAndDeleteVcodes(spreadsheetId, sheetTab, deletedVcodeTab, clientName, body.rows));
+      const normalizedArchiveTab = deletedVcodeTab.toLocaleLowerCase();
+      if (normalizedArchiveTab === vcodeSourceTab.toLocaleLowerCase() ||
+        normalizedArchiveTab === sheetTab.toLocaleLowerCase()) {
+        throw new Error('The deleted VCODE archive tab must be different from both the fetch tab and the VCODE source tab.');
+      }
+      return respond(await archiveAndDeleteVcodes(spreadsheetId, sheetTab, vcodeSourceTab, deletedVcodeTab, clientName, body.rows));
     }
 
     if (body.action === 'approve-vacancy') {
