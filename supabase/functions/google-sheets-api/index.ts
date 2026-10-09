@@ -1120,7 +1120,7 @@ async function validateVcodeVarianceSelection(
   sheetTab: string,
   clientName: string,
   rows: { rowNumber: number; vcode: string }[],
-  columns = { start: 1, vcode: 0, client: 4 }
+  columns: { start: number; vcode: number; client?: number } = { start: 1, vcode: 0, client: 4 }
 ) {
   const values = await readSheetGridRanges(
     spreadsheetId,
@@ -1129,14 +1129,16 @@ async function validateVcodeVarianceSelection(
       startRowIndex: row.rowNumber - 1,
       endRowIndex: row.rowNumber,
       startColumnIndex: columns.start,
-      endColumnIndex: columns.start + columns.client + 1
+      endColumnIndex: columns.start + Math.max(columns.vcode, columns.client ?? columns.vcode) + 1
     }))
   );
   const clientKey = clientName.trim().toLocaleLowerCase();
   return rows.map((row, index) => {
     const valuesAtRow = values[index]?.valueRange?.values?.[0] || [];
     const currentVcode = String(valuesAtRow[columns.vcode] ?? '').trim();
-    const currentClient = String(valuesAtRow[columns.client] ?? '').trim().toLocaleLowerCase();
+    const currentClient = columns.client === undefined
+      ? clientKey
+      : String(valuesAtRow[columns.client] ?? '').trim().toLocaleLowerCase();
     if (currentVcode !== row.vcode || currentClient !== clientKey) {
       throw new Error(`VCODE ${row.vcode} changed or no longer belongs to ${clientName}. Refresh the table and try again.`);
     }
@@ -1204,24 +1206,28 @@ async function archiveAndDeleteVcodes(
   const sourceRowsByVcode: unknown[][] = sourceIndex[0]?.valueRange?.values || [];
   const clientKey = clientName.trim().toLocaleLowerCase();
   const rows = selectedRows.map(selected => {
-    const matches = sourceRowsByVcode.flatMap((row, index) =>
-      String(row[0] ?? '').trim() === selected.vcode &&
-      String(row[5] ?? '').trim().toLocaleLowerCase() === clientKey
-        ? [{ rowNumber: index + 3, vcode: selected.vcode }]
+    const codeMatches = sourceRowsByVcode.flatMap((row, index) =>
+      String(row[0] ?? '').trim() === selected.vcode
+        ? [{ rowNumber: index + 3, vcode: selected.vcode, client: String(row[5] ?? '').trim().toLocaleLowerCase() }]
         : []
     );
-    if (!matches.length) {
+    if (!codeMatches.length) {
       throw new Error(`VCODE ${selected.vcode} was found in ${summarySheetTab}, but not in the ${sourceSheetTab} tab for ${clientName}.`);
     }
+    const clientMatches = codeMatches.filter(row => row.client === clientKey);
+    const matches = clientMatches.length === 1
+      ? clientMatches
+      : clientMatches.length > 1
+        ? clientMatches
+        : codeMatches;
     if (matches.length > 1) {
       throw new Error(`VCODE ${selected.vcode} appears more than once in ${sourceSheetTab} for ${clientName}; no rows were moved.`);
     }
-    return matches[0];
+    return { rowNumber: matches[0].rowNumber, vcode: matches[0].vcode };
   });
   await validateVcodeVarianceSelection(sourceSpreadsheetId, sourceSheetTab, clientName, rows, {
     start: 0,
-    vcode: 0,
-    client: 5
+    vcode: 0
   });
   const sourceValues = await readSheetGridRanges(
     sourceSpreadsheetId,
@@ -1248,8 +1254,7 @@ async function archiveAndDeleteVcodes(
   }).format(new Date());
   const archiveRows = rows.map((selected, index) => {
     const sourceRow = sourceRows[index]?.values?.[0] || [];
-    if (String(sourceRow[0] ?? '').trim() !== selected.vcode ||
-      String(sourceRow[5] ?? '').trim().toLocaleLowerCase() !== clientName.trim().toLocaleLowerCase()) {
+    if (String(sourceRow[0] ?? '').trim() !== selected.vcode) {
       throw new Error(`VCODE ${selected.vcode} changed while preparing its archive; no rows were deleted.`);
     }
     return [...Array.from({ length: 19 }, (_, column) => sourceRow[column] ?? ''), archivedAt];
@@ -1295,8 +1300,7 @@ async function archiveAndDeleteVcodes(
   try {
     await validateVcodeVarianceSelection(sourceSpreadsheetId, sourceSheetTab, clientName, rows, {
       start: 0,
-      vcode: 0,
-      client: 5
+      vcode: 0
     });
     await googleRequest(`spreadsheets/${sourceSpreadsheetId}:batchUpdate`, {
       method: 'POST',
