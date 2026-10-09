@@ -2569,7 +2569,13 @@
       const confirmation = deleting
         ? `Archive and permanently delete ${rows.length} selected VCODE row${rows.length === 1 ? '' : 's'}?`
         : `Copy ${rows.length} selected VCODE${rows.length === 1 ? '' : 's'} to the assigned VACANCY tab?`;
-      if (!window.confirm(confirmation)) return;
+      const confirmed = await popModal({
+        title: deleting ? 'Archive and delete VCODE rows?' : 'Transfer VCODEs to Vacancy?',
+        message: confirmation,
+        confirmLabel: deleting ? 'Archive and delete' : 'Transfer',
+        cancelLabel: 'Cancel'
+      });
+      if (!confirmed) return;
       const buttons = ['#vcode-variance-transfer', '#vcode-variance-delete']
         .map(selector => document.querySelector(selector))
         .filter(Boolean);
@@ -4135,13 +4141,25 @@
       }
       return result;
     }
-    function addDashboardVcodeDeletedTabInput(clientName, value = '') {
+    function addDashboardVcodeDeletedTabInput(clientName, value = '', sourceUrl = '') {
       const list = document.querySelector('#dashboard-url-list');
       const group = document.createElement('fieldset');
       group.className = 'buffer-detail-tab-settings';
       const legend = document.createElement('legend');
       legend.textContent = `VCODE deletion archive for ${clientName}`;
       group.append(legend);
+      const urlField = document.createElement('label');
+      urlField.className = 'buffer-detail-tab-field';
+      urlField.textContent = 'Archive spreadsheet URL (same as VCODE)';
+      const urlInput = document.createElement('input');
+      urlInput.className = 'vcode-deleted-sheet-url';
+      urlInput.type = 'url';
+      urlInput.readOnly = true;
+      urlInput.value = sourceUrl;
+      urlInput.placeholder = 'Enter the VCODE spreadsheet URL above';
+      urlInput.setAttribute('aria-label', `Deleted VCODE archive spreadsheet URL for ${clientName}; same as the VCODE source`);
+      urlField.append(urlInput);
+      group.append(urlField);
       const field = document.createElement('label');
       field.className = 'buffer-detail-tab-field';
       field.textContent = 'Deleted VCODE tab name';
@@ -4157,6 +4175,12 @@
       field.append(input);
       group.append(field);
       list.append(group);
+      const sourceUrlInput = [...list.querySelectorAll('.dashboard-url-input')]
+        .find(item => item.dataset.clientUrl === clientName) || list.querySelector('.dashboard-url-input');
+      if (sourceUrlInput) {
+        if (!urlInput.value) urlInput.value = sourceUrlInput.value.trim();
+        sourceUrlInput.addEventListener('input', () => { urlInput.value = sourceUrlInput.value.trim(); });
+      }
     }
     function collectDashboardVcodeDeletedTabs() {
       return Object.fromEntries([...document.querySelectorAll('.vcode-deleted-tab-input')]
@@ -4439,13 +4463,13 @@
             selectedClientValues(clientOptions).forEach(client => {
               addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
               if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
-              if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '');
+              if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '', activeClientUrlMap[client] || '');
             });
           });
           selectedClientValues(clientOptions).forEach(client => {
             addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || '');
             if (name === '+-5% BUFFER') addDashboardBufferDetailTabInputs(client, activeClientBufferDetailTabMap[client] || {});
-            if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '');
+            if (name === 'VCODE VARIANCE') addDashboardVcodeDeletedTabInput(client, activeClientVcodeDeletedTabMap[client] || '', activeClientUrlMap[client] || '');
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
@@ -4456,7 +4480,7 @@
             addDashboardBufferDetailTabInputs(assignedClient, activeClientBufferDetailTabMap[assignedClient] || {});
           }
           if (name === 'VCODE VARIANCE' && assignedClient) {
-            addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeDeletedTabMap[assignedClient] || '');
+            addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeDeletedTabMap[assignedClient] || '', activeClientUrlMap[assignedClient] || assignedUrls[0] || '');
           }
         }
         openDashboardUrl.disabled = !assignedUrls.length;
