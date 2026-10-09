@@ -89,6 +89,7 @@ async function googleRequest(path: string, options: RequestInit = {}) {
 function defaultSheetTab(dashboardName: string) {
   return ({
     'PLANTILLA': 'PLANTILLA',
+    '+-5% BUFFER': '-+5% GAP',
     'VCODE MASTERLIST': 'VCODE',
     'VACANCY MONITORING': 'VACANCY',
     'FOR APPROVAL': 'VACANCY',
@@ -111,6 +112,7 @@ function sheetRange(tabName: string, cells: string) {
 async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, actor: any, body: any) {
   if (actor.status !== 'active') throw new Error('This account is inactive.');
   const dashboardNameByAction: Record<string, string> = {
+    'read-buffer': '+-5% BUFFER',
     'read-vcode': 'VCODE MASTERLIST',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
@@ -993,6 +995,15 @@ async function readVcode(spreadsheetId: string, tabName = 'VCODE') {
   return { displayValues: result.values || [] };
 }
 
+async function readBuffer(spreadsheetId: string, tabName = '-+5% GAP') {
+  const range = sheetRange(tabName, 'C9:T');
+  const [raw, display] = await Promise.all([
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE`),
+    googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+  ]);
+  return { rawValues: raw.values || [], displayValues: display.values || [] };
+}
+
 async function readVacancy(spreadsheetId: string, clientNames: string[] = [], includeDeployers = true, tabName = 'VACANCY') {
   const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
   if (!activeClients.size) throw new Error('Select at least one client before loading vacancy records.');
@@ -1125,7 +1136,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-buffer', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1217,6 +1228,7 @@ Deno.serve(async request => {
     }
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId, sheetTab));
     if (body.action === 'read-vcode') return respond(await readVcode(spreadsheetId, sheetTab));
+    if (body.action === 'read-buffer') return respond(await readBuffer(spreadsheetId, sheetTab));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames, true, sheetTab));
     if (body.action === 'read-for-approval') return respond(await readForApproval(spreadsheetId, clientNames, sheetTab));
     if (body.action === 'read-hr-emploc') {

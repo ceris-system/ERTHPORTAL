@@ -357,6 +357,10 @@
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
     .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
+    .buffer-table thead tr:nth-child(2) th { top:54px; }
+    .buffer-table .buffer-exception-cell,.buffer-table .buffer-range-danger { color:#991b1b; background:#fee2e2; font-weight:800; }
+    .buffer-table .buffer-range-warning { color:#854d0e; background:#fef3c7; font-weight:700; }
+    .buffer-table .buffer-range-safe { color:#166534; background:#dcfce7; font-weight:700; }
     .plantilla-summary-total td { position:sticky; bottom:0; z-index:1; border-top:2px solid #168d91; background:#e7f5f2; font-weight:800; }
     .approval-table input[type="checkbox"] { width:15px; height:15px; margin:0; accent-color:var(--teal); vertical-align:middle; }
     .approval-approve-button { border-color:rgba(39,139,109,.24); color:#17684d; background:linear-gradient(180deg,rgba(246,255,250,.96),rgba(226,247,237,.82)); }
@@ -1276,6 +1280,7 @@
       return ({
         'PLANTILLA': 'PLANTILLA',
         'SIL': 'PLANTILLA',
+        '+-5% BUFFER': '-+5% GAP',
         'VCODE MASTERLIST': 'VCODE',
         'VACANCY MONITORING': 'VACANCY',
         'FOR APPROVAL': 'VACANCY',
@@ -3267,6 +3272,7 @@
     }
     const silMonths = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
     let silRecords = [];
+    let bufferRecords = [];
     let silReadGeneration = 0;
     function silDateParts(value) {
       const date = sheetDate(value);
@@ -3595,6 +3601,111 @@
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
+    function showBufferDashboard() {
+      const name = '+-5% BUFFER';
+      saveCurrentView('dashboard', name);
+      const clientName = getActiveClient();
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>+-5% BUFFER</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel(name))} · Source tab: ${escapeHtml(getDashboardSheetTab(name, clientName))}</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="buffer-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="buffer-refresh" class="secondary-button" type="button">Refresh</button><button id="buffer-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="buffer-search" class="plantilla-search" type="search" aria-label="Search +-5% buffer records" placeholder="Search account or values..." autocomplete="off">${dashboardClientSwitcherMarkup(name)}<p id="buffer-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table buffer-table"><thead><tr><th rowspan="2" scope="col">ACCOUNT</th><th rowspan="2" scope="col">REQUIRED HC</th><th rowspan="2" scope="col">ONBOARD</th><th rowspan="2" scope="col">YES PLANTILLA NOT IN MIKA</th><th rowspan="2" scope="col">YES MIKA NOT IN PLANTILLA</th><th rowspan="2" scope="col">YES PLANTILLA BUT NOT IN PAYROLL<br>(POSSIBLE TAMAD)</th><th rowspan="2" scope="col">YES PAYROLL NOT IN PLANTILLA<br>(POSSIBLE GHOST)</th><th colspan="2" scope="colgroup">PAYROLL +-5%</th><th colspan="2" scope="colgroup">MIKA +-5%</th><th rowspan="2" scope="col">COMMANDO</th><th rowspan="2" scope="col">RELIVER</th><th rowspan="2" scope="col">TOTAL ACTIVE</th></tr><tr><th scope="col" title="Source column N">N</th><th scope="col" title="Source column O">O</th><th scope="col" title="Source column P">P</th><th scope="col" title="Source column Q">Q</th></tr></thead><tbody id="buffer-table-body"><tr><td colspan="14" class="plantilla-empty">Loading +-5% buffer data...</td></tr></tbody></table></div><div class="module-footer"><span>Accounts containing TOTAL or ALL AREA are excluded</span><span>Source: -+5% GAP · C9:T</span></div>`;
+      applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher(name);
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel(name)} · Source tab: ${getDashboardSheetTab(name, clientName)}`;
+      document.querySelector('#buffer-assign-sheet')?.addEventListener('click', () => openDashboardEditor(name));
+      document.querySelector('#buffer-refresh').addEventListener('click', loadBufferRecords);
+      document.querySelector('#buffer-home').addEventListener('click', showHome);
+      document.querySelector('#buffer-search').addEventListener('input', renderBufferTable);
+      loadBufferRecords();
+    }
+    async function loadBufferRecords() {
+      const status = document.querySelector('#buffer-status');
+      const body = document.querySelector('#buffer-table-body');
+      if (!status || !body) return;
+      const generation = ++dashboardReadGeneration;
+      const name = '+-5% BUFFER';
+      const clientName = getActiveClient();
+      const sourceUrl = getDashboardSources(name, clientName)[0] || '';
+      if (!sourceUrl) {
+        status.textContent = `No spreadsheet is assigned for ${clientName}.`;
+        body.innerHTML = `<tr><td colspan="14" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        bufferRecords = [];
+        return false;
+      }
+      status.textContent = 'Loading +-5% buffer data...';
+      bufferRecords = [];
+      body.innerHTML = '<tr><td colspan="14" class="plantilla-empty">Loading +-5% buffer data...</td></tr>';
+      try {
+        let rawValues;
+        let displayValues;
+        if (usesAssignedSheetAccess()) {
+          const result = await callSheetsFunction('read-buffer', {
+            clientName,
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+        } else {
+          const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
+          const range = quoteSheetTab(getDashboardSheetTab(name, clientName), 'C9:T');
+          const [rawResult, displayResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          rawValues = rawResult.values || [];
+          displayValues = displayResult.values || [];
+        }
+        if (generation !== dashboardReadGeneration || document.querySelector('#buffer-table-body') !== body) return false;
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        bufferRecords = Array.from({ length: rowCount }, (_, index) => {
+          const raw = rawValues[index] || [];
+          const display = displayValues[index] || [];
+          return Array.from({ length: 18 }, (_, column) => display[column] ?? raw[column] ?? '');
+        }).filter(row => {
+          const account = String(row[0] ?? '').trim();
+          return account && !/TOTAL|ALL AREA/i.test(account);
+        });
+        status.textContent = `${bufferRecords.length.toLocaleString()} account row${bufferRecords.length === 1 ? '' : 's'} loaded.`;
+        renderBufferTable();
+        return true;
+      } catch (error) {
+        if (generation !== dashboardReadGeneration) return false;
+        status.textContent = error?.message || 'Could not load +-5% buffer data.';
+        body.innerHTML = `<tr><td colspan="14" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        return false;
+      }
+    }
+    function bufferPercentValue(displayValue) {
+      const text = String(displayValue ?? '').trim();
+      if (!text) return null;
+      const hasPercent = text.includes('%');
+      const normalized = text.replace(/,/g, '').replace(/[^\d.-]/g, '');
+      if (!/^-?(?:\d+\.?\d*|\.\d+)$/.test(normalized)) return null;
+      const numeric = Number(normalized);
+      if (!Number.isFinite(numeric)) return null;
+      return hasPercent || Math.abs(numeric) > 1 ? numeric : numeric * 100;
+    }
+    function renderBufferTable() {
+      const body = document.querySelector('#buffer-table-body');
+      if (!body) return;
+      const query = document.querySelector('#buffer-search')?.value.trim().toLocaleLowerCase() || '';
+      const rows = bufferRecords.filter(row => !query || row.some(value => String(value ?? '').toLocaleLowerCase().includes(query)));
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="14" class="plantilla-empty">${bufferRecords.length ? 'No records match your search.' : 'No buffer records were found.'}</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map(row => {
+        const cells = [0, 1, 2, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17];
+        return `<tr>${cells.map((sourceColumn, columnIndex) => {
+          const value = String(row[sourceColumn] ?? '');
+          let className = '';
+          if (sourceColumn >= 5 && sourceColumn <= 7 && value.trim()) className = 'buffer-exception-cell';
+          if (sourceColumn >= 11 && sourceColumn <= 14 && value.trim()) {
+            const percent = bufferPercentValue(value);
+            if (percent !== null) className = Math.abs(percent) > 5 ? 'buffer-range-danger' : Math.abs(percent) >= 1 ? 'buffer-range-warning' : 'buffer-range-safe';
+          }
+          const accessibleLabel = columnIndex >= 7 && columnIndex <= 10 ? ` aria-label="${['Payroll N', 'Payroll O', 'MIKA P', 'MIKA Q'][columnIndex - 7]}: ${escapeHtml(value)}"` : '';
+          return `<td${className ? ` class="${className}"` : ''}${accessibleLabel}>${escapeHtml(value)}</td>`;
+        }).join('')}</tr>`;
+      }).join('');
+    }
     function showClientDashboard(name) {
       if (name === 'SIL') return showSilDashboard();
       saveCurrentView('dashboard', name);
@@ -3830,6 +3941,7 @@
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
       else if (name === 'FOR APPROVAL') showForApproval();
+      else if (name === '+-5% BUFFER') showBufferDashboard();
       else showClientDashboard(name);
     }
     function showPlantillaSummary() {
