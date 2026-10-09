@@ -135,7 +135,7 @@
     .utility-button, .secondary-button { min-height:38px; padding:0 13px; border:1px solid rgba(53,139,143,.16); border-radius:11px; color:#21686e; background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(237,249,247,.76)); box-shadow:0 3px 9px rgba(25,98,105,.06),inset 0 1px 0 rgba(255,255,255,.9); font-size:11px; font-weight:700; transition:transform .18s ease,box-shadow .18s ease,background .18s ease; }
     .utility-button:hover, .secondary-button:hover { transform:translateY(-1px); background:white; box-shadow:0 6px 14px rgba(25,98,105,.11),inset 0 1px 0 white; }
     .utility-button:active, .secondary-button:active { transform:translateY(0); }
-    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button) { min-height:38px; padding:0 13px; border:1px solid rgba(38,111,120,.2); border-radius:10px; color:#245c65; background:linear-gradient(180deg,#fff,#edf5f5); box-shadow:0 2px 5px rgba(17,52,61,.08),inset 0 1px 0 rgba(255,255,255,.9); font:700 11px/1.35 'Roboto Mono',monospace; cursor:pointer; transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease; }
+    #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button) { min-height:38px; padding:0 14px; border:1px solid rgba(38,111,120,.2); border-radius:10px; color:#245c65; background:linear-gradient(180deg,#fff,#f0f6f6); box-shadow:0 2px 4px rgba(17,52,61,.07),inset 0 1px 0 rgba(255,255,255,.95); font:600 11px/1.35 'Roboto Mono',monospace; cursor:pointer; transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease; }
     #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(20,143,145,.48); color:#126d73; background:#fff; box-shadow:0 5px 12px rgba(17,52,61,.12); }
     #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):active:not(:disabled) { transform:translateY(0); box-shadow:0 1px 3px rgba(17,52,61,.1); }
     #dashboard button:not(.bubble-button):not(.nav-button):not(.topbar-logout):not(.password-toggle):not(.text-button):focus-visible { outline:3px solid rgba(20,143,145,.3); outline-offset:2px; }
@@ -145,7 +145,16 @@
     #dashboard .remove-source { width:36px; min-height:38px; padding:0; border-color:rgba(194,103,96,.28); color:#a44740; background:linear-gradient(180deg,#fff,#fff1ef); font-size:17px; }
     #dashboard .add-source-button { min-height:34px; padding:0 8px; border-color:transparent; color:#147f83; background:transparent; box-shadow:none; }
     #dashboard .approval-approve-button { border-color:rgba(39,139,109,.3); color:#17684d; background:linear-gradient(180deg,#f6fffa,#e2f7ed); }
-    #dashboard .buffer-detail-actions button { min-height:46px; padding:10px 14px; border-color:rgba(38,111,120,.2); color:#245c65; background:linear-gradient(180deg,#fff,#edf5f5); box-shadow:0 2px 5px rgba(17,52,61,.08); font:700 10px/1.45 'Roboto Mono',monospace; }
+    #dashboard .buffer-detail-actions button { display:grid; grid-template-columns:42px minmax(0,1fr) 18px; align-items:center; gap:13px; min-height:98px; padding:14px 16px; border:1px solid rgba(116,148,162,.27); border-radius:13px; color:#173b4a; background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(239,246,249,.95)); box-shadow:0 4px 12px rgba(12,34,57,.1),inset 0 1px 0 #fff; font-family:inherit; text-align:left; white-space:normal; }
+    #dashboard .buffer-detail-actions button:hover:not(:disabled) { transform:translateY(-2px); border-color:rgba(26,165,170,.55); color:#126d73; background:#fff; box-shadow:0 9px 20px rgba(12,54,71,.15),0 0 0 3px rgba(26,165,170,.08); }
+    .buffer-detail-icon { width:42px; height:42px; display:grid; place-items:center; border:1px solid rgba(26,143,151,.12); border-radius:12px; color:#16858b; background:linear-gradient(145deg,#e5f8f5,#dcecf5); box-shadow:inset 0 1px #fff; }
+    .buffer-detail-icon svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .buffer-detail-copy { min-width:0; display:grid; gap:5px; }
+    .buffer-detail-copy small { color:#80929e; font:600 9px/1.2 'Roboto Mono',monospace; letter-spacing:.09em; text-transform:uppercase; }
+    .buffer-detail-copy strong { color:#193c4b; font:700 11px/1.45 'Roboto Mono',monospace; overflow-wrap:anywhere; }
+    .buffer-detail-copy span { color:#718792; font-size:10px; font-weight:500; line-height:1.4; }
+    .buffer-detail-arrow { color:#7e9ba4; font-size:20px; transition:transform .16s ease,color .16s ease; }
+    #dashboard .buffer-detail-actions button:hover .buffer-detail-arrow { color:#148f91; transform:translateX(3px); }
     .workspace-card { display:flex; align-items:center; gap:11px; margin:0 5px; padding:12px 11px; border:1px solid rgba(55,150,151,.16); border-radius:13px; background:rgba(255,255,255,.58); }
     .workspace-card strong, .workspace-card span { display:block; }
     .workspace-card strong { font-size:12px; }
@@ -492,6 +501,8 @@
       .record-drawer-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
     @media(max-width:480px) {
+      .buffer-detail-actions { grid-template-columns:minmax(0,1fr); }
+      #dashboard .buffer-detail-actions button { min-height:86px; }
       .record-drawer { width:94vw; padding:26px 15px; }
       .record-drawer-fields { grid-template-columns:minmax(0,1fr); }
     }
@@ -3633,10 +3644,11 @@
       content.innerHTML = `<header class="plantilla-toolbar"><div><h1>+-5% BUFFER</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel(name))} · Source tab: ${escapeHtml(getDashboardSheetTab(name, clientName))}</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="buffer-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="buffer-refresh" class="secondary-button" type="button">Refresh</button><button id="buffer-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="buffer-search" class="plantilla-search" type="search" aria-label="Search +-5% buffer records" placeholder="Search account or values..." autocomplete="off">${dashboardClientSwitcherMarkup(name)}<p id="buffer-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table buffer-table"><colgroup><col style="width:13%"><col style="width:7%"><col style="width:6%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:5%"><col style="width:7%"><col style="width:6%"><col style="width:8%"></colgroup><thead><tr><th scope="col">ACCOUNT</th><th scope="col">REQUIRED HC</th><th scope="col">ONBOARD</th><th scope="col">YES PLANTILLA NOT IN MIKA</th><th scope="col">YES MIKA NOT IN PLANTILLA</th><th scope="col">YES PLANTILLA BUT NOT IN PAYROLL (POSSIBLE TAMAD)</th><th scope="col">YES PAYROLL NOT IN PLANTILLA (POSSIBLE GHOST)</th><th colspan="2" scope="colgroup">PAYROLL +-5%</th><th colspan="2" scope="colgroup">MIKA +-5%</th><th scope="col">COMMANDO</th><th scope="col">RELIVER</th><th scope="col">TOTAL ACTIVE</th></tr></thead><tbody id="buffer-table-body"><tr><td colspan="14" class="plantilla-empty">Loading +-5% buffer data...</td></tr></tbody></table></div><div class="module-footer"><span>Accounts containing TOTAL or ALL AREA are excluded</span><span>Source: -+5% GAP · C9:T</span></div>`;
       const detailActions = document.createElement('div');
       detailActions.className = 'buffer-detail-actions';
-      for (const [detailType, label] of bufferDetailDefinitions) {
+      for (const [detailType, label, description, icon] of bufferDetailDefinitions) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = label;
+        button.innerHTML = `<span class="buffer-detail-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icon}</svg></span><span class="buffer-detail-copy"><small>FILTERED EMPLOYEE LIST</small><strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span></span><span class="buffer-detail-arrow" aria-hidden="true">›</span>`;
+        button.setAttribute('aria-label', `Open ${label} employee details`);
         button.addEventListener('click', () => showBufferDetailDashboard(detailType));
         detailActions.append(button);
       }
@@ -3943,10 +3955,10 @@
       document.querySelector('#drawer-backdrop').classList.remove('open');
     }
     const bufferDetailDefinitions = [
-      ['plantillaNotInMika', 'YES PLANTILLA NOT IN MIKA'],
-      ['mikaNotInPlantilla', 'YES MIKA NOT IN PLANTILLA'],
-      ['plantillaNotInPayroll', 'YES PLANTILLA BUT NOT IN PAYROLL (POSSIBLE TAMAD)'],
-      ['payrollNotInPlantilla', 'YES PAYROLL NOT IN PLANTILLA (POSSIBLE GHOST)']
+      ['plantillaNotInMika', 'YES PLANTILLA NOT IN MIKA', 'Employees listed in plantilla but missing from MIKA.', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5m0-5-5 5"/>'],
+      ['mikaNotInPlantilla', 'YES MIKA NOT IN PLANTILLA', 'Employees listed in MIKA but missing from plantilla.', '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M17 10h5"/>'],
+      ['plantillaNotInPayroll', 'YES PLANTILLA BUT NOT IN PAYROLL (POSSIBLE TAMAD)', 'Review possible separated or inactive employees.', '<path d="M4 4h16v16H4zM8 8h8M8 12h5"/><path d="m15 15 2 2 4-4"/>'],
+      ['payrollNotInPlantilla', 'YES PAYROLL NOT IN PLANTILLA (POSSIBLE GHOST)', 'Review payroll records without a plantilla match.', '<path d="M4 4h16v16H4zM8 8h8M8 12h5"/><path d="m16 15 5 5m0-5-5 5"/>']
     ];
     function addDashboardBufferDetailTabInputs(clientName, values = {}) {
       const list = document.querySelector('#dashboard-url-list');
