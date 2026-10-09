@@ -479,6 +479,7 @@
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
     .plantilla-table td { width:auto; padding:10px; border-bottom:1px solid rgba(0,0,0,.13); color:#111; font-size:12px; line-height:1.35; white-space:nowrap; vertical-align:middle; }
+    .plantilla-summary-gap-column { width:1%; min-width:max-content; white-space:nowrap; }
     .buffer-table { width:100%; min-width:1080px; table-layout:fixed; }
     .buffer-table th { padding:9px 6px; border:1px solid #111; background:#444; white-space:normal; overflow-wrap:anywhere; text-align:center; }
     .buffer-table td { padding:9px 6px; border-right:1px solid #111; border-bottom:1px solid #111; text-align:center; }
@@ -4722,7 +4723,7 @@
     function showPlantillaSummary() {
       saveCurrentView('dashboard', 'PLANTILLA SUMMARY');
       const clientName = getActiveClient();
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA SUMMARY</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA SUMMARY'))} · Required HC from VCODE; actual HC from PLANTILLA</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="summary-vcode-assign-sheet" class="secondary-button" type="button">Assign VCODE URL</button><button id="summary-plantilla-assign-sheet" class="secondary-button" type="button">Assign PLANTILLA URL</button>' : ''}<button id="plantilla-summary-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-summary-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools">${dashboardClientSwitcherMarkup('PLANTILLA SUMMARY')}<p id="plantilla-summary-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">POSITION</th><th scope="col">REQUIRED HC</th><th scope="col">ACTUAL HC</th><th scope="col">GAP (REQUIRED - ACTUAL)</th></tr></thead><tbody id="plantilla-summary-table-body"><tr><td colspan="4" class="plantilla-empty">Loading PLANTILLA summary...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA summary by position</span><span>Unique positions: VCODE!D3:D · Required HC: VCODE!L3:L · Actual HC: PLANTILLA!AC9:AC</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>PLANTILLA SUMMARY</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('PLANTILLA SUMMARY'))} · Required HC from VCODE; actual HC from PLANTILLA</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="summary-vcode-assign-sheet" class="secondary-button" type="button">Assign VCODE URL</button><button id="summary-plantilla-assign-sheet" class="secondary-button" type="button">Assign PLANTILLA URL</button>' : ''}<button id="plantilla-summary-refresh" class="secondary-button" type="button">Refresh</button><button id="plantilla-summary-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools">${dashboardClientSwitcherMarkup('PLANTILLA SUMMARY')}<p id="plantilla-summary-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">POSITION</th><th scope="col">REQUIRED HC</th><th scope="col">ACTUAL HC</th><th class="plantilla-summary-gap-column" scope="col">GAP (REQUIRED - ACTUAL)</th></tr></thead><tbody id="plantilla-summary-table-body"><tr><td colspan="4" class="plantilla-empty">Loading PLANTILLA summary...</td></tr></tbody></table></div><div class="module-footer"><span>PLANTILLA summary by position</span><span>Unique positions: VCODE!D3:D · Required HC: VCODE!L3:L · Actual HC: PLANTILLA!AC9:AC</span></div>`;
       applyDashboardAssignmentPermissions();
       bindDashboardClientSwitcher('PLANTILLA SUMMARY');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('PLANTILLA SUMMARY')} · Required HC from VCODE; actual HC from PLANTILLA`;
@@ -4809,7 +4810,7 @@
         const formatHc = value => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
         body.innerHTML = summaries.map(summary => {
           const gap = summary.requiredHc - summary.actualHc;
-          return `<tr><td>${escapeHtml(summary.position)}</td><td>${formatHc(summary.requiredHc)}</td><td>${formatHc(summary.actualHc)}</td><td>${formatHc(gap)}</td></tr>`;
+          return `<tr><td>${escapeHtml(summary.position)}</td><td>${formatHc(summary.requiredHc)}</td><td>${formatHc(summary.actualHc)}</td><td class="plantilla-summary-gap-column">${formatHc(gap)}</td></tr>`;
         }).join('');
         const totals = summaries.reduce((total, summary) => ({
           requiredHc: total.requiredHc + summary.requiredHc,
@@ -4817,7 +4818,7 @@
         }), { requiredHc: 0, actualHc: 0 });
         const totalGap = totals.requiredHc - totals.actualHc;
         body.insertAdjacentHTML('beforeend',
-          `<tr class="plantilla-summary-total"><td>TOTAL</td><td>${formatHc(totals.requiredHc)}</td><td>${formatHc(totals.actualHc)}</td><td>${formatHc(totalGap)}</td></tr>`
+          `<tr class="plantilla-summary-total"><td>TOTAL</td><td>${formatHc(totals.requiredHc)}</td><td>${formatHc(totals.actualHc)}</td><td class="plantilla-summary-gap-column">${formatHc(totalGap)}</td></tr>`
         );
         status.textContent = `${summaries.length} unique position${summaries.length === 1 ? '' : 's'} · GAP = REQUIRED HC − ACTUAL HC`;
         return true;

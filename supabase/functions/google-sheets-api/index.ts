@@ -133,20 +133,35 @@ async function readSheetGridRanges(
   gridRanges: Record<string, number>[]
 ) {
   const metadata = await googleRequest(
-    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount`
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
   );
   const sheet = (metadata.sheets || []).find((item: any) => item.properties?.title === sheetTab);
   if (!sheet?.properties?.sheetId) throw new Error(`The assigned spreadsheet does not have a ${sheetTab} tab.`);
   const sheetId = Number(sheet.properties.sheetId);
+  const rowCount = Number(sheet.properties.gridProperties?.rowCount);
+  const columnCount = Number(sheet.properties.gridProperties?.columnCount);
+  const boundedRanges = gridRanges.map(range => {
+    const startRowIndex = range.startRowIndex ?? 0;
+    const startColumnIndex = range.startColumnIndex ?? 0;
+    if (startRowIndex >= rowCount || startColumnIndex >= columnCount) return null;
+    return {
+      ...range,
+      ...(range.endRowIndex === undefined ? {} : { endRowIndex: Math.min(range.endRowIndex, rowCount) }),
+      ...(range.endColumnIndex === undefined ? {} : { endColumnIndex: Math.min(range.endColumnIndex, columnCount) })
+    };
+  });
+  const validRanges = boundedRanges.filter((range): range is Record<string, number> => range !== null);
+  if (!validRanges.length) return gridRanges.map(() => ({ valueRange: { values: [] } }));
   const data = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGetByDataFilter`, {
     method: 'POST',
     body: JSON.stringify({
-      dataFilters: gridRanges.map(range => ({
+      dataFilters: validRanges.map(range => ({
         gridRange: { sheetId, ...range }
       }))
     })
   });
-  return data.valueRanges || [];
+  let resultIndex = 0;
+  return boundedRanges.map(range => range ? data.valueRanges?.[resultIndex++] || { valueRange: { values: [] } } : { valueRange: { values: [] } });
 }
 
 const bufferDetailClientColumns: Record<string, number> = {
