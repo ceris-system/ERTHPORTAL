@@ -1120,7 +1120,7 @@ async function appendVcodesToVacancy(
     body: JSON.stringify({
       valueInputOption: 'RAW',
       data: [{
-        range: sheetRange(vacancySheetTab, `B${firstDestinationRow}:B${lastDestinationRow}`),
+        range: sheetA1(vacancySheetTab, `B${firstDestinationRow}:B${lastDestinationRow}`),
         values: rows.map(row => [row.vcode])
       }]
     })
