@@ -413,14 +413,12 @@
     .deactivation-entry-heading h2,.deactivation-table-heading h2 { margin:0; color:#20474f; font-size:13px; font-weight:800; letter-spacing:.015em; }
     .deactivation-entry-heading p,.deactivation-table-heading p { margin:5px 0 0; color:#71888e; font-size:10px; line-height:1.5; }
     .deactivation-fields { grid-template-columns:repeat(4,minmax(0,1fr)) minmax(120px,.72fr); gap:10px; }
-    .deactivation-entry-card .field { display:grid; grid-template-rows:13px 43px 13px; gap:5px; align-content:start; }
+    .deactivation-entry-card .field { display:grid; grid-template-rows:13px 43px auto; gap:5px; align-content:start; }
     .deactivation-entry-card .field label { color:#47676e; font-size:9px; letter-spacing:.04em; }
     .deactivation-entry-card .field input,.deactivation-entry-card .field select { box-sizing:border-box; min-height:43px; height:43px; border-color:#d5e1e4; border-radius:8px; color:#24474e; background:#fff; font-family:inherit; font-size:11px; }
     .deactivation-entry-card .field input::placeholder { color:#9aadb1; }
     .deactivation-lookup-status { min-height:0; margin:0; color:#607980; font-size:9px; }
     .deactivation-entry-card .primary-button { grid-column:5; grid-row:1; align-self:center; width:100%; min-width:0; }
-    .deactivation-entry-footer { align-items:center; padding-top:10px; margin-top:10px; border-top:1px solid #edf1f2; }
-    .deactivation-entry-footer p { color:#71878c; font-size:10px; }
     .deactivation-entry-card .primary-button { min-height:39px; border-radius:9px; box-shadow:none; font-size:11px; }
     .deactivation-table-panel { overflow:hidden; border:1px solid #d6e2e4; border-radius:14px; background:#fff; box-shadow:0 6px 19px rgba(22,68,77,.055); }
     .deactivation-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid #e5edef; background:linear-gradient(110deg,#fff,#f8fbfb); }
@@ -4552,7 +4550,6 @@
             <div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div>
             <button id="deactivation-save" class="primary-button" type="submit">Save record</button>
           </div>
-          <div class="deactivation-entry-footer"><p>Saved to the assigned data tab in columns A–D.</p></div>
         </form>
         <section class="deactivation-table-panel" aria-labelledby="deactivation-table-title">
           <div class="deactivation-table-heading"><div><h2 id="deactivation-table-title">Saved records</h2><p>Records loaded from the assigned deactivation data tab.</p></div><span id="deactivation-record-count" class="deactivation-record-count">0 records</span></div>
@@ -4588,8 +4585,8 @@
         deactivationLookupReady = true;
         const lookupStatus = document.querySelector('#deactivation-lookup-status');
         if (lookupStatus) {
-          lookupStatus.textContent = `${deactivationLookup.size.toLocaleString()} EMPLOC entries loaded from MIKA FILE.`;
-          lookupStatus.dataset.state = 'success';
+          lookupStatus.textContent = '';
+          lookupStatus.removeAttribute('data-state');
         }
         lookupDeactivationName(document.querySelector('#deactivation-emploc')?.value.trim() || '');
       } catch (error) {
@@ -4608,7 +4605,11 @@
       const fullname = document.querySelector('#deactivation-fullname');
       if (!status || !fullname) return;
       fullname.value = '';
-      if (!emploc) return;
+      if (!emploc) {
+        status.textContent = '';
+        status.removeAttribute('data-state');
+        return;
+      }
       if (!deactivationLookupReady) {
         status.textContent = deactivationLookupError || 'Loading EMPLOC and name lookup from MIKA FILE...';
         status.dataset.state = deactivationLookupError ? 'error' : 'loading';
@@ -4626,8 +4627,8 @@
         return;
       }
       fullname.value = matches[0];
-      status.textContent = 'EMPLOC found in MIKA FILE.';
-      status.dataset.state = 'success';
+      status.textContent = '';
+      status.removeAttribute('data-state');
     }
     async function refreshDeactivationData() {
       await Promise.all([loadDeactivationRecords(), loadDeactivationMikaFile()]);
@@ -4647,10 +4648,6 @@
         });
         deactivationRecords = result.records || [];
         renderDeactivationRecords();
-        if (!deactivationRecords.length) {
-          status.textContent = 'Data loaded. No saved records found.';
-          status.dataset.state = 'success';
-        }
       } catch (error) {
         deactivationRecords = [];
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(error.message || 'Could not load deactivation records.')}</td></tr>`;
@@ -4678,16 +4675,17 @@
       if (statusStat) statusStat.textContent = distinctStatuses.size.toLocaleString();
       if (!rows.length) {
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
-        document.querySelector('#deactivation-feedback').textContent = deactivationRecords.length ? 'No records match this search.' : 'No saved records found.';
-        document.querySelector('#deactivation-feedback').dataset.state = deactivationRecords.length ? 'info' : 'success';
+        const feedback = document.querySelector('#deactivation-feedback');
+        feedback.textContent = '';
+        feedback.removeAttribute('data-state');
         return;
       }
       body.innerHTML = rows.map(record =>
         `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.inactiveDate)}</td></tr>`
       ).join('');
       const status = document.querySelector('#deactivation-feedback');
-      status.textContent = `${rows.length} record${rows.length === 1 ? '' : 's'} shown.`;
-      status.dataset.state = 'success';
+      status.textContent = '';
+      status.removeAttribute('data-state');
     }
     async function saveDeactivationEntry(event) {
       event.preventDefault();
