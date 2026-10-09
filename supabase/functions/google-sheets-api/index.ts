@@ -103,7 +103,10 @@ function sheetA1(tabName: string, cells: string) {
   const safeName = String(tabName || '').trim();
   if (!safeName || safeName.length > 100) throw new Error('The assigned spreadsheet tab name is invalid.');
   if (/[:\\/?*\[\]\r\n]/.test(safeName)) throw new Error('The assigned spreadsheet tab name contains an unsupported character.');
-  return `'${safeName.replace(/'/g, "''")}'!${cells}`;
+  const escapedName = /^[A-Za-z0-9_]+$/.test(safeName)
+    ? safeName
+    : `'${safeName.replace(/'/g, "''")}'`;
+  return `${escapedName}!${cells}`;
 }
 
 function sheetRange(tabName: string, cells: string) {
