@@ -318,8 +318,11 @@
     .url-list { display:grid; gap:8px; }
     .url-row { display:grid; grid-template-columns:minmax(0,1fr) 36px; gap:7px; }
     .url-row:has(.dashboard-url-client) { grid-template-columns:minmax(120px,.45fr) minmax(0,1fr); align-items:center; }
+    .url-row-fields { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(120px,.7fr); gap:7px; }
     .dashboard-url-client { color:#365e68; font-size:11px; }
     .url-row input { min-width:0; }
+    .dashboard-tab-input { font-size:11px; }
+    @media(max-width:680px) { .url-row-fields { grid-template-columns:minmax(0,1fr); } }
     .remove-source { width:36px; height:43px; border:1px solid rgba(194,103,96,.2); border-radius:10px; color:#b7685e; background:rgba(255,255,255,.72); font-size:17px; }
     .add-source-button { margin-top:9px; padding:7px 0; border:0; color:#147f83; background:transparent; font-size:10px; font-weight:700; }
     .rename-client-form { padding:15px 0 2px; margin-top:17px; border-top:1px solid rgba(53,139,143,.14); }
@@ -597,19 +600,19 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">DASHBOARD CONNECTION</span>
       <h2 id="dashboard-dialog-title">Dashboard</h2>
-      <p class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL for each selected client.</p>
+      <p class="dialog-copy">Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.</p>
       <form id="dashboard-url-form" novalidate>
         <label class="dialog-label" for="dialog-user-select">Assign to user</label>
         <select id="dialog-user-select" required></select>
         <label id="dashboard-client-select-label" class="dialog-label" for="dashboard-client-select">Fetch data from client</label>
         <select id="dashboard-client-select" multiple size="4" required aria-label="Clients to fetch for this dashboard"></select>
         <div id="dashboard-client-options" class="client-checklist hidden" role="group" aria-labelledby="dashboard-client-select-label"></div>
-        <label class="dialog-label">Spreadsheet URL for each selected client</label>
+        <label class="dialog-label">Spreadsheet URL and tab name for each selected client</label>
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
-        <div class="dialog-scope">For a Regular Admin, check each client to reveal its URL field, then paste that client’s Google Sheets link. Each selected client must have its own URL.</div>
+        <div class="dialog-scope">Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.</div>
         <p id="dashboard-assignment-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
-        <div class="dialog-actions"><button id="save-dashboard-urls" class="primary-button" type="button">Save URLs</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
+        <div class="dialog-actions"><button id="save-dashboard-urls" class="primary-button" type="button">Save Assignment</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
       <p class="dialog-footnote">Preview URLs are stored in this browser only; no spreadsheet data is fetched.</p>
     </section>
@@ -1165,6 +1168,8 @@
     let dashboardAssignments = {};
     let dashboardClientAssignments = {};
     let dashboardClientSheetUrls = {};
+    let dashboardClientSheetTabs = {};
+    let dashboardSheetTabs = {};
     let dashboardAssignmentUsesClientUrlPairs = false;
     let selectedDashboardClients = {};
     let activeDashboardForData = '';
@@ -1266,6 +1271,33 @@
       }
       if (urls.length === 1) return Object.fromEntries(clientNames.map(client => [client, urls[0]]));
       return {};
+    }
+    function defaultDashboardSheetTab(name) {
+      return ({
+        'PLANTILLA': 'PLANTILLA',
+        'SIL': 'PLANTILLA',
+        'VCODE MASTERLIST': 'VCODE',
+        'VACANCY MONITORING': 'VACANCY',
+        'FOR APPROVAL': 'VACANCY',
+        'HR EMPLOC MONITORING': 'G1N',
+        'INACTIVE': 'INACTIVE'
+      })[name] || name;
+    }
+    function getDashboardSheetTab(name, client = getActiveClient(), fallback = defaultDashboardSheetTab(name)) {
+      const clientTabs = dashboardClientSheetTabs[name];
+      if (clientTabs && typeof clientTabs === 'object') {
+        const matchedClient = Object.keys(clientTabs).find(value => value.toLocaleLowerCase() === String(client).toLocaleLowerCase());
+        if (matchedClient && String(clientTabs[matchedClient] || '').trim()) return String(clientTabs[matchedClient]).trim();
+      }
+      return String(dashboardSheetTabs[name] || fallback).trim();
+    }
+    function sheetA1Range(tabName, range) {
+      const safeName = String(tabName || '').trim();
+      if (!safeName || safeName.length > 100) throw new Error('Enter a valid spreadsheet tab name (1-100 characters).');
+      return `'${safeName.replace(/'/g, "''")}'!${range}`;
+    }
+    function quoteSheetTab(tabName, range) {
+      return encodeURIComponent(sheetA1Range(tabName, range));
     }
     function getDashboardSources(name, client = getActiveClient()) {
       const clientUrls = dashboardClientSheetUrls[name];
@@ -1612,6 +1644,8 @@
       dashboardAssignments = {};
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
+      dashboardClientSheetTabs = {};
+      dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
       try {
@@ -1629,6 +1663,8 @@
             assignment.sheet_urls || [],
             assignment.client_sheet_urls || {}
           );
+          dashboardClientSheetTabs[assignment.dashboard_name] = assignment.client_sheet_tabs || {};
+          dashboardSheetTabs[assignment.dashboard_name] = assignment.sheet_tab || '';
         }
       } catch (error) {
         notify(error.message || 'Could not load your assigned spreadsheets. Contact the administrator.');
@@ -2297,7 +2333,8 @@
           updatedRows = result.updatedRows || [];
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating PLANTILLA statuses.');
-          const range = encodeURIComponent('PLANTILLA!B9:AH');
+          const plantillaTab = getDashboardSheetTab('PLANTILLA', getActiveClient());
+          const range = quoteSheetTab(plantillaTab, 'B9:AH');
           const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${range}?valueRenderOption=FORMULA`);
           const pendingRows = (result.values || []).flatMap((rowValues, index) => {
             const vcode = String(rowValues[0] ?? '').trim();
@@ -2306,7 +2343,10 @@
           });
           eligibleCount = pendingRows.length;
           if (eligibleCount) {
-            const updates = buildPlantillaNewlyHiredUpdates(pendingRows);
+            const updates = buildPlantillaNewlyHiredUpdates(pendingRows).map(update => ({
+              ...update,
+              range: sheetA1Range(plantillaTab, update.range.match(/!([A-Z0-9:]+)/)?.[1] || '')
+            }));
             const writeResult = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values:batchUpdate`, {
               method: 'POST',
               body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
@@ -2395,7 +2435,7 @@
           });
           displayValues = result.displayValues || [];
         } else {
-          const range = encodeURIComponent('VCODE!A3:N');
+          const range = quoteSheetTab(getDashboardSheetTab('VCODE MASTERLIST', clientName), 'A3:N');
           const result = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
           displayValues = result.values || [];
         }
@@ -2629,9 +2669,10 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
+          const sheetTab = getDashboardSheetTab('FOR APPROVAL', getActiveClient());
           const metadata = await sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
-          const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === 'VACANCY');
-          if (!vacancySheet) throw new Error('The assigned spreadsheet needs a tab named VACANCY.');
+          const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === sheetTab);
+          if (!vacancySheet) throw new Error(`The assigned spreadsheet needs a tab named ${sheetTab}.`);
           const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
           const sheetRange = `'${vacancySheet.properties.title.replace(/'/g, "''")}'`;
           const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
@@ -2755,7 +2796,7 @@
           vacancyDeployers = result.deployers || [];
           serverFiltered = true;
         } else {
-          const range = encodeURIComponent('VACANCY!B5:AF');
+          const range = quoteSheetTab(getDashboardSheetTab('VACANCY MONITORING', clientName), 'B5:AF');
           const deployerRange = encodeURIComponent('Deployer!A2:A');
           const [rawResult, displayResult, deployerResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
@@ -2893,14 +2934,15 @@
           });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
-          const range = encodeURIComponent('VACANCY!B5:C');
+          const vacancyTab = getDashboardSheetTab('VACANCY MONITORING', getActiveClient());
+          const range = quoteSheetTab(vacancyTab, 'B5:C');
           const result = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
           const matches = (result.values || []).map((rowValues, index) => String(rowValues[0] ?? '').trim() === vcode ? index + 5 : 0).filter(Boolean);
           if (!matches.length) throw new Error(`No VACANCY row found for VCODE ${vcode}.`);
           if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once in VACANCY; no changes were made.`);
           const row = matches[0];
           const fieldColumns = { lastName: 'K', firstName: 'L', middleName: 'M', contactNumber: 'N', vacantDate: 'O', dateOnboard: 'P', reliever: 'U', hrcoRemarks: 'W', coordinator: 'AD', deployedBy: 'AF' };
-          const cellRanges = Object.keys(values).map(name => `VACANCY!${fieldColumns[name]}${row}`);
+          const cellRanges = Object.keys(values).map(name => sheetA1Range(vacancyTab, `${fieldColumns[name]}${row}`));
           const formulaQuery = cellRanges.map(cell => `ranges=${encodeURIComponent(cell)}`).join('&');
           const formulaResult = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchGet?${formulaQuery}&valueRenderOption=FORMULA`);
           const formulaFields = Object.keys(values).filter((_, index) =>
@@ -2920,7 +2962,7 @@
             deployedBy: value => String(value ?? '').toLocaleUpperCase()
           };
           const data = Object.entries(values).map(([name, value]) => ({
-            range: `VACANCY!${fieldColumns[name]}${row}`,
+            range: sheetA1Range(vacancyTab, `${fieldColumns[name]}${row}`),
             values: [[updateValues[name](value)]]
           }));
           await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values:batchUpdate`, {
@@ -3015,7 +3057,8 @@
           displayValues = result.displayValues || [];
           serverFiltered = true;
         } else {
-          const range = encodeURIComponent('G1N!G9:AC');
+          const hrTab = getDashboardSheetTab('HR EMPLOC MONITORING', clientName);
+          const range = quoteSheetTab(hrTab, 'G9:AC');
           const [rawResult, displayResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
@@ -3026,7 +3069,7 @@
         if (!serverFiltered) {
           const activeClients = new Set(clientNames
             .map(client => client.trim().toLocaleLowerCase()));
-          const clientRange = encodeURIComponent('G1N!B9:B');
+          const clientRange = quoteSheetTab(hrTab, 'B9:B');
           const clientResult = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
           const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
           const rowCount = Math.max(rawValues.length, displayValues.length, clientValues.length);
@@ -3168,7 +3211,7 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
-          const range = encodeURIComponent('PLANTILLA!A9:AQ');
+          const range = quoteSheetTab(getDashboardSheetTab('PLANTILLA', clientName), 'A9:AQ');
           const [rawResult, displayResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
@@ -3290,7 +3333,7 @@
           displayValues = result.displayValues || [];
         } else {
           const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
-          const range = encodeURIComponent('PLANTILLA!A9:AQ');
+          const range = quoteSheetTab(getDashboardSheetTab('PLANTILLA', clientName), 'A9:AQ');
           const [rawResult, displayResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
@@ -3631,7 +3674,8 @@
                 status
               });
             } else {
-              const vcodeRange = encodeURIComponent('PLANTILLA!B9:B');
+              const plantillaTab = getDashboardSheetTab('PLANTILLA', getActiveClient());
+              const vcodeRange = quoteSheetTab(plantillaTab, 'B9:B');
               const result = await sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
               const matches = (result.values || []).flat().map((value, index) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
               if (!matches.length) throw new Error(`No row found for VCODE ${vcode}.`);
@@ -3642,9 +3686,9 @@
                 body: JSON.stringify({
                   valueInputOption: 'RAW',
                   data: [
-                    { range: `PLANTILLA!H${rowNumber}`, values: [[numericRate]] },
-                    { range: `PLANTILLA!AG${rowNumber}`, values: [[sheetDateSerial(form.elements.separationDate.value)]] },
-                    { range: `PLANTILLA!AH${rowNumber}`, values: [[status]] }
+                    { range: sheetA1Range(plantillaTab, `H${rowNumber}`), values: [[numericRate]] },
+                    { range: sheetA1Range(plantillaTab, `AG${rowNumber}`), values: [[sheetDateSerial(form.elements.separationDate.value)]] },
+                    { range: sheetA1Range(plantillaTab, `AH${rowNumber}`), values: [[status]] }
                   ]
                 })
               });
@@ -3709,7 +3753,7 @@
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'true');
       document.querySelector('#drawer-backdrop').classList.remove('open');
     }
-    function addDashboardUrlRow(value = '', clientName = '') {
+    function addDashboardUrlRow(value = '', clientName = '', tabName = '') {
       const list = document.querySelector('#dashboard-url-list');
       const row = document.createElement('div');
       row.className = 'url-row';
@@ -3728,13 +3772,25 @@
       input.setAttribute('aria-label', clientName ? `Spreadsheet URL for ${clientName}` : `Spreadsheet URL ${list.children.length + 1}`);
       if (clientName) input.dataset.clientUrl = clientName;
       input.value = value;
+      const tabInput = document.createElement('input');
+      tabInput.className = 'dashboard-tab-input';
+      tabInput.type = 'text';
+      tabInput.maxLength = 100;
+      tabInput.autocomplete = 'off';
+      tabInput.placeholder = `Tab name (default: ${defaultDashboardSheetTab(selectedDashboard)})`;
+      tabInput.setAttribute('aria-label', clientName ? `Tab name for ${clientName}` : `Tab name ${list.children.length + 1}`);
+      if (clientName) tabInput.dataset.clientTab = clientName;
+      tabInput.value = tabName || defaultDashboardSheetTab(selectedDashboard);
+      const fields = document.createElement('div');
+      fields.className = 'url-row-fields';
+      fields.append(input, tabInput);
       const remove = document.createElement('button');
       remove.className = 'remove-source';
       remove.type = 'button';
       remove.setAttribute('aria-label', 'Remove spreadsheet URL');
       remove.textContent = '×';
       remove.addEventListener('click', () => row.remove());
-      row.append(input);
+      row.append(fields);
       if (!clientName) row.append(remove);
       list.append(row);
     }
@@ -3827,8 +3883,8 @@
           const vcodeSpreadsheetId = spreadsheetIdFromUrl(vcodeUrl);
           const plantillaSpreadsheetId = spreadsheetIdFromUrl(plantillaUrl);
           const [vcodeResult, plantillaResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${vcodeSpreadsheetId}/values/${encodeURIComponent('VCODE!A3:N')}?valueRenderOption=FORMATTED_VALUE`),
-            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${encodeURIComponent('PLANTILLA!A9:AJ')}?valueRenderOption=FORMATTED_VALUE`)
+            sheetsApiRequest(`spreadsheets/${vcodeSpreadsheetId}/values/${quoteSheetTab(getDashboardSheetTab('VCODE MASTERLIST', clientName), 'A3:N')}?valueRenderOption=FORMATTED_VALUE`),
+            sheetsApiRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${quoteSheetTab(getDashboardSheetTab('PLANTILLA', clientName), 'A9:AJ')}?valueRenderOption=FORMATTED_VALUE`)
           ]);
           vcodeValues = vcodeResult.values || [];
           plantillaValues = plantillaResult.values || [];
@@ -3912,6 +3968,7 @@
       const clientOptions = document.querySelector('#dashboard-client-options');
       const addUrlButton = document.querySelector('#add-dashboard-url');
       let activeClientUrlMap = {};
+      let activeClientTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
       try {
         await loadClientOptions();
@@ -3920,7 +3977,7 @@
         if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
       }
       const loadSelectedAssignment = async () => {
-        const { urls, clientNames: assignedClients, clientSheetUrls = {} } = await callAdminFunction('get-dashboard-assignment', {
+        const { urls, clientNames: assignedClients, clientSheetUrls = {}, sheetTab = '', clientSheetTabs = {} } = await callAdminFunction('get-dashboard-assignment', {
           username: userSelect.value,
           dashboardName: name
         });
@@ -3940,6 +3997,7 @@
         list.replaceChildren();
         addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs;
         activeClientUrlMap = { ...clientSheetUrls };
+        activeClientTabMap = { ...clientSheetTabs };
         if (!Object.keys(activeClientUrlMap).length && assignedUrls.length === (assignedClients?.length || 0)) {
           (assignedClients || []).forEach((client, index) => { activeClientUrlMap[client] = assignedUrls[index]; });
         }
@@ -3949,13 +4007,18 @@
         if (dashboardAssignmentUsesClientUrlPairs) {
           fillDashboardClientOptions(selectedClients, () => {
             const currentUrls = Object.fromEntries([...list.querySelectorAll('[data-client-url]')].map(input => [input.dataset.clientUrl, input.value.trim()]));
+            const currentTabs = Object.fromEntries([...list.querySelectorAll('[data-client-tab]')].map(input => [input.dataset.clientTab, input.value.trim()]));
             activeClientUrlMap = { ...activeClientUrlMap, ...currentUrls };
+            activeClientTabMap = { ...activeClientTabMap, ...currentTabs };
             list.replaceChildren();
-            selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+            selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || ''));
           });
-          selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client));
+          selectedClientValues(clientOptions).forEach(client => addDashboardUrlRow(activeClientUrlMap[client] || '', client, activeClientTabMap[client] || ''));
         } else {
-          (assignedUrls.length ? assignedUrls : ['']).forEach(source => addDashboardUrlRow(source));
+          const assignedClient = selectedClients[0] || clientSelect.value || '';
+          (assignedUrls.length ? assignedUrls : ['']).forEach((source, index) =>
+            addDashboardUrlRow(source, '', activeClientTabMap[assignedClient] || sheetTab)
+          );
         }
         openDashboardUrl.disabled = !assignedUrls.length;
         clientSelect.onchange = null;
@@ -4103,6 +4166,8 @@
         name,
         normalizeDashboardClientUrls(result.clientNames || [], result.urls || [], result.clientSheetUrls || {})
       ]));
+      dashboardClientSheetTabs = Object.fromEntries(assignments.map(([name, result]) => [name, result.clientSheetTabs || {}]));
+      dashboardSheetTabs = Object.fromEntries(assignments.map(([name, result]) => [name, result.sheetTab || '']));
       selectedDashboardClients = {};
       activeDashboardForData = '';
       previewedUser = {
@@ -4130,6 +4195,8 @@
       dashboardAssignments = {};
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
+      dashboardClientSheetTabs = {};
+      dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
       googleAccessToken = '';
@@ -4380,6 +4447,8 @@
       dashboardAssignments = {};
       dashboardClientAssignments = {};
       dashboardClientSheetUrls = {};
+      dashboardClientSheetTabs = {};
+      dashboardSheetTabs = {};
       selectedDashboardClients = {};
       activeDashboardForData = '';
       welcomeUser = null;
@@ -4665,11 +4734,25 @@
       if (dashboardAssignmentUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
       if (!clientNames.length && !sourceSetup) return showAssignmentError('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
+      const tabInputs = [...document.querySelectorAll('.dashboard-tab-input')];
+      const sheetTab = tabInputs[0]?.value.trim() || defaultDashboardSheetTab(selectedDashboard);
       const clientSheetUrls = Object.fromEntries([...document.querySelectorAll('.dashboard-url-input[data-client-url]')]
         .map(input => [input.dataset.clientUrl, input.value.trim()]));
+      const clientSheetTabs = Object.fromEntries([...document.querySelectorAll('.dashboard-tab-input[data-client-tab]')]
+        .map(input => [input.dataset.clientTab, input.value.trim()]));
       if (dashboardAssignmentUsesClientUrlPairs) {
         const missingClient = clientNames.find(client => !clientSheetUrls[client]);
         if (missingClient) return showAssignmentError(`Enter a spreadsheet URL for ${missingClient}.`);
+        const missingTab = clientNames.find(client => !clientSheetTabs[client]);
+        if (missingTab) return showAssignmentError(`Enter a tab name for ${missingTab}.`);
+      } else if (clientNames[0] && !clientSheetTabs[clientNames[0]]) {
+        clientSheetTabs[clientNames[0]] = sheetTab;
+      }
+      if (sheetTab.length > 100 || Object.values(clientSheetTabs).some(tab => tab.length > 100)) {
+        return showAssignmentError('Tab names must be 100 characters or fewer.');
+      }
+      if (/[:\\/?*\[\]\r\n]/.test(sheetTab) || Object.values(clientSheetTabs).some(tab => /[:\\/?*\[\]\r\n]/.test(tab))) {
+        return showAssignmentError('Tab names cannot contain /, \\, ?, *, :, or square brackets.');
       }
       const sources = [];
       for (const value of values) {
@@ -4690,6 +4773,8 @@
             dashboardName: selectedDashboard,
             urls: sources,
             clientNames,
+            sheetTab,
+            clientSheetTabs,
             ...(dashboardAssignmentUsesClientUrlPairs ? { clientSheetUrls } : {})
           });
           openDashboardUrl.disabled = !sources.length;
@@ -4698,11 +4783,15 @@
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
             dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
+            dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
+            dashboardSheetTabs[selectedDashboard] = sheetTab;
           }
           if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
             dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
+            dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
+            dashboardSheetTabs[selectedDashboard] = sheetTab;
             selectedDashboardClients[selectedDashboard] = '';
             openUserDashboard(selectedDashboard);
           }
@@ -4714,7 +4803,7 @@
           notify(message);
         } finally {
           button.disabled = false;
-          button.textContent = 'Save URLs';
+          button.textContent = 'Save Assignment';
         }
       })();
     });

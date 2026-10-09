@@ -99,7 +99,7 @@ Deno.serve(async request => {
 
     if (body.action === 'my-dashboard-sources') {
       const { data, error } = await adminClient.from('dashboard_assignments')
-        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls')
+        .select('dashboard_name, sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs')
         .eq('user_id', user.id);
       if (error) throw new Error('Could not load your assigned dashboard spreadsheets.');
       return respond({ assignments: data || [] });
@@ -208,7 +208,7 @@ Deno.serve(async request => {
 
       if (body.action === 'get-dashboard-assignment') {
         const { data, error } = await adminClient.from('dashboard_assignments')
-          .select('sheet_urls, client_names, client_sheet_urls')
+          .select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs')
           .eq('user_id', target.id)
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
@@ -218,7 +218,15 @@ Deno.serve(async request => {
           : target.client_names?.length
             ? target.client_names
             : [target.client_name].filter(Boolean);
-        return respond({ username, dashboardName, urls: data?.sheet_urls || [], clientNames, clientSheetUrls: data?.client_sheet_urls || {} });
+        return respond({
+          username,
+          dashboardName,
+          urls: data?.sheet_urls || [],
+          clientNames,
+          clientSheetUrls: data?.client_sheet_urls || {},
+          sheetTab: data?.sheet_tab || '',
+          clientSheetTabs: data?.client_sheet_tabs || {}
+        });
       }
 
       if (!Array.isArray(body.urls) || body.urls.length > 30) throw new Error('Provide up to 30 spreadsheet URLs.');
@@ -266,12 +274,36 @@ Deno.serve(async request => {
           throw new Error('Each spreadsheet URL must match a selected client.');
         }
       }
+      const sheetTab = typeof body.sheetTab === 'string' ? body.sheetTab.trim() : '';
+      if (sheetTab.length > 100) throw new Error('Tab names must be 100 characters or fewer.');
+      if (/[:\\/?*\[\]\r\n]/.test(sheetTab)) throw new Error('Tab names cannot contain /, \\, ?, *, :, or square brackets.');
+      const clientSheetTabs: Record<string, string> = {};
+      if (body.clientSheetTabs !== undefined) {
+        if (!body.clientSheetTabs || typeof body.clientSheetTabs !== 'object' || Array.isArray(body.clientSheetTabs)) {
+          throw new Error('Provide valid tab names for assigned clients.');
+        }
+        for (const clientName of clientNames) {
+          const assignedTab = body.clientSheetTabs[clientName];
+          if (assignedTab !== undefined) {
+            if (typeof assignedTab !== 'string' || assignedTab.trim().length > 100) {
+              throw new Error(`Enter a valid tab name for ${clientName} (up to 100 characters).`);
+            }
+            if (/[:\\/?*\[\]\r\n]/.test(assignedTab.trim())) throw new Error(`The tab name for ${clientName} contains an unsupported character.`);
+            clientSheetTabs[clientName] = assignedTab.trim();
+          }
+        }
+        if (Object.keys(body.clientSheetTabs).some(client => !clientNames.includes(client))) {
+          throw new Error('Each tab name must match a selected client.');
+        }
+      }
       const { error } = await adminClient.from('dashboard_assignments').upsert({
         user_id: target.id,
         dashboard_name: dashboardName,
         sheet_urls: urls.length ? urls : [...new Set(Object.values(clientSheetUrls))],
         client_names: clientNames,
         client_sheet_urls: clientSheetUrls,
+        sheet_tab: sheetTab,
+        client_sheet_tabs: clientSheetTabs,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,dashboard_name' });
       if (error) throw new Error('Could not save this user\'s spreadsheet assignment.');
@@ -286,7 +318,7 @@ Deno.serve(async request => {
           .eq('id', target.id);
         if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
       }
-      return respond({ username, dashboardName, urls, clientNames });
+      return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs });
     }
 
     if (body.action === 'create') {
