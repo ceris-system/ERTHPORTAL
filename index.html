@@ -434,6 +434,28 @@
     .deactivation-table td:nth-child(3) { color:#45666c; font-size:10px; font-weight:700; }
     .deactivation-table td:last-child { color:#536f76; }
     .deactivation-dashboard .plantilla-empty { padding:22px 16px; color:#71878c !important; font-size:11px; }
+    .attrition-controls { display:grid; grid-template-columns:minmax(230px,1.2fr) minmax(140px,.55fr) minmax(180px,.8fr) auto; align-items:end; gap:12px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.9); box-shadow:0 4px 13px rgba(22,68,77,.04); }
+    .attrition-controls .field { display:grid; min-width:0; gap:6px; margin:0; }
+    .attrition-controls .field label { color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
+    .attrition-controls .field input,.attrition-controls .field select { box-sizing:border-box; width:100%; min-width:0; min-height:39px; padding:0 10px; border:1px solid #d5e2e5; border-radius:9px; color:#24474e; background:#fff; font:11px 'Roboto Mono',monospace; }
+    .attrition-controls .field input:focus,.attrition-controls .field select:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.1); outline:0; }
+    .attrition-date-range { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+    .attrition-toolbar-actions { display:flex; align-items:center; gap:8px; }
+    .attrition-toolbar-actions button { min-height:39px; white-space:nowrap; }
+    .attrition-table { min-width:1180px; }
+    .attrition-table td { white-space:nowrap; }
+    .attrition-status { min-height:18px; margin:0; color:#647e85; font-size:10px; }
+    .attrition-empty { text-align:center; }
+    @media(max-width:1050px) {
+      .attrition-controls { grid-template-columns:minmax(0,1fr) minmax(140px,.55fr); }
+      .attrition-toolbar-actions { justify-content:flex-end; }
+    }
+    @media(max-width:720px) {
+      .attrition-controls { grid-template-columns:minmax(0,1fr); }
+      .attrition-toolbar-actions { justify-content:stretch; }
+      .attrition-toolbar-actions button { flex:1; }
+      .attrition-date-range { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    }
     @media(max-width:850px) {
       .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .deactivation-entry-card .primary-button { grid-column:2; grid-row:auto; justify-self:end; width:auto; min-width:145px; }
@@ -1452,7 +1474,8 @@
         'VACANCY MONITORING': 'VACANCY',
         'FOR APPROVAL': 'VACANCY',
         'HR EMPLOC MONITORING': 'G1N',
-        'INACTIVE': 'INACTIVE'
+        'INACTIVE': 'INACTIVE',
+        'ATTRITION': 'ATTRITION'
       })[name] || name;
     }
     function getDashboardSheetTab(name, client = getActiveClient(), fallback = defaultDashboardSheetTab(name)) {
@@ -3800,13 +3823,16 @@
     }
     function downloadSilExcel() {
       const report = getSilReport();
-      const rows = silReportRows(report);
+      downloadExcelWorkbook(silReportRows(report), 'SIL Report', `SIL-${report.month}-${report.year}.xlsx`, 6);
+    }
+    function downloadExcelWorkbook(rows, sheetName, filename, headerRow) {
       const xmlEscape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
       const columnName = number => {
         let name = '';
         for (let value = number; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + (value - 1) % 26) + name;
         return name;
       };
+      const columnCount = Math.max(1, (rows[headerRow - 1] || []).length);
       const sheetRows = rows.map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) => {
         if (value === '' || value === null || value === undefined) return '';
         const reference = `${columnName(columnIndex + 1)}${rowIndex + 1}`;
@@ -3817,9 +3843,9 @@
       const files = [
         { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
         { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
-        { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="SIL Report" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+        { name: 'xl/workbook.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEscape(String(sheetName).slice(0, 31))}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
         { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>' },
-        { name: 'xl/worksheets/sheet1.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData><autoFilter ref="A6:H${Math.max(6, rows.length)}"/></worksheet>` }
+        { name: 'xl/worksheets/sheet1.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData><autoFilter ref="A${headerRow}:${columnName(columnCount)}${Math.max(headerRow, rows.length)}"/></worksheet>` }
       ];
       const encoder = new TextEncoder();
       const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
@@ -3863,7 +3889,7 @@
       endView.setUint32(12, centralSize, true); endView.setUint32(16, centralOffset, true);
       append(end);
       const blob = new Blob(chunks, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      downloadSilBlob(blob, `SIL-${report.month}-${report.year}.xlsx`);
+      downloadSilBlob(blob, filename);
     }
     function downloadSilPdf() {
       const report = getSilReport();
@@ -4495,6 +4521,7 @@
       if (name === 'PLANTILLA') showPlantilla();
       else if (name === 'PLANTILLA SUMMARY') showPlantillaSummary();
       else if (name === 'SIL') showSilDashboard();
+      else if (name === 'ATTRITION') showAttritionDashboard();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VCODE VARIANCE') showVcodeVariance();
       else if (name === 'DEACTIVATION') showDeactivationDashboard();
@@ -4503,6 +4530,200 @@
       else if (name === 'FOR APPROVAL') showForApproval();
       else if (name === '+-5% BUFFER') showBufferDashboard();
       else showClientDashboard(name);
+    }
+    const attritionStatuses = new Set(['AWOL', 'BACK OUT', 'ENDO', 'RESIGNED', 'TERMINATED']);
+    const attritionMonths = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    let attritionRecords = [];
+    let attritionClients = [];
+    let attritionReportMode = 'monthly';
+    let attritionReadGeneration = 0;
+    let attritionCurrentYear = new Date().getFullYear();
+    function showAttritionDashboard() {
+      saveCurrentView('dashboard', 'ATTRITION');
+      document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode('ATTRITION'));
+      attritionRecords = [];
+      attritionClients = [];
+      attritionReportMode = 'monthly';
+      attritionCurrentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth();
+      const client = getActiveClient();
+      content.innerHTML = `<section class="deactivation-dashboard" aria-labelledby="attrition-title">
+        <header class="deactivation-page-header">
+          <div class="deactivation-page-title">
+            <span class="deactivation-page-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 19a8 8 0 1 1 16 0M12 11v4l3 2M12 3v2"/></svg></span>
+            <div><h1 id="attrition-title">Attrition report</h1><p>Employee separations · Report year: <strong id="attrition-report-year">${attritionCurrentYear}</strong></p></div>
+          </div>
+          <div class="deactivation-page-actions">
+            ${currentUser?.isMasterAdmin ? '<button id="attrition-assign-sheet" type="button">Assign spreadsheet</button>' : ''}
+            <button id="attrition-refresh" type="button">Refresh data</button>
+            <button id="attrition-home" type="button">Home</button>
+          </div>
+        </header>
+        <section class="attrition-controls" aria-label="Attrition report filters">
+          <label class="field" for="attrition-search"><span>SEARCH RECORDS</span><input id="attrition-search" type="search" placeholder="Search records..." autocomplete="off"></label>
+          <label class="field" for="attrition-client"><span>CLIENT</span><select id="attrition-client" required><option value="">Loading clients...</option></select></label>
+          <div id="attrition-month-controls" class="field"><label for="attrition-month">MONTH · ${attritionCurrentYear}</label><select id="attrition-month">${attritionMonths.map((month, index) => `<option value="${index}"${index === currentMonth ? ' selected' : ''}>${month}</option>`).join('')}</select></div>
+          <div id="attrition-week-controls" class="field hidden"><span>SEPARATION DATE RANGE</span><div class="attrition-date-range"><label class="field" for="attrition-from"><span>FROM</span><input id="attrition-from" type="date"></label><label class="field" for="attrition-to"><span>TO</span><input id="attrition-to" type="date"></label></div></div>
+          <div class="attrition-toolbar-actions"><button id="attrition-mode-toggle" class="secondary-button" type="button">Change to weekly report</button><button id="attrition-download" class="secondary-button" type="button">Download Excel</button></div>
+        </section>
+        <section class="deactivation-stats" aria-label="Attrition report summary">
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span><div class="deactivation-stat-copy"><span>Total records</span><strong id="attrition-total-stat">0</strong></div></article>
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-4.8"/></svg></span><div class="deactivation-stat-copy"><span>Showing</span><strong id="attrition-showing-stat">0</strong></div></article>
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M9 9h.01M12 9h.01M15 9h.01M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01"/></svg></span><div class="deactivation-stat-copy"><span>Status types</span><strong id="attrition-status-count">0</strong></div></article>
+        </section>
+        <p id="attrition-status" class="attrition-status" role="status" aria-live="polite"></p>
+        <section class="deactivation-table-panel" aria-labelledby="attrition-table-title">
+          <div class="deactivation-table-heading"><div><h2 id="attrition-table-title">Separated employees</h2><p id="attrition-table-subtitle">Monthly report · ${attritionMonths[currentMonth]} ${attritionCurrentYear}</p></div><span id="attrition-record-count" class="deactivation-record-count">0 records</span></div>
+          <div class="deactivation-table-wrap"><table class="deactivation-table attrition-table"><thead><tr><th scope="col">ACCOUNT</th><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">OUTLET</th><th scope="col">AREA</th><th scope="col">TENURE</th><th scope="col">STATUS</th><th scope="col">CONTACT NO.</th><th scope="col">DATE HIRED</th><th scope="col">DATE SEPARATION</th></tr></thead><tbody id="attrition-table-body"><tr><td colspan="10" class="plantilla-empty">Loading attrition records...</td></tr></tbody></table></div>
+        </section>
+        <div class="module-footer"><span>ATTRITION · ${attritionCurrentYear}</span><span>Source: assigned ATTRITION sheet · Client: AU · Separation date: AG · Status: AH</span></div>
+      </section>`;
+      applyDashboardAssignmentPermissions();
+      document.querySelector('#attrition-assign-sheet')?.addEventListener('click', () => openDashboardEditor('ATTRITION'));
+      document.querySelector('#attrition-home').addEventListener('click', showHome);
+      document.querySelector('#attrition-refresh').addEventListener('click', () => loadAttritionData(document.querySelector('#attrition-client')?.value || '', false));
+      document.querySelector('#attrition-search').addEventListener('input', renderAttritionTable);
+      document.querySelector('#attrition-client').addEventListener('change', event => loadAttritionData(event.currentTarget.value, false));
+      document.querySelector('#attrition-month').addEventListener('change', renderAttritionTable);
+      document.querySelector('#attrition-from').addEventListener('change', renderAttritionTable);
+      document.querySelector('#attrition-to').addEventListener('change', renderAttritionTable);
+      document.querySelector('#attrition-mode-toggle').addEventListener('click', toggleAttritionReportMode);
+      document.querySelector('#attrition-download').addEventListener('click', downloadAttritionExcel);
+      const initialClient = currentUser?.isMasterAdmin && !previewedUser ? '' : getActiveClient();
+      loadAttritionData(initialClient, true);
+    }
+    async function loadAttritionData(clientName = '', initializeClients = false) {
+      const status = document.querySelector('#attrition-status');
+      const body = document.querySelector('#attrition-table-body');
+      if (!status || !body) return;
+      const generation = ++attritionReadGeneration;
+      const requestContext = {
+        ...(clientName ? { clientName } : {}),
+        ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+      };
+      status.textContent = 'Loading attrition data...';
+      body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Loading attrition records...</td></tr>';
+      try {
+        const result = await callSheetsFunction('read-attrition', requestContext);
+        if (generation !== attritionReadGeneration) return;
+        if (initializeClients) {
+          attritionClients = Array.isArray(result.clients) ? result.clients : [];
+          const clientSelect = document.querySelector('#attrition-client');
+          const activeClient = getActiveClient();
+          const selectedClient = attritionClients.find(client => client.toLocaleLowerCase() === activeClient.toLocaleLowerCase()) || attritionClients[0] || '';
+          clientSelect.innerHTML = attritionClients.length
+            ? attritionClients.map(client => `<option value="${escapeHtml(client)}"${client === selectedClient ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')
+            : '<option value="">No assigned clients found</option>';
+          if (selectedClient) {
+            await loadAttritionData(selectedClient, false);
+            return;
+          }
+        }
+        attritionRecords = Array.isArray(result.records) ? result.records : [];
+        renderAttritionTable();
+        status.textContent = '';
+      } catch (error) {
+        if (generation !== attritionReadGeneration) return;
+        attritionRecords = [];
+        document.querySelector('#attrition-total-stat').textContent = '0';
+        document.querySelector('#attrition-showing-stat').textContent = '0';
+        document.querySelector('#attrition-status-count').textContent = '0';
+        document.querySelector('#attrition-record-count').textContent = 'Unavailable';
+        body.innerHTML = `<tr><td colspan="10" class="plantilla-empty">${escapeHtml(error.message || 'Could not load attrition records.')}</td></tr>`;
+        status.textContent = error.message || 'Could not load attrition records.';
+      }
+    }
+    function getFilteredAttritionRecords() {
+      const selectedClient = document.querySelector('#attrition-client')?.value.trim().toLocaleLowerCase() || '';
+      const query = document.querySelector('#attrition-search')?.value.trim().toLocaleLowerCase() || '';
+      const month = Number(document.querySelector('#attrition-month')?.value);
+      const from = document.querySelector('#attrition-from')?.value || '';
+      const to = document.querySelector('#attrition-to')?.value || '';
+      return attritionRecords.filter(record => {
+        if (selectedClient && record.account.trim().toLocaleLowerCase() !== selectedClient) return false;
+        if (attritionReportMode === 'monthly') {
+          const monthKey = `${attritionCurrentYear}-${String(month + 1).padStart(2, '0')}`;
+          if (!record.separationDate.startsWith(monthKey)) return false;
+        } else {
+          if (!from || !to || from > to || !record.separationDate || record.separationDate < from || record.separationDate > to) return false;
+        }
+        return !query || [
+          record.account, record.emploc, record.fullname, record.outlet, record.area,
+          record.tenure, record.status, record.contactNo, record.dateHired, record.dateSeparation
+        ].some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+      });
+    }
+    function renderAttritionTable() {
+      const body = document.querySelector('#attrition-table-body');
+      if (!body) return;
+      const rows = getFilteredAttritionRecords();
+      const client = document.querySelector('#attrition-client')?.value || '';
+      const monthIndex = Number(document.querySelector('#attrition-month')?.value);
+      const from = document.querySelector('#attrition-from')?.value || '';
+      const to = document.querySelector('#attrition-to')?.value || '';
+      const tableSubtitle = document.querySelector('#attrition-table-subtitle');
+      if (tableSubtitle) {
+        tableSubtitle.textContent = attritionReportMode === 'monthly'
+          ? `Monthly report · ${attritionMonths[monthIndex]} ${attritionCurrentYear} · ${client || 'No client selected'}`
+          : `Weekly report · ${from || 'From date'} to ${to || 'To date'} · ${client || 'No client selected'}`;
+      }
+      document.querySelector('#attrition-total-stat').textContent = attritionRecords.length.toLocaleString();
+      document.querySelector('#attrition-showing-stat').textContent = rows.length.toLocaleString();
+      document.querySelector('#attrition-status-count').textContent = new Set(rows.map(record => record.status)).size.toLocaleString();
+      document.querySelector('#attrition-record-count').textContent = `${rows.length} shown · ${attritionRecords.length} total`;
+      if (attritionReportMode === 'weekly' && from && to && from > to) {
+        body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">The FROM date must be on or before the TO date.</td></tr>';
+        document.querySelector('#attrition-showing-stat').textContent = '0';
+        document.querySelector('#attrition-record-count').textContent = 'Invalid date range';
+        return;
+      }
+      if (attritionReportMode === 'weekly' && (!from || !to)) {
+        body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Select both FROM and TO dates to view the report.</td></tr>';
+        document.querySelector('#attrition-showing-stat').textContent = '0';
+        document.querySelector('#attrition-record-count').textContent = 'Select date range';
+        return;
+      }
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">No attrition records match these filters.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(record => `<tr>${[
+        record.account, record.emploc, record.fullname, record.outlet, record.area,
+        record.tenure, record.status, record.contactNo, record.dateHired, record.dateSeparation
+      ].map(value => `<td>${escapeHtml(value || '-')}</td>`).join('')}</tr>`).join('');
+    }
+    function toggleAttritionReportMode() {
+      attritionReportMode = attritionReportMode === 'monthly' ? 'weekly' : 'monthly';
+      document.querySelector('#attrition-month-controls').classList.toggle('hidden', attritionReportMode !== 'monthly');
+      document.querySelector('#attrition-week-controls').classList.toggle('hidden', attritionReportMode !== 'weekly');
+      document.querySelector('#attrition-mode-toggle').textContent = attritionReportMode === 'monthly'
+        ? 'Change to weekly report'
+        : 'Change to monthly report';
+      document.querySelector('#attrition-table-title').textContent = attritionReportMode === 'monthly' ? 'Monthly attrition report' : 'Weekly attrition report';
+      renderAttritionTable();
+    }
+    function downloadAttritionExcel() {
+      const from = document.querySelector('#attrition-from')?.value || '';
+      const to = document.querySelector('#attrition-to')?.value || '';
+      if (attritionReportMode === 'weekly' && (!from || !to || from > to)) {
+        return notify('Choose a valid FROM and TO date range before downloading the weekly report.');
+      }
+      const rows = getFilteredAttritionRecords();
+      const client = document.querySelector('#attrition-client')?.value || 'CLIENT';
+      const monthIndex = Number(document.querySelector('#attrition-month')?.value);
+      const period = attritionReportMode === 'monthly'
+        ? `${attritionMonths[monthIndex]} ${attritionCurrentYear}`
+        : `${from} to ${to}`;
+      const tableRows = [
+        [`ATTRITION REPORT · ${client} · ${period}`],
+        ['ACCOUNT', 'EMPLOC', 'FULLNAME', 'OUTLET', 'AREA', 'TENURE', 'STATUS', 'CONTACT NO.', 'DATE HIRED', 'DATE SEPARATION'],
+        ...rows.map(record => [
+          record.account, record.emploc, record.fullname, record.outlet, record.area,
+          record.tenure, record.status, record.contactNo, record.dateHired, record.dateSeparation
+        ])
+      ];
+      const filename = `ATTRITION-${client}-${period}`.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-');
+      downloadExcelWorkbook(tableRows, 'Attrition Report', `${filename}.xlsx`, 2);
     }
     const deactivationStatuses = [
       'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',

@@ -109,7 +109,8 @@ function defaultSheetTab(dashboardName: string) {
     'VACANCY MONITORING': 'VACANCY',
     'FOR APPROVAL': 'VACANCY',
     'HR EMPLOC MONITORING': 'G1N',
-    'INACTIVE': 'INACTIVE'
+    'INACTIVE': 'INACTIVE',
+    'ATTRITION': 'ATTRITION'
   } as Record<string, string>)[dashboardName] || dashboardName;
 }
 
@@ -191,6 +192,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'lookup-deactivation-emploc': 'DEACTIVATION',
     'read-deactivation-mika-file': 'DEACTIVATION',
     'save-deactivation': 'DEACTIVATION',
+    'read-attrition': 'ATTRITION',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
     'approve-vacancy': 'FOR APPROVAL',
@@ -1119,6 +1121,90 @@ async function readVcode(spreadsheetId: string, tabName = 'VCODE') {
   return { displayValues: result.values || [] };
 }
 
+function attritionIsoDate(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(Date.UTC(1899, 11, 30) + value * 86400000);
+    return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : '';
+  }
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) {
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (date.getUTCFullYear() !== Number(match[1]) || date.getUTCMonth() !== Number(match[2]) - 1 || date.getUTCDate() !== Number(match[3])) return '';
+    return date.toISOString().slice(0, 10);
+  }
+  match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const date = new Date(Date.UTC(Number(match[3]), Number(match[1]) - 1, Number(match[2])));
+    if (date.getUTCFullYear() !== Number(match[3]) || date.getUTCMonth() !== Number(match[1]) - 1 || date.getUTCDate() !== Number(match[2])) return '';
+    return date.toISOString().slice(0, 10);
+  }
+  const parsed = new Date(text);
+  return Number.isFinite(parsed.getTime())
+    ? new Date(Date.UTC(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())).toISOString().slice(0, 10)
+    : '';
+}
+
+function attritionDisplayDate(value: unknown) {
+  const isoDate = attritionIsoDate(value);
+  if (!isoDate) return String(value ?? '').trim();
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(new Date(Date.UTC(year, month - 1, day))).toLocaleUpperCase();
+}
+
+async function readAttritionRecords(
+  spreadsheetId: string,
+  sheetTab: string,
+  assignedClients: string[],
+  isMasterAdmin: boolean
+) {
+  const result = await readSheetGridRanges(spreadsheetId, sheetTab, [{
+    startRowIndex: 2,
+    startColumnIndex: 0,
+    endColumnIndex: 47
+  }]);
+  const values: unknown[][] = result[0]?.valueRange?.values || [];
+  const allowedClients = new Set(assignedClients.map(client => client.trim().toLocaleLowerCase()).filter(Boolean));
+  if (!allowedClients.size && !isMasterAdmin) throw new Error('No clients are assigned to this ATTRITION dashboard.');
+  const clients = new Map<string, string>();
+  const allowedStatuses = new Set(['AWOL', 'BACK OUT', 'ENDO', 'RESIGNED', 'TERMINATED']);
+  const records = values.flatMap(row => {
+    const account = String(row[46] ?? '').trim();
+    const clientKey = account.toLocaleLowerCase();
+    if (!account || (allowedClients.size && !allowedClients.has(clientKey))) return [];
+    clients.set(clientKey, clients.get(clientKey) || account);
+    const status = String(row[33] ?? '').trim().toLocaleUpperCase();
+    if (!allowedStatuses.has(status)) return [];
+    const emploc = String(row[2] ?? '').trim();
+    if (!emploc) return [];
+    const dateHiredValue = row[14] ?? '';
+    const separationValue = row[32] ?? '';
+    return [{
+      account,
+      emploc,
+      fullname: String(row[35] ?? '').trim(),
+      outlet: String(row[35] ?? '').trim(),
+      area: String(row[8] ?? '').trim(),
+      tenure: String(row[15] ?? '').trim(),
+      status,
+      contactNo: String(row[20] ?? '').trim(),
+      dateHired: attritionDisplayDate(dateHiredValue),
+      dateSeparation: attritionDisplayDate(separationValue),
+      separationDate: attritionIsoDate(separationValue)
+    }];
+  });
+  return {
+    clients: [...clients.values()].sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base' })),
+    records
+  };
+}
+
 async function readVcodeVariance(spreadsheetId: string, tabName: string, clientName: string) {
   const result = await googleRequest(
     `spreadsheets/${spreadsheetId}/values/${sheetRange(tabName, 'B3:F')}?valueRenderOption=FORMATTED_VALUE`
@@ -1670,7 +1756,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-attrition', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1692,6 +1778,9 @@ Deno.serve(async request => {
     }
     if (body.action === 'save-deactivation') {
       return respond(await saveDeactivationRecord(spreadsheetId, sheetTab, deactivationMikaTab, body.emploc, body.status, body.inactiveDate));
+    }
+    if (body.action === 'read-attrition') {
+      return respond(await readAttritionRecords(spreadsheetId, sheetTab, clientNames, actor.is_master_admin));
     }
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
