@@ -107,7 +107,7 @@ function sheetA1(tabName: string, cells: string) {
 }
 
 function sheetRange(tabName: string, cells: string) {
-  return encodeURIComponent(sheetA1(tabName, cells));
+  return encodeURIComponent(sheetA1(tabName, cells)).replace(/'/g, '%27');
 }
 
 const bufferDetailClientColumns: Record<string, number> = {
