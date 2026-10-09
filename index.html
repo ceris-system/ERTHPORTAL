@@ -5046,11 +5046,15 @@
         : 'Spreadsheet URL and tab name for each selected client';
       document.querySelector('#dashboard-dialog-copy').textContent = name === 'DEACTIVATION'
         ? 'Set the actual spreadsheet URL and the two tab names below. The selected client only sets account access; it does not choose where records are fetched or saved.'
+        : name === 'ATTRITION'
+          ? 'Enter the ATTRITION spreadsheet URL and tab. The client list is loaded as unique values from column AU in that sheet.'
         : 'Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.';
       const clientLabel = document.querySelector('#dashboard-client-select-label');
       clientLabel.textContent = name === 'DEACTIVATION' ? 'Client access (permission scope only)' : 'Fetch data from client';
-      document.querySelector('#dashboard-assignment-hint').classList.toggle('hidden', name !== 'DEACTIVATION');
-      document.querySelector('#dashboard-assignment-hint').textContent = 'This client selection controls who may use the assignment. The spreadsheet URL and tab fields below explicitly determine the data source and save destination.';
+      document.querySelector('#dashboard-assignment-hint').classList.toggle('hidden', !['DEACTIVATION', 'ATTRITION'].includes(name));
+      document.querySelector('#dashboard-assignment-hint').textContent = name === 'ATTRITION'
+        ? 'Client options are unique values from AU3:AU in the assigned spreadsheet tab. Enter the URL and tab name to load them.'
+        : 'This client selection controls who may use the assignment. The spreadsheet URL and tab fields below explicitly determine the data source and save destination.';
       document.querySelector('#dashboard-custom-data-tab-wrap').classList.add('hidden');
       document.querySelector('#dashboard-tab-hint').textContent = name === 'DEACTIVATION'
         ? 'Use the custom data-tab field beside client access for the DEACTIVATION tab used to fetch and save records. Enter the MIKA FILE lookup tab below the spreadsheet URL.'
@@ -5125,7 +5129,7 @@
         clientSelect.setAttribute('aria-label', 'Client to fetch for this user');
         fillClientSelect(clientSelect, selectedClients);
         list.replaceChildren();
-        addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs || name === 'DEACTIVATION';
+        addUrlButton.hidden = dashboardAssignmentUsesClientUrlPairs || ['DEACTIVATION', 'ATTRITION'].includes(name);
         activeClientUrlMap = { ...clientSheetUrls };
         activeClientTabMap = { ...clientSheetTabs };
         activeClientBufferDetailTabMap = { ...clientBufferDetailTabs };
@@ -5178,6 +5182,49 @@
           if (name === 'VCODE VARIANCE' && assignedClient) {
             addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeSourceUrlMap[assignedClient] || '', activeClientVcodeSourceTabMap[assignedClient] || '', activeClientVcodeDeletedTabMap[assignedClient] || '');
           }
+        }
+        if (name === 'ATTRITION' && !dashboardAssignmentUsesClientUrlPairs) {
+          const feedback = document.querySelector('#dashboard-assignment-feedback');
+          let clientReadGeneration = 0;
+          const refreshAttritionClients = async () => {
+            const generation = ++clientReadGeneration;
+            const spreadsheetUrl = list.querySelector('.dashboard-url-input')?.value.trim() || '';
+            const tabName = list.querySelector('.dashboard-tab-input')?.value.trim() || defaultDashboardSheetTab(name);
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = spreadsheetUrl ? 'Loading unique clients from AU...' : 'Enter spreadsheet URL to load clients';
+            clientSelect.replaceChildren(placeholder);
+            clientSelect.disabled = true;
+            if (!spreadsheetUrl) return;
+            feedback.textContent = '';
+            try {
+              const result = await callSheetsFunction('list-attrition-clients', { spreadsheetUrl, sheetTab: tabName });
+              if (generation !== clientReadGeneration) return;
+              const clients = Array.isArray(result.clients) ? result.clients : [];
+              const preferredClient = selectedClients.find(client =>
+                clients.some(value => value.toLocaleLowerCase() === client.toLocaleLowerCase())
+              );
+              if (!clients.length) {
+                placeholder.textContent = 'No clients found in AU3:AU';
+                return;
+              }
+              clientSelect.replaceChildren(...clients.map(client => {
+                const option = document.createElement('option');
+                option.value = client;
+                option.textContent = client;
+                return option;
+              }));
+              clientSelect.value = preferredClient || clients[0];
+              clientSelect.disabled = false;
+            } catch (error) {
+              if (generation !== clientReadGeneration) return;
+              placeholder.textContent = 'Could not load clients from AU';
+              feedback.textContent = error.message || 'Could not load unique ATTRITION clients from column AU.';
+            }
+          };
+          list.querySelector('.dashboard-url-input')?.addEventListener('change', refreshAttritionClients);
+          list.querySelector('.dashboard-tab-input')?.addEventListener('change', refreshAttritionClients);
+          refreshAttritionClients();
         }
         openDashboardUrl.disabled = !assignedUrls.length;
         clientSelect.onchange = null;

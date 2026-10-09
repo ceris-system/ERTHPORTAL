@@ -1200,6 +1200,28 @@ async function readAttritionRecords(
   return { records };
 }
 
+async function listAttritionClients(spreadsheetUrl: unknown, sheetTab: unknown) {
+  const spreadsheetId = spreadsheetIdFromAssignedUrl(spreadsheetUrl, 'ATTRITION');
+  const result = await readSheetGridRanges(spreadsheetId, String(sheetTab || 'ATTRITION'), [{
+    startRowIndex: 2,
+    startColumnIndex: 46,
+    endColumnIndex: 47
+  }]);
+  const clientsByNormalizedName = new Map<string, string>();
+  for (const row of result[0]?.valueRange?.values || []) {
+    const client = String(row[0] ?? '').trim();
+    const normalizedName = client.toLocaleLowerCase();
+    if (normalizedName && !clientsByNormalizedName.has(normalizedName)) {
+      clientsByNormalizedName.set(normalizedName, client);
+    }
+  }
+  return {
+    clients: [...clientsByNormalizedName.values()].sort((left, right) =>
+      left.localeCompare(right, undefined, { sensitivity: 'base' })
+    )
+  };
+}
+
 async function readVcodeVariance(spreadsheetId: string, tabName: string, clientName: string) {
   const result = await googleRequest(
     `spreadsheets/${spreadsheetId}/values/${sheetRange(tabName, 'B3:F')}?valueRenderOption=FORMATTED_VALUE`
@@ -1751,7 +1773,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-attrition', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'read-deactivation-mika-file', 'save-deactivation', 'read-attrition', 'list-attrition-clients', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1761,6 +1783,11 @@ Deno.serve(async request => {
     }
     if (body.action === 'list-client-options' && !actor.is_master_admin) {
       throw new Error('Only the Master Admin can load client options.');
+    }
+    if (body.action === 'list-attrition-clients') {
+      if (actor.status !== 'active') throw new Error('This account is inactive.');
+      if (!actor.is_master_admin) throw new Error('Only the Master Admin can load ATTRITION client options.');
+      return respond(await listAttritionClients(body.spreadsheetUrl, body.sheetTab));
     }
     const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, deactivationMikaTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
 
