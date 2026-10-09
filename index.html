@@ -3248,7 +3248,7 @@
       const now = new Date();
       const currentYear = now.getFullYear();
       const years = [currentYear, currentYear - 1];
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>SERVICE INCENTIVE LEAVE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('SIL'))} · Eligibility starts on the employee's first anniversary</p></div><div class="sil-toolbar-controls"><button id="sil-refresh" class="secondary-button" type="button">Refresh</button><button id="sil-print" class="secondary-button" type="button">Print</button><button id="sil-download-excel" class="secondary-button" type="button">Download Excel</button><button id="sil-download-pdf" class="secondary-button" type="button">Download PDF</button><button id="sil-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><div class="sil-filters"><label for="sil-month">MONTH<select id="sil-month">${silMonths.map((month, index) => `<option value="${index}"${index === now.getMonth() ? ' selected' : ''}>${month}</option>`).join('')}</select></label><label for="sil-year">YEAR<select id="sil-year">${years.map(year => `<option value="${year}"${year === currentYear ? ' selected' : ''}>${year}</option>`).join('')}</select></label></div><input id="sil-search" class="plantilla-search" type="search" aria-label="Search SIL records" placeholder="Search client, EMPLOC, name, position, outlet..." autocomplete="off">${dashboardClientSwitcherMarkup('SIL')}<p id="sil-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="sil-total"><span>TOTAL AMOUNT</span><strong id="sil-total-amount">${formatSilCurrency(0)}</strong></div><div class="plantilla-table-wrap"><table id="sil-data-table" class="plantilla-table"><thead><tr><th scope="col">CLIENT</th><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">OUTLET</th><th scope="col">DATE HIRED</th><th scope="col">RATE</th><th scope="col">AMOUNT (RATE × 5)</th></tr></thead><tbody id="sil-table-body"><tr><td colspan="8" class="plantilla-empty">Loading eligible SIL records...</td></tr></tbody></table></div><div class="module-footer"><span>SIL entitlement by anniversary date</span><span>Source: PLANTILLA · CLIENT AQ · DATE HIRED O · RATE H</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>SERVICE INCENTIVE LEAVE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('SIL'))} · Eligibility starts on the employee's first anniversary</p></div><div class="sil-toolbar-controls"><button id="sil-refresh" class="secondary-button" type="button">Refresh</button><button id="sil-print" class="secondary-button" type="button">Print</button><button id="sil-download-excel" class="secondary-button" type="button">Download Excel</button><button id="sil-download-pdf" class="secondary-button" type="button">Download PDF</button><button id="sil-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><div class="sil-filters"><label for="sil-month">MONTH<select id="sil-month">${silMonths.map((month, index) => `<option value="${index}"${index === now.getMonth() ? ' selected' : ''}>${month}</option>`).join('')}</select></label><label for="sil-year">YEAR<select id="sil-year">${years.map(year => `<option value="${year}"${year === currentYear ? ' selected' : ''}>${year}</option>`).join('')}</select></label></div><input id="sil-search" class="plantilla-search" type="search" aria-label="Search SIL records" placeholder="Search client, EMPLOC, name, position, outlet..." autocomplete="off">${dashboardClientSwitcherMarkup('SIL')}<p id="sil-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="sil-total"><span>TOTAL AMOUNT</span><strong id="sil-total-amount">${formatSilCurrency(0)}</strong></div><div class="plantilla-table-wrap"><table id="sil-data-table" class="plantilla-table"><thead><tr><th scope="col">CLIENT</th><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">OUTLET</th><th scope="col">DATE HIRED</th><th scope="col">RATE</th><th scope="col">AMOUNT (RATE × 5)</th></tr></thead><tbody id="sil-table-body"><tr><td colspan="8" class="plantilla-empty">Loading eligible SIL records...</td></tr></tbody></table></div><div class="module-footer"><span>SIL entitlement by anniversary date</span><span>Source: PLANTILLA · CLIENT AI · DATE HIRED O · RATE H</span></div>`;
       applyDashboardAssignmentPermissions();
       bindDashboardClientSwitcher('SIL');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('SIL')} · Only anniversaries reached by today are included`;
@@ -3306,7 +3306,7 @@
           const cell = column => display[column] ?? raw[column] ?? '';
           const rate = parseSilAmount(raw[7] ?? display[7]);
           return {
-            client: String(cell(42)).trim(),
+            client: String(cell(34)).trim(),
             emploc: String(cell(2)).trim(),
             fullname: String(cell(35)).trim(),
             position: String(cell(6)).trim(),
@@ -3483,13 +3483,14 @@
       const rowHeight = 14;
       const rowsPerPage = 30;
       const pages = [];
-      const pdfText = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '?').replace(/[\\()]/g, '\\$&').replace(/\s+/g, ' ').trim();
+      const pdfText = value => String(value ?? '').replace(/\u20b1/g, 'P').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/[\\()]/g, '\\$&').replace(/\s+/g, ' ').trim();
+      const pesoMark = (x, y) => `0.18 0.24 0.31 RG .6 w ${x} ${y + 3} m ${x + 7} ${y + 3} l S ${x} ${y + 5.5} m ${x + 7} ${y + 5.5} l S`;
       for (let offset = 0; offset < Math.max(1, report.records.length); offset += rowsPerPage) {
         const pageRecords = report.records.slice(offset, offset + rowsPerPage);
-        const commands = ['0.12 0.2 0.3 rg', `BT /F1 16 Tf ${left} 555 Td (Service Incentive Leave) Tj ET`, `BT /F1 9 Tf ${left} 537 Td (Client: ${pdfText(report.client)}    Month: ${report.month}    Year: ${report.year}) Tj ET`, `BT /F1 10 Tf ${left} 519 Td (Total Amount: ${pdfText(formatSilCurrency(report.total))}) Tj ET`];
+        const commands = ['0.12 0.2 0.3 rg', `BT /F1 16 Tf ${left} 555 Td (Service Incentive Leave) Tj ET`, `BT /F1 9 Tf ${left} 537 Td (Client: ${pdfText(report.client)}    Month: ${report.month}    Year: ${report.year}) Tj ET`, `BT /F1 10 Tf ${left} 519 Td (Total Amount: ${pdfText(formatSilCurrency(report.total))}) Tj ET`, pesoMark(left + 64.3, 519)];
         let x = left;
         const tableTop = 496;
-        commands.push('0.88 0.92 0.96 rg', `${left} ${tableTop - rowHeight + 3} 764 ${rowHeight} re f`, '0.25 0.32 0.4 RG', '.5 w');
+        commands.push('0.88 0.92 0.96 rg', `${left} ${tableTop - rowHeight + 3} 764 ${rowHeight} re f`, '0.08 0.15 0.25 rg', '0.25 0.32 0.4 RG', '.5 w');
         for (let column = 0; column < headers.length; column++) {
           commands.push(`BT /F1 7 Tf ${x + 3} ${tableTop - 7} Td (${headers[column]}) Tj ET`);
           x += widths[column];
@@ -3504,6 +3505,7 @@
           values.forEach((value, column) => {
             const maxChars = Math.max(7, Math.floor((widths[column] - 7) / 4.1));
             commands.push(`BT /F1 7 Tf ${x + 3} ${y + 1} Td (${pdfText(value).slice(0, maxChars)}) Tj ET`);
+            if (String(value).includes('\u20b1')) commands.push(pesoMark(x + 3, y + 1));
             x += widths[column];
           });
           commands.push(`0.78 0.82 0.86 RG ${left} ${y - 4} m ${left + 764} ${y - 4} l S`);
