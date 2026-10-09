@@ -336,6 +336,20 @@
     .dashboard-client-switcher select { width:auto; min-width:150px; max-width:min(240px,38vw); min-height:40px; padding:0 30px 0 11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .plantilla-search:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.12); outline:0; }
     .plantilla-status { min-height:17px; margin:0; color:#66828c; font-size:11px; }
+    .sil-filters { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
+    .sil-filters label { display:flex; align-items:center; gap:6px; color:#4b737a; font-size:10px; font-weight:800; }
+    .sil-filters select { min-height:40px; padding:0 30px 0 11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.88); font-size:11px; }
+    .sil-total { display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:12px 15px; margin:0 0 10px; border:1px solid rgba(255,255,255,.72); border-radius:12px; color:#315c65; background:rgba(231,248,244,.82); font-size:12px; font-weight:700; }
+    .sil-total strong { color:#126e74; font:800 17px/1.2 'Roboto Mono',monospace; }
+    .sil-toolbar-controls { display:flex; align-items:center; gap:8px; }
+    @media(max-width:720px) {
+      .sil-toolbar-controls { width:100%; flex-wrap:wrap; }
+      .sil-toolbar-controls button { flex:1; }
+      .sil-filters { width:100%; }
+      .sil-filters label { flex:1; }
+      .sil-filters select { min-width:0; flex:1; }
+      .sil-total { justify-content:space-between; }
+    }
     .plantilla-table-wrap { max-height:min(68vh,720px); overflow:auto; border:1px solid rgba(0,0,0,.12); border-radius:15px; background:rgba(255,255,255,.9); box-shadow:0 10px 28px rgba(33,100,111,.08); backdrop-filter:blur(18px); }
     .plantilla-table { width:max-content; min-width:100%; table-layout:auto; border-collapse:separate; border-spacing:0; text-align:left; }
     .plantilla-table th { position:sticky; top:0; z-index:2; width:auto; padding:12px 10px; border-bottom:1px solid #333; color:#fff; background:#111; font-size:11px; font-weight:800; line-height:1.35; white-space:nowrap; }
@@ -3154,7 +3168,7 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
-          const range = encodeURIComponent('PLANTILLA!A9:AJ');
+          const range = encodeURIComponent('PLANTILLA!A9:AQ');
           const [rawResult, displayResult] = await Promise.all([
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
             sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
@@ -3208,7 +3222,331 @@
       }).join('');
       body.querySelectorAll('[data-view-vcode]').forEach(button => button.addEventListener('click', () => openRecordDrawer(button.dataset.viewVcode)));
     }
+    const silMonths = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+    let silRecords = [];
+    let silReadGeneration = 0;
+    function silDateParts(value) {
+      const date = sheetDate(value);
+      if (!date || !Number.isFinite(date.getTime())) return null;
+      return { year: date.getUTCFullYear(), month: date.getUTCMonth(), day: date.getUTCDate() };
+    }
+    function silAnniversaryDate(hired, year) {
+      const day = Math.min(hired.day, new Date(Date.UTC(year, hired.month + 1, 0)).getUTCDate());
+      return new Date(Date.UTC(year, hired.month, day));
+    }
+    function parseSilAmount(value) {
+      const normalized = String(value ?? '').replace(/,/g, '').replace(/[^\d.-]/g, '');
+      if (!normalized || !/^-?(?:\d+\.?\d*|\.\d+)$/.test(normalized)) return null;
+      const amount = Number(normalized);
+      return Number.isFinite(amount) ? amount : null;
+    }
+    function formatSilCurrency(value) {
+      return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 2 }).format(value);
+    }
+    function showSilDashboard() {
+      saveCurrentView('dashboard', 'SIL');
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const years = [currentYear, currentYear - 1];
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>SERVICE INCENTIVE LEAVE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('SIL'))} · Eligibility starts on the employee's first anniversary</p></div><div class="sil-toolbar-controls"><button id="sil-refresh" class="secondary-button" type="button">Refresh</button><button id="sil-print" class="secondary-button" type="button">Print</button><button id="sil-download-excel" class="secondary-button" type="button">Download Excel</button><button id="sil-download-pdf" class="secondary-button" type="button">Download PDF</button><button id="sil-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><div class="sil-filters"><label for="sil-month">MONTH<select id="sil-month">${silMonths.map((month, index) => `<option value="${index}"${index === now.getMonth() ? ' selected' : ''}>${month}</option>`).join('')}</select></label><label for="sil-year">YEAR<select id="sil-year">${years.map(year => `<option value="${year}"${year === currentYear ? ' selected' : ''}>${year}</option>`).join('')}</select></label></div><input id="sil-search" class="plantilla-search" type="search" aria-label="Search SIL records" placeholder="Search client, EMPLOC, name, position, outlet..." autocomplete="off">${dashboardClientSwitcherMarkup('SIL')}<p id="sil-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="sil-total"><span>TOTAL AMOUNT</span><strong id="sil-total-amount">${formatSilCurrency(0)}</strong></div><div class="plantilla-table-wrap"><table id="sil-data-table" class="plantilla-table"><thead><tr><th scope="col">CLIENT</th><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">OUTLET</th><th scope="col">DATE HIRED</th><th scope="col">RATE</th><th scope="col">AMOUNT (RATE × 5)</th></tr></thead><tbody id="sil-table-body"><tr><td colspan="8" class="plantilla-empty">Loading eligible SIL records...</td></tr></tbody></table></div><div class="module-footer"><span>SIL entitlement by anniversary date</span><span>Source: PLANTILLA · CLIENT AQ · DATE HIRED O · RATE H</span></div>`;
+      applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('SIL');
+      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('SIL')} · Only anniversaries reached by today are included`;
+      document.querySelector('#sil-month').addEventListener('change', renderSilTable);
+      document.querySelector('#sil-year').addEventListener('change', renderSilTable);
+      document.querySelector('#sil-search').addEventListener('input', renderSilTable);
+      document.querySelector('#sil-refresh').addEventListener('click', () => loadSilRecords());
+      document.querySelector('#sil-print').addEventListener('click', printSilReport);
+      document.querySelector('#sil-download-excel').addEventListener('click', downloadSilExcel);
+      document.querySelector('#sil-download-pdf').addEventListener('click', downloadSilPdf);
+      document.querySelector('#sil-home').addEventListener('click', showHome);
+      loadSilRecords();
+    }
+    async function loadSilRecords() {
+      const status = document.querySelector('#sil-status');
+      const body = document.querySelector('#sil-table-body');
+      if (!status || !body) return;
+      const generation = ++silReadGeneration;
+      const clientName = getActiveClient();
+      const sourceUrl = getDashboardSources('PLANTILLA', clientName)[0] || '';
+      if (!sourceUrl) {
+        status.textContent = 'No PLANTILLA spreadsheet is assigned for this client.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        silRecords = [];
+        document.querySelector('#sil-total-amount').textContent = formatSilCurrency(0);
+        return false;
+      }
+      status.textContent = 'Loading PLANTILLA data...';
+      body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">Loading eligible SIL records...</td></tr>';
+      try {
+        let rawValues;
+        let displayValues;
+        if (usesAssignedSheetAccess()) {
+          const result = await callSheetsFunction('read-plantilla', {
+            clientName,
+            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+          });
+          rawValues = result.rawValues || [];
+          displayValues = result.displayValues || [];
+        } else {
+          const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
+          const range = encodeURIComponent('PLANTILLA!A9:AQ');
+          const [rawResult, displayResult] = await Promise.all([
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+          ]);
+          rawValues = rawResult.values || [];
+          displayValues = displayResult.values || [];
+        }
+        if (generation !== silReadGeneration || document.querySelector('#sil-table-body') !== body) return false;
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        silRecords = Array.from({ length: rowCount }, (_, index) => {
+          const raw = rawValues[index] || [];
+          const display = displayValues[index] || [];
+          const cell = column => display[column] ?? raw[column] ?? '';
+          const rate = parseSilAmount(raw[7] ?? display[7]);
+          return {
+            client: String(cell(42)).trim(),
+            emploc: String(cell(2)).trim(),
+            fullname: String(cell(35)).trim(),
+            position: String(cell(6)).trim(),
+            outlet: String(cell(9)).trim(),
+            dateHiredValue: raw[14] ?? display[14] ?? '',
+            dateHired: displaySheetDate(raw[14] ?? display[14]),
+            hiredParts: silDateParts(raw[14] ?? display[14]),
+            rate,
+            amount: rate === null ? null : rate * 5
+          };
+        }).filter(record => record.client || record.emploc || record.fullname || record.position);
+        status.textContent = '';
+        renderSilTable();
+        return true;
+      } catch (error) {
+        if (generation !== silReadGeneration) return false;
+        status.textContent = error?.message || 'Could not load SIL data from PLANTILLA.';
+        body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
+        document.querySelector('#sil-total-amount').textContent = formatSilCurrency(0);
+        return false;
+      }
+    }
+    function getFilteredSilRecords() {
+      const month = Number(document.querySelector('#sil-month')?.value);
+      const year = Number(document.querySelector('#sil-year')?.value);
+      const query = document.querySelector('#sil-search')?.value.trim().toLocaleLowerCase() || '';
+      const today = new Date();
+      const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+      return silRecords.filter(record => {
+        if (!record.hiredParts || record.hiredParts.month !== month) return false;
+        if (record.hiredParts.year >= year) return false;
+        const anniversary = silAnniversaryDate(record.hiredParts, year);
+        if (anniversary.getTime() > todayUtc) return false;
+        const hiredDate = Date.UTC(record.hiredParts.year, record.hiredParts.month, record.hiredParts.day);
+        if (hiredDate > anniversary.getTime()) return false;
+        if (!query) return true;
+        return [record.client, record.emploc, record.fullname, record.position, record.outlet, record.dateHired, record.rate, record.amount]
+          .some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+      });
+    }
+    function renderSilTable() {
+      const body = document.querySelector('#sil-table-body');
+      const status = document.querySelector('#sil-status');
+      const totalElement = document.querySelector('#sil-total-amount');
+      if (!body || !status || !totalElement) return;
+      const records = getFilteredSilRecords();
+      const total = records.reduce((sum, record) => sum + (record.amount ?? 0), 0);
+      totalElement.textContent = formatSilCurrency(total);
+      if (!silRecords.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No PLANTILLA records are available.</td></tr>';
+      } else if (!records.length) {
+        body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No employees have reached an anniversary matching this month and year.</td></tr>';
+      } else {
+        body.innerHTML = records.map(record => {
+          const values = [record.client, record.emploc, record.fullname, record.position, record.outlet, record.dateHired, record.rate === null ? '-' : formatSilCurrency(record.rate), record.amount === null ? '-' : formatSilCurrency(record.amount)];
+          return `<tr>${values.map(value => `<td>${escapeHtml(value || '-')}</td>`).join('')}</tr>`;
+        }).join('');
+      }
+      status.textContent = `${records.length.toLocaleString()} eligible employee${records.length === 1 ? '' : 's'} · ${silMonths[Number(document.querySelector('#sil-month').value)]} ${document.querySelector('#sil-year').value}`;
+    }
+    function getSilReport() {
+      const month = silMonths[Number(document.querySelector('#sil-month').value)];
+      const year = Number(document.querySelector('#sil-year').value);
+      const records = getFilteredSilRecords();
+      const total = records.reduce((sum, record) => sum + (record.amount ?? 0), 0);
+      return { month, year, records, total, client: getDashboardClientLabel('SIL') };
+    }
+    function silReportRows(report) {
+      return [
+        ['CLIENT', report.client],
+        ['MONTH', report.month],
+        ['YEAR', report.year],
+        ['TOTAL AMOUNT', report.total],
+        [],
+        ['CLIENT', 'EMPLOC', 'FULLNAME', 'POSITION', 'OUTLET', 'DATE HIRED', 'RATE', 'AMOUNT'],
+        ...report.records.map(record => [
+          record.client, record.emploc, record.fullname, record.position, record.outlet,
+          record.dateHired, record.rate ?? '', record.amount ?? ''
+        ])
+      ];
+    }
+    function printSilReport() {
+      const report = getSilReport();
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return notify('Allow pop-ups to print the SIL report.');
+      printWindow.opener = null;
+      const rows = report.records.map(record => `<tr>${[
+        record.client, record.emploc, record.fullname, record.position, record.outlet,
+        record.dateHired, record.rate === null ? '-' : formatSilCurrency(record.rate),
+        record.amount === null ? '-' : formatSilCurrency(record.amount)
+      ].map(value => `<td>${escapeHtml(value || '-')}</td>`).join('')}</tr>`).join('');
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>SIL ${escapeHtml(report.month)} ${report.year}</title><style>@page{size:landscape;margin:12mm}body{font:11px Arial,sans-serif;color:#152536}h1{font-size:18px;margin:0 0 5px}.summary{margin:0 0 14px;line-height:1.6}.summary strong{display:inline-block;min-width:100px}table{width:100%;border-collapse:collapse;font-size:9px}th,td{padding:6px 5px;border:1px solid #aeb8c4;text-align:left;vertical-align:top}th{background:#e8eef5;color:#14263f}tfoot{font-weight:bold;background:#edf5f5}@media screen{body{padding:18px}}</style></head><body><h1>Service Incentive Leave</h1><p class="summary"><strong>Client:</strong> ${escapeHtml(report.client)}<br><strong>Month:</strong> ${escapeHtml(report.month)}<br><strong>Year:</strong> ${report.year}<br><strong>Total Amount:</strong> ${escapeHtml(formatSilCurrency(report.total))}</p><table><thead><tr>${['CLIENT', 'EMPLOC', 'FULLNAME', 'POSITION', 'OUTLET', 'DATE HIRED', 'RATE', 'AMOUNT'].map(header => `<th>${header}</th>`).join('')}</tr></thead><tbody>${rows || '<tr><td colspan="8">No eligible employees match these filters.</td></tr>'}</tbody><tfoot><tr><td colspan="7">TOTAL AMOUNT</td><td>${escapeHtml(formatSilCurrency(report.total))}</td></tr></tfoot></table></body></html>`);
+      printWindow.document.close();
+      window.setTimeout(() => {
+        if (printWindow.closed) return;
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    }
+    function downloadSilExcel() {
+      const report = getSilReport();
+      const rows = silReportRows(report);
+      const xmlEscape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+      const columnName = number => {
+        let name = '';
+        for (let value = number; value > 0; value = Math.floor((value - 1) / 26)) name = String.fromCharCode(65 + (value - 1) % 26) + name;
+        return name;
+      };
+      const sheetRows = rows.map((row, rowIndex) => `<row r="${rowIndex + 1}">${row.map((value, columnIndex) => {
+        if (value === '' || value === null || value === undefined) return '';
+        const reference = `${columnName(columnIndex + 1)}${rowIndex + 1}`;
+        return typeof value === 'number' && Number.isFinite(value)
+          ? `<c r="${reference}"><v>${value}</v></c>`
+          : `<c r="${reference}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+      }).join('')}</row>`).join('');
+      const files = [
+        { name: '[Content_Types].xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>' },
+        { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+        { name: 'xl/workbook.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="SIL Report" sheetId="1" r:id="rId1"/></sheets></workbook>' },
+        { name: 'xl/_rels/workbook.xml.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>' },
+        { name: 'xl/worksheets/sheet1.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetRows}</sheetData><autoFilter ref="A6:H${Math.max(6, rows.length)}"/></worksheet>` }
+      ];
+      const encoder = new TextEncoder();
+      const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
+        let crc = value;
+        for (let bit = 0; bit < 8; bit++) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+        return crc >>> 0;
+      });
+      const crc32 = bytes => {
+        let crc = 0xffffffff;
+        for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+        return (crc ^ 0xffffffff) >>> 0;
+      };
+      const chunks = [];
+      const centralDirectory = [];
+      let offset = 0;
+      const append = bytes => { chunks.push(bytes); offset += bytes.length; };
+      for (const file of files) {
+        const name = encoder.encode(file.name);
+        const data = encoder.encode(file.text);
+        const crc = crc32(data);
+        const local = new Uint8Array(30 + name.length);
+        const localView = new DataView(local.buffer);
+        localView.setUint32(0, 0x04034b50, true); localView.setUint16(4, 20, true); localView.setUint16(6, 0x800, true);
+        localView.setUint32(14, crc, true); localView.setUint32(18, data.length, true); localView.setUint32(22, data.length, true);
+        localView.setUint16(26, name.length, true); local.set(name, 30);
+        const fileOffset = offset;
+        append(local); append(data);
+        const central = new Uint8Array(46 + name.length);
+        const centralView = new DataView(central.buffer);
+        centralView.setUint32(0, 0x02014b50, true); centralView.setUint16(4, 20, true); centralView.setUint16(6, 20, true);
+        centralView.setUint16(8, 0x800, true); centralView.setUint32(16, crc, true); centralView.setUint32(20, data.length, true);
+        centralView.setUint32(24, data.length, true); centralView.setUint16(28, name.length, true); centralView.setUint32(42, fileOffset, true);
+        central.set(name, 46); centralDirectory.push(central);
+      }
+      const centralOffset = offset;
+      centralDirectory.forEach(append);
+      const centralSize = offset - centralOffset;
+      const end = new Uint8Array(22);
+      const endView = new DataView(end.buffer);
+      endView.setUint32(0, 0x06054b50, true); endView.setUint16(8, files.length, true); endView.setUint16(10, files.length, true);
+      endView.setUint32(12, centralSize, true); endView.setUint32(16, centralOffset, true);
+      append(end);
+      const blob = new Blob(chunks, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      downloadSilBlob(blob, `SIL-${report.month}-${report.year}.xlsx`);
+    }
+    function downloadSilPdf() {
+      const report = getSilReport();
+      const headers = ['CLIENT', 'EMPLOC', 'FULLNAME', 'POSITION', 'OUTLET', 'DATE HIRED', 'RATE', 'AMOUNT'];
+      const widths = [66, 56, 130, 137, 100, 80, 82, 113];
+      const pageWidth = 842;
+      const left = 39;
+      const rowHeight = 14;
+      const rowsPerPage = 30;
+      const pages = [];
+      const pdfText = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '?').replace(/[\\()]/g, '\\$&').replace(/\s+/g, ' ').trim();
+      for (let offset = 0; offset < Math.max(1, report.records.length); offset += rowsPerPage) {
+        const pageRecords = report.records.slice(offset, offset + rowsPerPage);
+        const commands = ['0.12 0.2 0.3 rg', `BT /F1 16 Tf ${left} 555 Td (Service Incentive Leave) Tj ET`, `BT /F1 9 Tf ${left} 537 Td (Client: ${pdfText(report.client)}    Month: ${report.month}    Year: ${report.year}) Tj ET`, `BT /F1 10 Tf ${left} 519 Td (Total Amount: ${pdfText(formatSilCurrency(report.total))}) Tj ET`];
+        let x = left;
+        const tableTop = 496;
+        commands.push('0.88 0.92 0.96 rg', `${left} ${tableTop - rowHeight + 3} 764 ${rowHeight} re f`, '0.25 0.32 0.4 RG', '.5 w');
+        for (let column = 0; column < headers.length; column++) {
+          commands.push(`BT /F1 7 Tf ${x + 3} ${tableTop - 7} Td (${headers[column]}) Tj ET`);
+          x += widths[column];
+        }
+        commands.push(`${left} ${tableTop - rowHeight + 3} m ${left + 764} ${tableTop - rowHeight + 3} l S`);
+        pageRecords.forEach((record, rowIndex) => {
+          const y = tableTop - rowHeight * (rowIndex + 2) + 3;
+          const values = [record.client, record.emploc, record.fullname, record.position, record.outlet, record.dateHired, record.rate === null ? '-' : formatSilCurrency(record.rate), record.amount === null ? '-' : formatSilCurrency(record.amount)];
+          x = left;
+          if (rowIndex % 2 === 1) commands.push(`0.96 0.97 0.98 rg ${left} ${y - 4} 764 ${rowHeight} re f`);
+          commands.push('0.18 0.24 0.31 rg');
+          values.forEach((value, column) => {
+            const maxChars = Math.max(7, Math.floor((widths[column] - 7) / 4.1));
+            commands.push(`BT /F1 7 Tf ${x + 3} ${y + 1} Td (${pdfText(value).slice(0, maxChars)}) Tj ET`);
+            x += widths[column];
+          });
+          commands.push(`0.78 0.82 0.86 RG ${left} ${y - 4} m ${left + 764} ${y - 4} l S`);
+        });
+        pages.push(commands.join('\n'));
+      }
+      const objects = [];
+      const pageIds = pages.map((_, index) => 3 + index * 2);
+      objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+      objects[2] = `<< /Type /Pages /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
+      objects[3 + pageIds.length * 2] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+      pages.forEach((page, index) => {
+        const pageId = pageIds[index];
+        const streamId = pageId + 1;
+        const data = `${page}\n`;
+        objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} 595] /Resources << /Font << /F1 ${3 + pageIds.length * 2} 0 R >> >> /Contents ${streamId} 0 R >>`;
+        objects[streamId] = `<< /Length ${new TextEncoder().encode(data).length} >>\nstream\n${data}endstream`;
+      });
+      const encoder = new TextEncoder();
+      let output = '%PDF-1.4\n';
+      const offsets = [0];
+      for (let index = 1; index < objects.length; index++) {
+        offsets[index] = encoder.encode(output).length;
+        output += `${index} 0 obj\n${objects[index]}\nendobj\n`;
+      }
+      const xrefOffset = encoder.encode(output).length;
+      output += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+      for (let index = 1; index < objects.length; index++) output += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
+      output += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+      downloadSilBlob(new Blob([output], { type: 'application/pdf' }), `SIL-${report.month}-${report.year}.pdf`);
+    }
+    function downloadSilBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
     function showClientDashboard(name) {
+      if (name === 'SIL') return showSilDashboard();
       saveCurrentView('dashboard', name);
       const index = dashboards.indexOf(name);
       const sources = getDashboardSources(name);
@@ -3424,6 +3762,7 @@
     function showSelectedDashboard(name) {
       if (name === 'PLANTILLA') showPlantilla();
       else if (name === 'PLANTILLA SUMMARY') showPlantillaSummary();
+      else if (name === 'SIL') showSilDashboard();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();

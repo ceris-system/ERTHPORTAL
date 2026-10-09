@@ -942,7 +942,7 @@ async function transferPlantillaRowToInactive(
 }
 
 async function readPlantilla(spreadsheetId: string) {
-  const range = encodeURIComponent('PLANTILLA!A9:AJ');
+  const range = encodeURIComponent('PLANTILLA!A9:AQ');
   const [raw, display] = await Promise.all([
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
     googleRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
