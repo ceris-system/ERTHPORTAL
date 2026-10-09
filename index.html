@@ -2459,7 +2459,7 @@
       saveCurrentView('dashboard', 'VCODE VARIANCE');
       const clientName = getActiveClient();
       selectedVcodeVarianceRows = new Set();
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE VARIANCE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('VCODE VARIANCE'))} · Source: VCODE!B3:F</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="vcode-variance-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="vcode-variance-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-variance-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-variance-search" class="plantilla-search" type="search" aria-label="Search VCODE variance records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off">${dashboardClientSwitcherMarkup('VCODE VARIANCE')}<p id="vcode-variance-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div id="vcode-variance-bulk-actions" class="vcode-variance-bulk-actions hidden"><span id="vcode-variance-selected-count" aria-live="polite"></span><button id="vcode-variance-transfer" type="button">Transfer to Vacancy</button><button id="vcode-variance-delete" type="button">Delete selected</button></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col"><input id="vcode-variance-select-all" class="vcode-variance-checkbox" type="checkbox" aria-label="Select all visible VCODE rows"></th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">ACTION</th></tr></thead><tbody id="vcode-variance-table-body"><tr><td colspan="6" class="plantilla-empty">Loading VCODE variance records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE variance rows matching the selected client</span><span>Source tab: ${escapeHtml(getDashboardSheetTab('VCODE VARIANCE', clientName))}</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VCODE VARIANCE</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('VCODE VARIANCE'))} · Source: VCODE!B3:F</p></div><div class="plantilla-actions">${currentUser?.isMasterAdmin ? '<button id="vcode-variance-assign-sheet" class="secondary-button" type="button">Assign spreadsheet</button>' : ''}<button id="vcode-variance-refresh" class="secondary-button" type="button">Refresh</button><button id="vcode-variance-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vcode-variance-search" class="plantilla-search" type="search" aria-label="Search VCODE variance records" placeholder="Search VCODE, outlet, position, HC..." autocomplete="off">${dashboardClientSwitcherMarkup('VCODE VARIANCE')}<p id="vcode-variance-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div id="vcode-variance-bulk-actions" class="vcode-variance-bulk-actions hidden"><span id="vcode-variance-selected-count" aria-live="polite"></span><button id="vcode-variance-transfer" type="button">Transfer to Vacancy</button><button id="vcode-variance-delete" type="button">Move to DELETED VCODES</button></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col"><input id="vcode-variance-select-all" class="vcode-variance-checkbox" type="checkbox" aria-label="Select all visible VCODE rows"></th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">ACTION</th></tr></thead><tbody id="vcode-variance-table-body"><tr><td colspan="6" class="plantilla-empty">Loading VCODE variance records...</td></tr></tbody></table></div><div class="module-footer"><span>VCODE variance rows matching the selected client</span><span>Source tab: ${escapeHtml(getDashboardSheetTab('VCODE VARIANCE', clientName))}</span></div>`;
       applyDashboardAssignmentPermissions();
       bindDashboardClientSwitcher('VCODE VARIANCE');
       content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VCODE VARIANCE')} · Source: ${getDashboardSheetTab('VCODE VARIANCE', clientName)}!B3:F`;
@@ -2567,12 +2567,12 @@
       if (!rows.length) return notify('Select at least one VCODE row.');
       const deleting = action === 'delete-vcodes';
       const confirmation = deleting
-        ? `Archive and permanently delete ${rows.length} selected VCODE row${rows.length === 1 ? '' : 's'}?`
+        ? `Move ${rows.length} selected full row${rows.length === 1 ? '' : 's'} to the DELETED VCODES sheet (source data in columns A:S, timestamp in column T), then delete the original row${rows.length === 1 ? '' : 's'} from the VCODE sheet?`
         : `Copy ${rows.length} selected VCODE${rows.length === 1 ? '' : 's'} to the assigned VACANCY tab?`;
       const confirmed = await popModal({
-        title: deleting ? 'Archive and delete VCODE rows?' : 'Transfer VCODEs to Vacancy?',
+        title: deleting ? 'Move VCODE rows to DELETED VCODES?' : 'Transfer VCODEs to Vacancy?',
         message: confirmation,
-        confirmLabel: deleting ? 'Archive and delete' : 'Transfer',
+        confirmLabel: deleting ? 'Move and delete originals' : 'Transfer',
         cancelLabel: 'Cancel'
       });
       if (!confirmed) return;
@@ -2583,9 +2583,9 @@
       let progressOpen = false;
       try {
         await showPopModalProgress(null, {
-          title: deleting ? 'Archiving and deleting VCODEs' : 'Transferring VCODEs',
+          title: deleting ? 'Moving VCODE rows to archive' : 'Transferring VCODEs',
           message: deleting
-            ? `Archiving ${rows.length} selected row${rows.length === 1 ? '' : 's'} and deleting them from the VCODE sheet. Please wait...`
+            ? `Copying ${rows.length} selected row${rows.length === 1 ? '' : 's'} to DELETED VCODES, adding the timestamp in column T, then deleting the originals from VCODE. Please wait...`
             : `Copying ${rows.length} selected VCODE${rows.length === 1 ? '' : 's'} to the assigned VACANCY sheet. Please wait...`,
           progressLabel: 'Selected VCODEs',
           indeterminateLabel: 'working on rows'
@@ -2603,9 +2603,9 @@
         }
         await loadVcodeVarianceRecords();
         await popModal({
-          title: deleting ? 'VCODE archive complete' : 'VCODE transfer complete',
+          title: deleting ? 'VCODE rows moved to DELETED VCODES' : 'VCODE transfer complete',
           message: deleting
-          ? `${result.deletedCount} VCODE row${result.deletedCount === 1 ? '' : 's'} archived to ${result.archiveSheetTab} and deleted.`
+          ? `${result.deletedCount} full VCODE row${result.deletedCount === 1 ? '' : 's'} copied to ${result.archiveSheetTab} with a timestamp in column T, then deleted from the VCODE sheet.`
           : `${result.transferredCount} VCODE${result.transferredCount === 1 ? '' : 's'} copied to the assigned VACANCY tab.`,
           confirmLabel: 'Okay',
           cancelLabel: ''
