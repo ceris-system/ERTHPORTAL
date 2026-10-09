@@ -1259,7 +1259,9 @@ async function archiveAndDeleteVcodes(
     }
     return [...Array.from({ length: 19 }, (_, column) => sourceRow[column] ?? ''), archivedAt];
   });
-  const metadata = await googleRequest(`spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId`);
+  const metadata = await googleRequest(
+    `spreadsheets/${sourceSpreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+  );
   const sheets = metadata.sheets || [];
   const sourceSheet = sheets.find((sheet: any) => sheet.properties?.title === sourceSheetTab);
   if (!sourceSheet) throw new Error(`The VCODE source tab ${sourceSheetTab} was not found.`);
@@ -1279,15 +1281,29 @@ async function archiveAndDeleteVcodes(
   }
   if (!archiveSheet?.properties?.sheetId) throw new Error(`Could not prepare the ${archiveSheetTab} archive tab.`);
   try {
-    const appendResult = await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values/${sheetRange(archiveSheetTab, 'A:T')}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+    const archiveColumn = await readSheetGridRanges(sourceSpreadsheetId, archiveSheetTab, [{
+      startColumnIndex: 0,
+      endColumnIndex: 1
+    }]);
+    const archiveColumnValues: unknown[][] = archiveColumn[0]?.valueRange?.values || [];
+    const lastUsedIndex = archiveColumnValues.reduce((last, row, index) =>
+      String(row[0] ?? '').trim() ? index : last, -1);
+    const firstDestinationRow = lastUsedIndex + 2;
+    const lastDestinationRow = firstDestinationRow + archiveRows.length - 1;
+    await ensureDestinationRow(sourceSpreadsheetId, archiveSheet, lastDestinationRow, 20);
+    const destinationRange = sheetA1(
+      archiveSheetTab,
+      `A${firstDestinationRow}:T${lastDestinationRow}`
+    );
+    await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values:batchUpdate`, {
       method: 'POST',
-      body: JSON.stringify({ values: archiveRows })
+      body: JSON.stringify({
+        valueInputOption: 'RAW',
+        data: [{ range: destinationRange, values: archiveRows }]
+      })
     });
-    const appendedRange = appendResult.updates?.updatedRange;
-    if (!appendedRange) throw new Error('The Sheets API did not confirm the archive destination range.');
-    const verifyRange = encodeURIComponent(appendedRange).replace(/'/g, '%27');
     const verification = await googleRequest(
-      `spreadsheets/${sourceSpreadsheetId}/values/${verifyRange}?valueRenderOption=FORMATTED_VALUE`
+      `spreadsheets/${sourceSpreadsheetId}/values/${sheetRange(archiveSheetTab, `A${firstDestinationRow}:T${lastDestinationRow}`)}?valueRenderOption=FORMATTED_VALUE`
     );
     const copiedRows = verification.values || [];
     const sameArchive = archiveRows.every((expected: unknown[], index: number) =>
