@@ -4311,11 +4311,126 @@
       else if (name === 'SIL') showSilDashboard();
       else if (name === 'VCODE MASTERLIST') showVcodeMasterlist();
       else if (name === 'VCODE VARIANCE') showVcodeVariance();
+      else if (name === 'DEACTIVATION') showDeactivationDashboard();
       else if (name === 'VACANCY MONITORING') showVacancyMonitoring();
       else if (name === 'HR EMPLOC MONITORING') showHrEmplocMonitoring();
       else if (name === 'FOR APPROVAL') showForApproval();
       else if (name === '+-5% BUFFER') showBufferDashboard();
       else showClientDashboard(name);
+    }
+    const deactivationStatuses = [
+      'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',
+      'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
+    ];
+    let deactivationRecords = [];
+    let deactivationLookupTimer = 0;
+    function showDeactivationDashboard() {
+      saveCurrentView('dashboard', 'DEACTIVATION');
+      document.querySelector('#breadcrumb-label')?.replaceChildren(document.createTextNode('DEACTIVATION'));
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>DEACTIVATION</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('DEACTIVATION'))}</p></div><div class="plantilla-actions"><button id="deactivation-refresh" class="secondary-button" type="button">Refresh</button><button id="deactivation-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="deactivation-search" class="plantilla-search" type="search" placeholder="Search EMPLOC, name, status, or date..." aria-label="Search deactivation records"><p id="deactivation-status" class="plantilla-status" role="status" aria-live="polite"></p></div><form id="deactivation-form" class="drawer-update"><h3>ADD DEACTIVATION RECORD</h3><div class="drawer-update-fields"><div class="field"><label for="deactivation-emploc">EMPLOC</label><input id="deactivation-emploc" name="emploc" autocomplete="off" required maxlength="100"></div><div class="field"><label for="deactivation-fullname">FULLNAME</label><input id="deactivation-fullname" name="fullname" readonly placeholder="Automatically looked up from MIKA FILE"></div><div class="field"><label for="deactivation-status">STATUS</label><select id="deactivation-status" name="status" required><option value="" selected disabled>Choose status</option>${deactivationStatuses.map(status => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`).join('')}</select></div><div class="field"><label for="deactivation-date">INACTIVE DATE</label><input id="deactivation-date" name="inactiveDate" type="date" required></div></div><button id="deactivation-save" class="primary-button" type="submit">Save record</button></form><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">EMPLOC</th><th scope="col">FULLNAME</th><th scope="col">STATUS</th><th scope="col">INACTIVE DATE</th></tr></thead><tbody id="deactivation-table-body"><tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr></tbody></table></div>`;
+      applyDashboardAssignmentPermissions();
+      document.querySelector('#deactivation-home').addEventListener('click', showHome);
+      document.querySelector('#deactivation-refresh').addEventListener('click', loadDeactivationRecords);
+      document.querySelector('#deactivation-search').addEventListener('input', renderDeactivationRecords);
+      document.querySelector('#deactivation-emploc').addEventListener('input', event => {
+        const emploc = event.currentTarget.value.trim();
+        const fullname = document.querySelector('#deactivation-fullname');
+        fullname.value = '';
+        if (deactivationLookupTimer) clearTimeout(deactivationLookupTimer);
+        if (!emploc) return;
+        deactivationLookupTimer = setTimeout(() => lookupDeactivationName(emploc), 350);
+      });
+      document.querySelector('#deactivation-form').addEventListener('submit', saveDeactivationEntry);
+      loadDeactivationRecords();
+    }
+    async function lookupDeactivationName(emploc) {
+      const status = document.querySelector('#deactivation-status');
+      const fullname = document.querySelector('#deactivation-fullname');
+      try {
+        const result = await callSheetsFunction('lookup-deactivation-emploc', {
+          emploc,
+          clientName: getActiveClient(),
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        if (document.querySelector('#deactivation-emploc')?.value.trim().toLocaleUpperCase() !== emploc.toLocaleUpperCase()) return;
+        fullname.value = result.fullname || '';
+        status.textContent = fullname.value ? 'EMPLOC found in MIKA FILE.' : '';
+      } catch (error) {
+        if (document.querySelector('#deactivation-emploc')?.value.trim().toLocaleUpperCase() !== emploc.toLocaleUpperCase()) return;
+        fullname.value = '';
+        status.textContent = error.message || 'Could not look up this EMPLOC.';
+      }
+    }
+    async function loadDeactivationRecords() {
+      const status = document.querySelector('#deactivation-status');
+      const body = document.querySelector('#deactivation-table-body');
+      if (!status || !body) return;
+      status.textContent = 'Loading deactivation records...';
+      body.innerHTML = '<tr><td colspan="4" class="plantilla-empty">Loading deactivation records...</td></tr>';
+      try {
+        const result = await callSheetsFunction('read-deactivation', {
+          clientName: getActiveClient(),
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        deactivationRecords = result.records || [];
+        renderDeactivationRecords();
+        status.textContent = `${deactivationRecords.length} record${deactivationRecords.length === 1 ? '' : 's'} loaded.`;
+      } catch (error) {
+        deactivationRecords = [];
+        body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${escapeHtml(error.message || 'Could not load deactivation records.')}</td></tr>`;
+        status.textContent = error.message || 'Could not load deactivation records.';
+      }
+    }
+    function renderDeactivationRecords() {
+      const body = document.querySelector('#deactivation-table-body');
+      if (!body) return;
+      const query = document.querySelector('#deactivation-search')?.value.trim().toLocaleLowerCase() || '';
+      const rows = deactivationRecords.filter(record =>
+        [record.emploc, record.fullname, record.status, record.inactiveDate]
+          .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
+      );
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
+        return;
+      }
+      body.innerHTML = rows.map(record =>
+        `<tr><td>${escapeHtml(record.emploc)}</td><td>${escapeHtml(record.fullname)}</td><td>${escapeHtml(record.status)}</td><td>${escapeHtml(record.inactiveDate)}</td></tr>`
+      ).join('');
+    }
+    async function saveDeactivationEntry(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = document.querySelector('#deactivation-save');
+      const status = document.querySelector('#deactivation-status');
+      const emploc = form.elements.emploc.value.trim();
+      const fullname = form.elements.fullname.value.trim();
+      const recordStatus = form.elements.status.value;
+      const inactiveDate = form.elements.inactiveDate.value;
+      if (!emploc || !fullname || !recordStatus || !inactiveDate) {
+        status.textContent = 'Enter an EMPLOC that exists in MIKA FILE, choose a status, and select the inactive date.';
+        return;
+      }
+      button.disabled = true;
+      button.textContent = 'Saving...';
+      status.textContent = 'Saving record to the assigned DEACTIVATION tab...';
+      try {
+        const result = await callSheetsFunction('save-deactivation', {
+          emploc,
+          status: recordStatus,
+          inactiveDate,
+          clientName: getActiveClient(),
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        });
+        status.textContent = `${result.emploc} saved to row ${result.rowNumber}.`;
+        form.reset();
+        document.querySelector('#deactivation-fullname').value = '';
+        await loadDeactivationRecords();
+      } catch (error) {
+        status.textContent = error.message || 'Could not save this deactivation record.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Save record';
+      }
     }
     function showPlantillaSummary() {
       saveCurrentView('dashboard', 'PLANTILLA SUMMARY');

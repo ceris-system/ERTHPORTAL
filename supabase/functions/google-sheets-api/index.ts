@@ -158,6 +158,9 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     'read-vcode-variance': 'VCODE VARIANCE',
     'transfer-vcodes': 'VCODE VARIANCE',
     'delete-vcodes': 'VCODE VARIANCE',
+    'read-deactivation': 'DEACTIVATION',
+    'lookup-deactivation-emploc': 'DEACTIVATION',
+    'save-deactivation': 'DEACTIVATION',
     'read-vacancy': 'VACANCY MONITORING',
     'read-for-approval': 'FOR APPROVAL',
     'approve-vacancy': 'FOR APPROVAL',
@@ -1497,6 +1500,119 @@ function dateSerial(value: unknown) {
   return (date.getTime() - Date.UTC(1899, 11, 30)) / 86400000;
 }
 
+function formatDeactivationDate(value: unknown) {
+  const text = String(value ?? '').trim();
+  if (!text) throw new Error('Choose an inactive date.');
+  let date: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const [year, month, day] = text.split('-').map(Number);
+    date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+      throw new Error('Choose a valid inactive date.');
+    }
+  } else {
+    const serial = Number(text);
+    if (Number.isFinite(serial)) {
+      date = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+    } else {
+      const parsed = new Date(text);
+      if (!Number.isFinite(parsed.getTime())) throw new Error('Choose a valid inactive date.');
+      date = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+    }
+  }
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(date).toLocaleUpperCase();
+}
+
+async function readDeactivationRecords(spreadsheetId: string, sheetTab: string) {
+  const result = await readSheetGridRanges(spreadsheetId, sheetTab, [{
+    startRowIndex: 2,
+    startColumnIndex: 0,
+    endColumnIndex: 4
+  }]);
+  const values: unknown[][] = result[0]?.valueRange?.values || [];
+  const records = values.flatMap((row, index) => {
+    const emploc = String(row[0] ?? '').trim();
+    const fullname = String(row[1] ?? '').trim();
+    const status = String(row[2] ?? '').trim();
+    const inactiveDate = row[3] === undefined || row[3] === null || row[3] === ''
+      ? ''
+      : formatDeactivationDate(row[3]);
+    if (!emploc && !fullname && !status && !inactiveDate) return [];
+    return [{ rowNumber: index + 3, emploc, fullname, status, inactiveDate }];
+  });
+  return { records, count: records.length };
+}
+
+async function lookupDeactivationEmploc(spreadsheetId: string, emplocValue: unknown) {
+  const emploc = String(emplocValue ?? '').trim().toLocaleUpperCase();
+  if (!emploc || emploc.length > 100) throw new Error('Enter a valid EMPLOC.');
+  const result = await readSheetGridRanges(spreadsheetId, 'MIKA FILE', [{
+    startColumnIndex: 0,
+    endColumnIndex: 2
+  }]);
+  const values: unknown[][] = result[0]?.valueRange?.values || [];
+  const matches = values.flatMap((row, index) =>
+    String(row[0] ?? '').trim().toLocaleUpperCase() === emploc
+      ? [{ rowNumber: index + 1, fullname: String(row[1] ?? '').trim() }]
+      : []
+  );
+  if (!matches.length) throw new Error(`EMPLOC ${emploc} was not found in the MIKA FILE tab.`);
+  if (matches.length > 1) throw new Error(`EMPLOC ${emploc} appears more than once in the MIKA FILE tab.`);
+  if (!matches[0].fullname) throw new Error(`EMPLOC ${emploc} has no name in the MIKA FILE tab.`);
+  return { emploc, fullname: matches[0].fullname };
+}
+
+async function saveDeactivationRecord(
+  spreadsheetId: string,
+  sheetTab: string,
+  emplocValue: unknown,
+  statusValue: unknown,
+  inactiveDateValue: unknown
+) {
+  const { emploc, fullname } = await lookupDeactivationEmploc(spreadsheetId, emplocValue);
+  const allowedStatuses = new Set([
+    'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',
+    'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
+  ]);
+  const status = String(statusValue ?? '').trim().toLocaleUpperCase();
+  if (!allowedStatuses.has(status)) throw new Error('Choose a valid deactivation status.');
+  const inactiveDate = formatDeactivationDate(inactiveDateValue);
+  const rowValues = [[emploc, fullname.toLocaleUpperCase(), status, inactiveDate]];
+  const metadata = await googleRequest(
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
+  );
+  const sheet = (metadata.sheets || []).find((item: any) => item.properties?.title === sheetTab);
+  if (!sheet) throw new Error(`The assigned DEACTIVATION spreadsheet does not have a ${sheetTab} tab.`);
+  const column = await readSheetGridRanges(spreadsheetId, sheetTab, [{
+    startRowIndex: 2,
+    startColumnIndex: 0,
+    endColumnIndex: 1
+  }]);
+  const columnValues: unknown[][] = column[0]?.valueRange?.values || [];
+  const lastUsedIndex = columnValues.reduce((last, row, index) =>
+    String(row[0] ?? '').trim() ? index : last, -1);
+  const rowNumber = lastUsedIndex < 0 ? 3 : lastUsedIndex + 4;
+  await ensureDestinationRow(spreadsheetId, sheet, rowNumber, 4);
+  const range = sheetA1(sheetTab, `A${rowNumber}:D${rowNumber}`);
+  await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
+    method: 'POST',
+    body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range, values: rowValues }] })
+  });
+  const verification = await googleRequest(
+    `spreadsheets/${spreadsheetId}/values/${sheetRange(sheetTab, `A${rowNumber}:D${rowNumber}`)}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const saved = verification.values?.[0] || [];
+  if (rowValues[0].some((value, index) => String(saved[index] ?? '').trim() !== value)) {
+    throw new Error('The DEACTIVATION row could not be verified after saving.');
+  }
+  return { rowNumber, emploc, fullname: fullname.toLocaleUpperCase(), status, inactiveDate, saved: true };
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers });
   if (request.method !== 'POST') return respond({ error: 'Method not allowed.' }, 405);
@@ -1514,7 +1630,7 @@ Deno.serve(async request => {
     if (profileError || !actor) return respond({ error: 'Account profile was not found.' }, 403);
 
     const body = await request.json();
-    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
+    if (!['read-plantilla', 'read-vcode', 'read-vcode-variance', 'transfer-vcodes', 'delete-vcodes', 'read-deactivation', 'lookup-deactivation-emploc', 'save-deactivation', 'read-buffer', 'read-buffer-detail', 'read-vacancy', 'read-for-approval', 'approve-vacancy', 'update-vacancy', 'read-hr-emploc', 'update-hr-emploc', 'update-plantilla', 'fill-plantilla-newly-hired', 'list-client-options'].includes(body.action)) throw new Error('Unknown sheets action.');
     if (body.action === 'approve-vacancy' && actor.role !== 'admin') {
       return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
     }
@@ -1527,6 +1643,13 @@ Deno.serve(async request => {
     }
     const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, sheetTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
 
+    if (body.action === 'read-deactivation') return respond(await readDeactivationRecords(spreadsheetId, sheetTab));
+    if (body.action === 'lookup-deactivation-emploc') {
+      return respond(await lookupDeactivationEmploc(spreadsheetId, body.emploc));
+    }
+    if (body.action === 'save-deactivation') {
+      return respond(await saveDeactivationRecord(spreadsheetId, sheetTab, body.emploc, body.status, body.inactiveDate));
+    }
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
       return respond(await appendVcodesToVacancy(
