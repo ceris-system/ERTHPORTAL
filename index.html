@@ -375,20 +375,30 @@
     .deactivation-mika-tab-settings { padding:10px 11px; margin-top:8px; border:1px solid rgba(53,139,143,.16); border-radius:9px; background:rgba(255,255,255,.48); }
     .deactivation-mika-tab-settings legend { padding:0 5px; color:#315c65; font-size:10px; font-weight:800; }
     .deactivation-mika-tab-settings .buffer-detail-tab-field input { min-height:38px; }
-    .deactivation-dashboard { display:grid; gap:16px; padding:clamp(16px,2.2vw,28px); border:1px solid rgba(255,255,255,.82); border-radius:22px; color:#183b43; background:linear-gradient(145deg,#f4f9fa 0%,#eaf3f4 100%); box-shadow:0 22px 60px rgba(2,15,32,.24); }
-    .deactivation-page-header { display:flex; align-items:center; justify-content:space-between; gap:20px; padding:0 2px 15px; border-bottom:1px solid #d8e5e8; }
+    .deactivation-dashboard { position:relative; display:grid; gap:17px; padding:clamp(16px,2.2vw,28px); overflow:hidden; border:1px solid rgba(255,255,255,.76); border-radius:22px; color:#183b43; background:linear-gradient(145deg,#f5fafb 0%,#eaf3f5 100%); box-shadow:0 24px 68px rgba(2,15,32,.3); }
+    .deactivation-dashboard::before { position:absolute; top:-185px; right:-120px; width:430px; height:330px; border-radius:50%; background:radial-gradient(ellipse,rgba(47,205,191,.2),rgba(74,140,220,.08) 45%,transparent 72%); content:""; pointer-events:none; }
+    .deactivation-page-header { position:relative; display:flex; align-items:center; justify-content:space-between; gap:20px; padding:19px 21px; overflow:hidden; border:1px solid rgba(255,255,255,.15); border-radius:16px; color:#fff; background:linear-gradient(112deg,#092e43 0%,#0b5365 55%,#087b7d 100%); box-shadow:0 12px 27px rgba(7,67,77,.2); }
+    .deactivation-page-header::after { position:absolute; top:-90px; right:17%; width:240px; height:240px; border:1px solid rgba(255,255,255,.1); border-radius:50%; box-shadow:0 0 0 24px rgba(255,255,255,.035),0 0 0 50px rgba(255,255,255,.025); content:""; pointer-events:none; }
     .deactivation-page-title { display:flex; align-items:flex-start; gap:13px; }
-    .deactivation-page-mark { display:grid; width:42px; height:42px; flex:0 0 auto; place-items:center; border:1px solid #cbe5e1; border-radius:13px; color:#087e80; background:#e1f2ee; }
+    .deactivation-page-mark { position:relative; z-index:1; display:grid; width:48px; height:48px; flex:0 0 auto; place-items:center; border:1px solid rgba(255,255,255,.25); border-radius:15px; color:#baf4e8; background:rgba(255,255,255,.12); box-shadow:inset 0 1px rgba(255,255,255,.16); }
     .deactivation-page-mark svg { width:21px; height:21px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-    .deactivation-page-header h1 { margin:0; color:#193c45; font:800 21px/1.2 'Roboto Mono',monospace; letter-spacing:-.035em; }
-    .deactivation-page-header p { margin:5px 0 0; color:#607b83; font-size:11px; line-height:1.5; }
-    .deactivation-page-header p strong { color:#315962; font-weight:800; }
-    .deactivation-page-actions { display:flex; flex:0 0 auto; align-items:center; gap:8px; }
-    .deactivation-page-actions button { min-height:38px; padding:0 13px; border:1px solid #cbdcdf; border-radius:9px; color:#315961; background:#fff; box-shadow:0 2px 6px rgba(18,58,67,.04); font-size:10px; font-weight:700; }
-    .deactivation-page-actions button:hover { border-color:#74b9b5; color:#087e80; background:#f3fbfa; }
-    .deactivation-page-actions #deactivation-assign-sheet { border-color:#0e8e8d; color:#fff; background:#0e8e8d; }
-    .deactivation-page-actions #deactivation-assign-sheet:hover { background:#087879; }
-    .deactivation-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.78); }
+    .deactivation-page-header h1 { margin:0; color:#fff; font:800 22px/1.2 'Roboto Mono',monospace; letter-spacing:-.045em; }
+    .deactivation-page-header p { margin:6px 0 0; color:rgba(231,248,249,.78); font-size:10px; line-height:1.5; }
+    .deactivation-page-header p strong { color:#b9f1df; font-weight:800; }
+    .deactivation-page-actions { position:relative; z-index:1; display:flex; flex:0 0 auto; align-items:center; gap:8px; }
+    .deactivation-page-actions button { min-height:39px; padding:0 14px; border:1px solid rgba(255,255,255,.22); border-radius:10px; color:#f4ffff; background:rgba(255,255,255,.1); box-shadow:inset 0 1px rgba(255,255,255,.08); font-size:10px; font-weight:700; transition:background .18s,border-color .18s,transform .18s; }
+    .deactivation-page-actions button:hover { transform:translateY(-1px); border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.18); }
+    .deactivation-page-actions #deactivation-assign-sheet { border-color:#a6f1d7; color:#063d49; background:#a6f1d7; }
+    .deactivation-page-actions #deactivation-assign-sheet:hover { background:#c1ffe9; }
+    .deactivation-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .deactivation-stat { position:relative; display:flex; align-items:center; gap:12px; min-width:0; padding:13px 15px; overflow:hidden; border:1px solid rgba(255,255,255,.9); border-radius:13px; background:linear-gradient(140deg,rgba(255,255,255,.96),rgba(242,249,249,.88)); box-shadow:0 5px 16px rgba(13,59,68,.06); }
+    .deactivation-stat::after { position:absolute; right:-15px; bottom:-32px; width:90px; height:90px; border-radius:50%; background:rgba(78,198,184,.07); content:""; }
+    .deactivation-stat-icon { position:relative; z-index:1; display:grid; width:37px; height:37px; flex:0 0 auto; place-items:center; border:1px solid #d7ece8; border-radius:11px; color:#078183; background:#eff9f6; }
+    .deactivation-stat-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+    .deactivation-stat-copy { position:relative; z-index:1; display:grid; min-width:0; gap:2px; }
+    .deactivation-stat-copy span { color:#718990; font-size:9px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .deactivation-stat-copy strong { overflow:hidden; color:#214951; font:800 19px/1.1 'Roboto Mono',monospace; text-overflow:ellipsis; white-space:nowrap; }
+    .deactivation-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) auto; align-items:center; gap:14px; padding:13px 15px; border:1px solid #dce7e9; border-radius:13px; background:rgba(255,255,255,.88); box-shadow:0 4px 13px rgba(22,68,77,.04); }
     .deactivation-search-field { display:grid; gap:6px; color:#57747c; font-size:9px; font-weight:800; letter-spacing:.04em; }
     .deactivation-search-field .plantilla-search { width:100%; min-height:39px; border-color:#d5e2e5; background:#fff; font-size:11px; }
     .deactivation-toolbar-status { justify-self:end; max-width:420px; margin:0; color:#5e7880; font-size:10px; line-height:1.5; text-align:right; overflow-wrap:anywhere; }
@@ -397,8 +407,9 @@
     .deactivation-toolbar-status[data-state="success"] { border-color:#cce6d8; color:#28664b; background:#f1faf4; }
     .deactivation-toolbar-status[data-state="error"] { border-color:#efd1cd; color:#963e37; background:#fff5f3; }
     .deactivation-toolbar-status[data-state="loading"] { color:#496c75; background:#eff7f7; }
-    .deactivation-entry-card { padding:18px 19px; margin:0; border:1px solid #d7e4e6; border-radius:15px; background:#fff; box-shadow:0 4px 14px rgba(22,68,77,.045); }
-    .deactivation-entry-heading { margin-bottom:16px; }
+    .deactivation-entry-card { padding:19px 20px; margin:0; border:1px solid #d7e4e6; border-radius:15px; background:linear-gradient(150deg,#fff,#fbfefe); box-shadow:0 6px 20px rgba(22,68,77,.055); }
+    .deactivation-entry-heading { display:flex; align-items:center; gap:9px; margin-bottom:16px; }
+    .deactivation-entry-heading::before { width:4px; height:28px; flex:0 0 auto; border-radius:5px; background:linear-gradient(180deg,#11b5a7,#087c86); content:""; }
     .deactivation-entry-heading h2,.deactivation-table-heading h2 { margin:0; color:#20474f; font-size:13px; font-weight:800; letter-spacing:.015em; }
     .deactivation-entry-heading p,.deactivation-table-heading p { margin:5px 0 0; color:#71888e; font-size:10px; line-height:1.5; }
     .deactivation-fields { gap:14px; }
@@ -409,15 +420,16 @@
     .deactivation-entry-footer { align-items:center; padding-top:13px; margin-top:14px; border-top:1px solid #edf1f2; }
     .deactivation-entry-footer p { color:#71878c; font-size:10px; }
     .deactivation-entry-card .primary-button { min-height:39px; border-radius:9px; box-shadow:none; font-size:11px; }
-    .deactivation-table-panel { overflow:hidden; border:1px solid #d6e2e4; border-radius:14px; background:#fff; box-shadow:0 4px 14px rgba(22,68,77,.045); }
-    .deactivation-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 17px; border-bottom:1px solid #e5edef; }
+    .deactivation-table-panel { overflow:hidden; border:1px solid #d6e2e4; border-radius:14px; background:#fff; box-shadow:0 6px 19px rgba(22,68,77,.055); }
+    .deactivation-table-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:15px 18px; border-bottom:1px solid #e5edef; background:linear-gradient(110deg,#fff,#f8fbfb); }
     .deactivation-record-count { padding:5px 9px; border:1px solid #dce8e9; border-radius:99px; color:#557078; background:#f5f9f9; font-size:9px; font-weight:800; white-space:nowrap; }
     .deactivation-table-wrap { max-height:min(54vh,560px); overflow:auto; }
     .deactivation-table { width:100%; min-width:620px; table-layout:fixed; border-collapse:separate; border-spacing:0; text-align:left; }
-    .deactivation-table th { position:sticky; top:0; z-index:1; padding:11px 16px; border-bottom:1px solid #d9e6e8; color:#56727a; background:#f4f8f8; font-size:9px; font-weight:800; letter-spacing:.06em; }
+    .deactivation-table th { position:sticky; top:0; z-index:1; padding:12px 16px; border-bottom:1px solid #d9e6e8; color:#56727a; background:#f2f7f7; font-size:9px; font-weight:800; letter-spacing:.075em; }
     .deactivation-table td { padding:12px 16px; border-bottom:1px solid #edf1f2; color:#315159; font-size:11px; line-height:1.45; }
     .deactivation-table tbody tr:last-child td { border-bottom:0; }
-    .deactivation-table tbody tr:hover td { background:#f8fbfb; }
+    .deactivation-table tbody tr:nth-child(even) td { background:#fbfdfd; }
+    .deactivation-table tbody tr:hover td { background:#eff9f7; }
     .deactivation-table td:first-child { color:#24464e; font-weight:700; }
     .deactivation-table td:nth-child(3) { color:#45666c; font-size:10px; font-weight:700; }
     .deactivation-table td:last-child { color:#536f76; }
@@ -425,15 +437,24 @@
     @media(max-width:850px) { .deactivation-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
     @media(max-width:720px) {
       .deactivation-dashboard { gap:12px; padding:14px; border-radius:16px; }
-      .deactivation-page-header { align-items:flex-start; flex-direction:column; gap:13px; }
+      .deactivation-page-header { align-items:flex-start; flex-direction:column; gap:13px; padding:16px; }
       .deactivation-page-actions { width:100%; }
       .deactivation-page-actions button { flex:1; }
+      .deactivation-stats { gap:8px; }
+      .deactivation-stat { gap:8px; padding:10px; }
+      .deactivation-stat-icon { width:32px; height:32px; }
+      .deactivation-stat-copy strong { font-size:16px; }
       .deactivation-toolbar { grid-template-columns:minmax(0,1fr); gap:9px; }
       .deactivation-toolbar-status { justify-self:start; text-align:left; }
       .deactivation-entry-footer { align-items:stretch; flex-direction:column; }
       .deactivation-entry-card .primary-button { width:100%; }
     }
-    @media(max-width:480px) { .deactivation-fields { grid-template-columns:minmax(0,1fr); } }
+    @media(max-width:480px) {
+      .deactivation-fields { grid-template-columns:minmax(0,1fr); }
+      .deactivation-stats { grid-template-columns:minmax(0,1fr); }
+      .deactivation-stat { padding:10px 13px; }
+      .deactivation-stat-copy strong { font-size:18px; }
+    }
     .plantilla-table-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 9px; }
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
@@ -4495,7 +4516,7 @@
         <header class="deactivation-page-header">
           <div class="deactivation-page-title">
             <span class="deactivation-page-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 12.5h5M8 16h3"/></svg></span>
-            <div><h1 id="deactivation-title">Deactivation records</h1><p>Access scope: <strong>${escapeHtml(getDashboardClientLabel('DEACTIVATION'))}</strong> · Record management</p></div>
+            <div><h1 id="deactivation-title">Deactivation records</h1><p>Manage inactive employee records · Access scope: <strong>${escapeHtml(getDashboardClientLabel('DEACTIVATION'))}</strong></p></div>
           </div>
           <div class="deactivation-page-actions">
             ${currentUser?.isMasterAdmin ? '<button id="deactivation-assign-sheet" type="button">Assign spreadsheet</button>' : ''}
@@ -4503,6 +4524,11 @@
             <button id="deactivation-home" type="button">Home</button>
           </div>
         </header>
+        <section class="deactivation-stats" aria-label="Deactivation dashboard summary">
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span><div class="deactivation-stat-copy"><span>Total records</span><strong id="deactivation-total-stat">—</strong></div></article>
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><div class="deactivation-stat-copy"><span>Showing</span><strong id="deactivation-shown-stat">—</strong></div></article>
+          <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M9 9h.01M12 9h.01M15 9h.01M9 12h.01M12 12h.01M15 12h.01M9 15h.01M12 15h.01"/></svg></span><div class="deactivation-stat-copy"><span>Status types</span><strong id="deactivation-status-stat">—</strong></div></article>
+        </section>
         <section class="deactivation-toolbar" aria-label="Search and dashboard status">
           <label class="deactivation-search-field" for="deactivation-search">SEARCH RECORDS
             <input id="deactivation-search" class="plantilla-search" type="search" placeholder="EMPLOC, full name, status, or date" aria-label="Search deactivation records" autocomplete="off">
@@ -4551,6 +4577,11 @@
           deactivationLookup.set(key, names);
         }
         deactivationLookupReady = true;
+        const lookupStatus = document.querySelector('#deactivation-lookup-status');
+        if (lookupStatus) {
+          lookupStatus.textContent = `${deactivationLookup.size.toLocaleString()} EMPLOC entries loaded from MIKA FILE.`;
+          lookupStatus.dataset.state = 'success';
+        }
         lookupDeactivationName(document.querySelector('#deactivation-emploc')?.value.trim() || '');
       } catch (error) {
         const message = error.message || 'Could not load MIKA FILE EMPLOC/name data.';
@@ -4559,6 +4590,7 @@
           : message;
         if (document.querySelector('#deactivation-emploc')?.value.trim() && lookupStatus) {
           lookupStatus.textContent = deactivationLookupError;
+          lookupStatus.dataset.state = 'error';
         }
       }
     }
@@ -4570,19 +4602,23 @@
       if (!emploc) return;
       if (!deactivationLookupReady) {
         status.textContent = deactivationLookupError || 'Loading EMPLOC and name lookup from MIKA FILE...';
+        status.dataset.state = deactivationLookupError ? 'error' : 'loading';
         return;
       }
       const matches = deactivationLookup.get(emploc.toLocaleUpperCase()) || [];
       if (matches.length > 1) {
         status.textContent = `EMPLOC ${emploc.toLocaleUpperCase()} appears more than once in MIKA FILE.`;
+        status.dataset.state = 'error';
         return;
       }
       if (!matches.length) {
         status.textContent = `No exact EMPLOC match found in MIKA FILE for ${emploc.toLocaleUpperCase()}.`;
+        status.dataset.state = 'error';
         return;
       }
       fullname.value = matches[0];
       status.textContent = 'EMPLOC found in MIKA FILE.';
+      status.dataset.state = 'success';
     }
     async function refreshDeactivationData() {
       await Promise.all([loadDeactivationRecords(), loadDeactivationMikaFile()]);
@@ -4622,8 +4658,15 @@
         [record.emploc, record.fullname, record.status, record.inactiveDate]
           .some(value => String(value ?? '').toLocaleLowerCase().includes(query))
       );
+      const distinctStatuses = new Set(deactivationRecords.map(record => String(record.status || '').trim().toLocaleUpperCase()).filter(Boolean));
       const count = document.querySelector('#deactivation-record-count');
       if (count) count.textContent = `${rows.length} shown · ${deactivationRecords.length} total`;
+      const totalStat = document.querySelector('#deactivation-total-stat');
+      const shownStat = document.querySelector('#deactivation-shown-stat');
+      const statusStat = document.querySelector('#deactivation-status-stat');
+      if (totalStat) totalStat.textContent = deactivationRecords.length.toLocaleString();
+      if (shownStat) shownStat.textContent = rows.length.toLocaleString();
+      if (statusStat) statusStat.textContent = distinctStatuses.size.toLocaleString();
       if (!rows.length) {
         body.innerHTML = `<tr><td colspan="4" class="plantilla-empty">${deactivationRecords.length ? 'No records match your search.' : 'No deactivation records found.'}</td></tr>`;
         document.querySelector('#deactivation-status').textContent = deactivationRecords.length ? 'No records match this search.' : 'No saved records found.';
