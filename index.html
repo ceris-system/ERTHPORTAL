@@ -3483,29 +3483,34 @@
       const rowHeight = 14;
       const rowsPerPage = 30;
       const pages = [];
-      const pdfText = value => String(value ?? '').replace(/\u20b1/g, 'P').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/[\\()]/g, '\\$&').replace(/\s+/g, ' ').trim();
-      const pesoMark = (x, y) => `0.18 0.24 0.31 RG .6 w ${x} ${y + 3} m ${x + 7} ${y + 3} l S ${x} ${y + 5.5} m ${x + 7} ${y + 5.5} l S`;
+      const pdfText = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/[\\()]/g, '\\$&').replace(/\s+/g, ' ').trim();
+      const currencyNumber = value => new Intl.NumberFormat('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+      const pesoMark = (x, y, size = 7) => `0 g .7 w ${x} ${y + size * 0.36} m ${x + size * 0.72} ${y + size * 0.36} l S ${x} ${y + size * 0.62} m ${x + size * 0.72} ${y + size * 0.62} l S`;
       for (let offset = 0; offset < Math.max(1, report.records.length); offset += rowsPerPage) {
         const pageRecords = report.records.slice(offset, offset + rowsPerPage);
-        const commands = ['0.12 0.2 0.3 rg', `BT /F1 16 Tf ${left} 555 Td (Service Incentive Leave) Tj ET`, `BT /F1 9 Tf ${left} 537 Td (Client: ${pdfText(report.client)}    Month: ${report.month}    Year: ${report.year}) Tj ET`, `BT /F1 10 Tf ${left} 519 Td (Total Amount: ${pdfText(formatSilCurrency(report.total))}) Tj ET`, pesoMark(left + 64.3, 519)];
+        const commands = ['0.12 0.2 0.3 rg', `BT /F1 16 Tf ${left} 555 Td (Service Incentive Leave) Tj ET`, `BT /F1 9 Tf ${left} 537 Td (Client: ${pdfText(report.client)}    Month: ${report.month}    Year: ${report.year}) Tj ET`, `BT /F1 10 Tf ${left} 519 Td (Total Amount:) Tj ET`, `BT /F1 10 Tf ${left + 66} 519 Td (P) Tj ET`, pesoMark(left + 66, 519, 10), `BT /F1 10 Tf ${left + 75} 519 Td (${currencyNumber(report.total)}) Tj ET`];
         let x = left;
         const tableTop = 496;
         commands.push('0.88 0.92 0.96 rg', `${left} ${tableTop - rowHeight + 3} 764 ${rowHeight} re f`, '0.08 0.15 0.25 rg', '0.25 0.32 0.4 RG', '.5 w');
         for (let column = 0; column < headers.length; column++) {
-          commands.push(`BT /F1 7 Tf ${x + 3} ${tableTop - 7} Td (${headers[column]}) Tj ET`);
+          commands.push(`BT /F1 9 Tf 0 g ${x + 3} ${tableTop - 7} Td (${headers[column]}) Tj ET`);
           x += widths[column];
         }
         commands.push(`${left} ${tableTop - rowHeight + 3} m ${left + 764} ${tableTop - rowHeight + 3} l S`);
         pageRecords.forEach((record, rowIndex) => {
           const y = tableTop - rowHeight * (rowIndex + 2) + 3;
-          const values = [record.client, record.emploc, record.fullname, record.position, record.outlet, record.dateHired, record.rate === null ? '-' : formatSilCurrency(record.rate), record.amount === null ? '-' : formatSilCurrency(record.amount)];
+          const values = [record.client, record.emploc, record.fullname, record.position, record.outlet, record.dateHired, record.rate === null ? '-' : currencyNumber(record.rate), record.amount === null ? '-' : currencyNumber(record.amount)];
           x = left;
           if (rowIndex % 2 === 1) commands.push(`0.96 0.97 0.98 rg ${left} ${y - 4} 764 ${rowHeight} re f`);
           commands.push('0.18 0.24 0.31 rg');
           values.forEach((value, column) => {
             const maxChars = Math.max(7, Math.floor((widths[column] - 7) / 4.1));
-            commands.push(`BT /F1 7 Tf ${x + 3} ${y + 1} Td (${pdfText(value).slice(0, maxChars)}) Tj ET`);
-            if (String(value).includes('\u20b1')) commands.push(pesoMark(x + 3, y + 1));
+            const isCurrency = column >= 6 && value !== '-';
+            if (isCurrency) {
+              commands.push(`BT /F1 7 Tf ${x + 3} ${y + 1} Td (P) Tj ET`, pesoMark(x + 3, y + 1), `BT /F1 7 Tf ${x + 10} ${y + 1} Td (${pdfText(value).slice(0, maxChars - 2)}) Tj ET`);
+            } else {
+              commands.push(`BT /F1 7 Tf ${x + 3} ${y + 1} Td (${pdfText(value).slice(0, maxChars)}) Tj ET`);
+            }
             x += widths[column];
           });
           commands.push(`0.78 0.82 0.86 RG ${left} ${y - 4} m ${left + 764} ${y - 4} l S`);
