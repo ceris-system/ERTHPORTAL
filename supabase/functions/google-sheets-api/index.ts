@@ -131,7 +131,8 @@ function sheetRange(tabName: string, cells: string) {
 async function readSheetGridRanges(
   spreadsheetId: string,
   sheetTab: string,
-  gridRanges: Record<string, number>[]
+  gridRanges: Record<string, number>[],
+  valueRenderOption?: 'FORMATTED_VALUE' | 'UNFORMATTED_VALUE'
 ) {
   const metadata = await googleRequest(
     `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.sheetId,sheets.properties.gridProperties.rowCount,sheets.properties.gridProperties.columnCount`
@@ -153,7 +154,8 @@ async function readSheetGridRanges(
   });
   const validRanges = boundedRanges.filter((range): range is Record<string, number> => range !== null);
   if (!validRanges.length) return gridRanges.map(() => ({ valueRange: { values: [] } }));
-  const data = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGetByDataFilter`, {
+  const renderOption = valueRenderOption ? `?valueRenderOption=${valueRenderOption}` : '';
+  const data = await googleRequest(`spreadsheets/${spreadsheetId}/values:batchGetByDataFilter${renderOption}`, {
     method: 'POST',
     body: JSON.stringify({
       dataFilters: validRanges.map(range => ({
@@ -278,8 +280,11 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const matchedClientTab = Object.keys(clientSheetTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   const mappedSheetTab = String(matchedClientTab ? clientSheetTabs[matchedClientTab] || '' : '').trim();
   const assignedSheetTab = String(assignment?.sheet_tab || '').trim();
+  const hasClientSpecificSheet = Object.keys(clientSheetUrls).some(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   let sheetTab = String(dashboardName === 'DEACTIVATION'
-    ? assignedSheetTab || mappedSheetTab || defaultSheetTab(dashboardName)
+    ? (hasClientSpecificSheet || !assignedSheetTab || assignedSheetTab === defaultSheetTab(dashboardName)
+      ? mappedSheetTab || assignedSheetTab || defaultSheetTab(dashboardName)
+      : assignedSheetTab || mappedSheetTab || defaultSheetTab(dashboardName))
     : mappedSheetTab || assignedSheetTab || defaultSheetTab(dashboardName)).trim();
   const deactivationMikaTabs = assignment?.client_deactivation_mika_tabs && typeof assignment.client_deactivation_mika_tabs === 'object'
     ? assignment.client_deactivation_mika_tabs
@@ -1170,11 +1175,12 @@ async function readAttritionRecords(
   assignedClients: string[],
   isMasterAdmin: boolean
 ) {
+  await ensureAttritionClientColumn(spreadsheetId, sheetTab);
   const result = await readSheetGridRanges(spreadsheetId, sheetTab, [{
     startRowIndex: 2,
     startColumnIndex: 0,
     endColumnIndex: 47
-  }]);
+  }], 'UNFORMATTED_VALUE');
   const values: unknown[][] = result[0]?.valueRange?.values || [];
   const allowedClients = new Set(assignedClients.map(client => client.trim().toLocaleLowerCase()).filter(Boolean));
   if (!allowedClients.size && !isMasterAdmin) throw new Error('No clients are assigned to this ATTRITION dashboard.');
@@ -1186,7 +1192,6 @@ async function readAttritionRecords(
     const status = String(row[33] ?? '').trim().toLocaleUpperCase();
     if (!allowedStatuses.has(status)) return [];
     const emploc = String(row[2] ?? '').trim();
-    if (!emploc) return [];
     const dateHiredValue = row[14] ?? '';
     const separationValue = row[32] ?? '';
     return [{
@@ -1206,9 +1211,22 @@ async function readAttritionRecords(
   return { records };
 }
 
+async function ensureAttritionClientColumn(spreadsheetId: string, sheetTab: string) {
+  const metadata = await googleRequest(
+    `spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.columnCount`
+  );
+  const sheet = (metadata.sheets || []).find((item: any) => item.properties?.title === sheetTab);
+  if (!sheet) throw new Error(`The assigned spreadsheet does not have an ${sheetTab} tab.`);
+  if (Number(sheet.properties?.gridProperties?.columnCount || 0) < 47) {
+    throw new Error(`The assigned ATTRITION tab must include column AU for client names.`);
+  }
+}
+
 async function listAttritionClients(spreadsheetUrl: unknown, sheetTab: unknown) {
   const spreadsheetId = spreadsheetIdFromAssignedUrl(spreadsheetUrl, 'ATTRITION');
-  const result = await readSheetGridRanges(spreadsheetId, String(sheetTab || 'ATTRITION'), [{
+  const tabName = String(sheetTab || 'ATTRITION');
+  await ensureAttritionClientColumn(spreadsheetId, tabName);
+  const result = await readSheetGridRanges(spreadsheetId, tabName, [{
     startRowIndex: 2,
     startColumnIndex: 46,
     endColumnIndex: 47

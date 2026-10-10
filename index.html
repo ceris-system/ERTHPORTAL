@@ -1519,6 +1519,7 @@
     let dashboardClientBufferDetailTabs = {};
     let dashboardSheetTabs = {};
     let dashboardAssignmentUsesClientUrlPairs = false;
+    let dashboardAssignmentUsesClientOptions = false;
     let selectedDashboardClients = {};
     let activeDashboardForData = '';
     let dashboardReadGeneration = 0;
@@ -2055,10 +2056,10 @@
       if (select instanceof HTMLSelectElement) return [...select.selectedOptions].map(option => option.value);
       return [...select.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value);
     }
-    function fillDashboardClientOptions(selectedValues, onChange) {
+    function fillDashboardClientOptions(selectedValues, onChange, availableClients = availableClientOptions) {
       const container = document.querySelector('#dashboard-client-options');
       const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
-      const clients = [...new Set([...availableClientOptions, ...selectedValues])];
+      const clients = [...new Set([...availableClients, ...selectedValues])];
       container.replaceChildren(...clients.map(clientName => {
         const label = document.createElement('label');
         label.className = 'client-check-option';
@@ -3192,8 +3193,8 @@
       status.textContent = 'Loading records...';
       body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">Loading approval records...</td></tr>`;
       try {
-        const rawValues = [];
-        const displayValues = [];
+        let rawValues = [];
+        let displayValues = [];
         for (const client of clients) {
           if (usesAssignedSheetAccess()) {
             const result = await callSheetsFunction('read-for-approval', {
@@ -4771,6 +4772,11 @@
         ...(previewedUser ? { targetUsername: previewedUser.username } : {})
       };
       status.textContent = 'Loading attrition data...';
+      attritionRecords = [];
+      document.querySelector('#attrition-total-stat').textContent = '0';
+      document.querySelector('#attrition-showing-stat').textContent = '0';
+      document.querySelector('#attrition-status-count').textContent = '0';
+      document.querySelector('#attrition-record-count').textContent = 'Loading...';
       body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Loading attrition records...</td></tr>';
       try {
         const result = await callSheetsFunction('read-attrition', requestContext);
@@ -4789,28 +4795,34 @@
         status.textContent = error.message || 'Could not load attrition records.';
       }
     }
-    function getFilteredAttritionRecords() {
-      const query = document.querySelector('#attrition-search')?.value.trim().toLocaleLowerCase() || '';
+    function getPeriodAttritionRecords() {
       const month = Number(document.querySelector('#attrition-month')?.value);
       const from = document.querySelector('#attrition-from')?.value || '';
       const to = document.querySelector('#attrition-to')?.value || '';
+      if (attritionReportMode === 'weekly' && (!from || !to || from > to)) return [];
       return attritionRecords.filter(record => {
+        if (!record.separationDate) return false;
         if (attritionReportMode === 'monthly') {
           const monthKey = `${attritionCurrentYear}-${String(month + 1).padStart(2, '0')}`;
-          if (!record.separationDate.startsWith(monthKey)) return false;
-        } else {
-          if (!from || !to || from > to || !record.separationDate || record.separationDate < from || record.separationDate > to) return false;
+          return record.separationDate.startsWith(monthKey);
         }
-        return !query || [
+        return record.separationDate >= from && record.separationDate <= to;
+      });
+    }
+    function getFilteredAttritionRecords() {
+      const query = document.querySelector('#attrition-search')?.value.trim().toLocaleLowerCase() || '';
+      return getPeriodAttritionRecords().filter(record =>
+        !query || [
           record.account, record.emploc, record.fullname, record.outlet, record.area,
           record.tenure, record.status, record.contactNo, record.dateHired, record.dateSeparation
-        ].some(value => String(value ?? '').toLocaleLowerCase().includes(query));
-      });
+        ].some(value => String(value ?? '').toLocaleLowerCase().includes(query))
+      );
     }
     function renderAttritionTable() {
       const body = document.querySelector('#attrition-table-body');
       if (!body) return;
       const rows = getFilteredAttritionRecords();
+      const periodRecords = getPeriodAttritionRecords();
       const client = attritionClientScope || 'Assigned clients';
       const monthIndex = Number(document.querySelector('#attrition-month')?.value);
       const from = document.querySelector('#attrition-from')?.value || '';
@@ -4821,10 +4833,10 @@
           ? `Monthly report · ${attritionMonths[monthIndex]} ${attritionCurrentYear} · ${client || 'No client selected'}`
           : `Weekly report · ${from || 'From date'} to ${to || 'To date'} · ${client || 'No client selected'}`;
       }
-      document.querySelector('#attrition-total-stat').textContent = attritionRecords.length.toLocaleString();
+      document.querySelector('#attrition-total-stat').textContent = periodRecords.length.toLocaleString();
       document.querySelector('#attrition-showing-stat').textContent = rows.length.toLocaleString();
-      document.querySelector('#attrition-status-count').textContent = new Set(rows.map(record => record.status)).size.toLocaleString();
-      document.querySelector('#attrition-record-count').textContent = `${rows.length} shown · ${attritionRecords.length} total`;
+      document.querySelector('#attrition-status-count').textContent = new Set(periodRecords.map(record => record.status)).size.toLocaleString();
+      document.querySelector('#attrition-record-count').textContent = `${rows.length} shown · ${periodRecords.length} total`;
       if (attritionReportMode === 'weekly' && from && to && from > to) {
         body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">The FROM date must be on or before the TO date.</td></tr>';
         document.querySelector('#attrition-showing-stat').textContent = '0';
@@ -5220,13 +5232,15 @@
       document.querySelector('#dashboard-dialog-copy').textContent = name === 'DEACTIVATION'
         ? 'Set the actual spreadsheet URL and the two tab names below. The selected client only sets account access; it does not choose where records are fetched or saved.'
         : name === 'ATTRITION'
-          ? 'Enter the ATTRITION spreadsheet URL and tab. The client list is loaded as unique values from column AU in that sheet.'
+          ? 'Enter one ATTRITION spreadsheet URL and tab. Client choices are unique values from AU3:AU in that sheet.'
         : 'Choose an account, select the clients it may access, and enter the spreadsheet URL and tab name for each client. Different users can use differently named tabs.';
       const clientLabel = document.querySelector('#dashboard-client-select-label');
-      clientLabel.textContent = name === 'DEACTIVATION' ? 'Client access (permission scope only)' : 'Fetch data from client';
+      clientLabel.textContent = name === 'DEACTIVATION'
+        ? 'Client access (permission scope only)'
+        : name === 'ATTRITION' ? 'Fetch data from client(s)' : 'Fetch data from client';
       document.querySelector('#dashboard-assignment-hint').classList.toggle('hidden', !['DEACTIVATION', 'ATTRITION'].includes(name));
       document.querySelector('#dashboard-assignment-hint').textContent = name === 'ATTRITION'
-        ? 'Client options are unique values from AU3:AU in the assigned spreadsheet tab. Enter the URL and tab name to load them.'
+        ? 'Client options are unique values from AU3:AU in the assigned spreadsheet tab. User accounts select one client; Admin accounts may select multiple.'
         : 'This client selection controls who may use the assignment. The spreadsheet URL and tab fields below explicitly determine the data source and save destination.';
       document.querySelector('#dashboard-custom-data-tab-wrap').classList.add('hidden');
       document.querySelector('#dashboard-tab-hint').textContent = name === 'DEACTIVATION'
@@ -5262,6 +5276,7 @@
       let activeClientVcodeDeletedTabMap = {};
       let activeClientDeactivationMikaTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
+      dashboardAssignmentUsesClientOptions = false;
       if (name === 'HR EMPLOC MONITORING') {
         try {
           await loadClientOptions();
@@ -5283,15 +5298,19 @@
         const selectedUser = clientUsers.find(user => user.username === userSelect.value);
         const assignedUrls = urls?.length ? urls : (name === 'PLANTILLA' && selectedUser?.sheet_url ? [selectedUser.sheet_url] : []);
         const canFetchMultiple = selectedUser?.role === 'admin';
-        dashboardAssignmentUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin;
+        const hasExistingAttritionClientUrls = name === 'ATTRITION' && Object.keys(clientSheetUrls).length > 0;
+        dashboardAssignmentUsesClientUrlPairs = canFetchMultiple && !selectedUser?.is_master_admin &&
+          (name !== 'ATTRITION' || hasExistingAttritionClientUrls);
+        dashboardAssignmentUsesClientOptions = dashboardAssignmentUsesClientUrlPairs ||
+          (name === 'ATTRITION' && canFetchMultiple);
         const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
         const selectedClients = assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean);
         clientSelect.multiple = false;
         clientSelect.size = 1;
-        clientSelect.required = !dashboardAssignmentUsesClientUrlPairs && !isClientListSourceSetup;
-        clientSelect.hidden = dashboardAssignmentUsesClientUrlPairs;
-        clientSelect.parentElement.classList.toggle('hidden', dashboardAssignmentUsesClientUrlPairs);
-        clientOptions.classList.toggle('hidden', !dashboardAssignmentUsesClientUrlPairs);
+        clientSelect.required = !dashboardAssignmentUsesClientOptions && !isClientListSourceSetup;
+        clientSelect.hidden = dashboardAssignmentUsesClientOptions;
+        clientSelect.parentElement.classList.toggle('hidden', dashboardAssignmentUsesClientOptions);
+        clientOptions.classList.toggle('hidden', !dashboardAssignmentUsesClientOptions);
         const customDataTab = document.querySelector('#dashboard-custom-data-tab');
         const customDataTabWrap = document.querySelector('#dashboard-custom-data-tab-wrap');
         customDataTabWrap.classList.toggle('hidden', name !== 'DEACTIVATION' || dashboardAssignmentUsesClientUrlPairs);
@@ -5343,7 +5362,8 @@
           });
         } else {
           const assignedClient = selectedClients[0] || clientSelect.value || '';
-          (assignedUrls.length ? (name === 'DEACTIVATION' ? assignedUrls.slice(0, 1) : assignedUrls) : ['']).forEach((source, index) =>
+          const sourceUrls = ['DEACTIVATION', 'ATTRITION'].includes(name) ? assignedUrls.slice(0, 1) : assignedUrls;
+          (sourceUrls.length ? sourceUrls : ['']).forEach((source, index) =>
             addDashboardUrlRow(source, '', activeClientTabMap[assignedClient] || sheetTab)
           );
           if (name === 'DEACTIVATION' && assignedClient) {
@@ -5356,38 +5376,64 @@
             addDashboardVcodeDeletedTabInput(assignedClient, activeClientVcodeSourceUrlMap[assignedClient] || '', activeClientVcodeSourceTabMap[assignedClient] || '', activeClientVcodeDeletedTabMap[assignedClient] || '');
           }
         }
-        if (name === 'ATTRITION' && !dashboardAssignmentUsesClientUrlPairs) {
+        if (name === 'ATTRITION') {
+          if (dashboardAssignmentUsesClientUrlPairs) return;
           const feedback = document.querySelector('#dashboard-assignment-feedback');
           let clientReadGeneration = 0;
           const refreshAttritionClients = async () => {
             const generation = ++clientReadGeneration;
             const spreadsheetUrl = list.querySelector('.dashboard-url-input')?.value.trim() || '';
             const tabName = list.querySelector('.dashboard-tab-input')?.value.trim() || defaultDashboardSheetTab(name);
+            if (dashboardAssignmentUsesClientOptions) fillDashboardClientOptions([], () => {}, []);
             const placeholder = document.createElement('option');
             placeholder.value = '';
             placeholder.textContent = spreadsheetUrl ? 'Loading unique clients from AU...' : 'Enter spreadsheet URL to load clients';
             clientSelect.replaceChildren(placeholder);
             clientSelect.disabled = true;
-            if (!spreadsheetUrl) return;
+            if (!spreadsheetUrl) {
+              if (dashboardAssignmentUsesClientOptions) {
+                feedback.textContent = 'Enter the ATTRITION spreadsheet URL to load client names from AU3:AU.';
+              }
+              return;
+            }
             feedback.textContent = '';
             try {
               const result = await callSheetsFunction('list-attrition-clients', { spreadsheetUrl, sheetTab: tabName });
               if (generation !== clientReadGeneration) return;
               const clients = Array.isArray(result.clients) ? result.clients : [];
-              const preferredClient = selectedClients.find(client =>
-                clients.some(value => value.toLocaleLowerCase() === client.toLocaleLowerCase())
-              );
               if (!clients.length) {
-                placeholder.textContent = 'No clients found in AU3:AU';
+                if (dashboardAssignmentUsesClientOptions) {
+                  fillDashboardClientOptions([], () => {}, []);
+                } else {
+                  placeholder.textContent = 'No clients found in AU3:AU';
+                }
+                feedback.textContent = 'No client values were found in AU3:AU of the assigned tab.';
                 return;
               }
-              clientSelect.replaceChildren(...clients.map(client => {
+              const priorAssignedClients = selectedClients.filter(client => client && client !== 'My spreadsheets');
+              const preferredClients = priorAssignedClients.filter(client =>
+                clients.some(value => value.toLocaleLowerCase() === client.toLocaleLowerCase())
+              );
+              const selectedClientsFromSource = priorAssignedClients.length
+                ? preferredClients
+                : [clients[0]];
+              if (dashboardAssignmentUsesClientOptions) {
+                fillDashboardClientOptions(selectedClientsFromSource, () => {}, clients);
+                if (priorAssignedClients.length && !preferredClients.length) {
+                  feedback.textContent = 'The previously assigned client was not found in AU3:AU. Select a valid client before saving.';
+                }
+                return;
+              }
+              const placeholderOption = document.createElement('option');
+              placeholderOption.value = '';
+              placeholderOption.textContent = 'Choose client from AU';
+              clientSelect.replaceChildren(placeholderOption, ...clients.map(client => {
                 const option = document.createElement('option');
                 option.value = client;
                 option.textContent = client;
                 return option;
               }));
-              clientSelect.value = preferredClient || clients[0];
+              clientSelect.value = selectedClientsFromSource[0] || '';
               clientSelect.disabled = false;
             } catch (error) {
               if (generation !== clientReadGeneration) return;
@@ -6109,13 +6155,16 @@
       }
       const username = document.querySelector('#dialog-user-select').value;
       if (!username) return showAssignmentError('Choose a user to assign this dashboard.');
-      const clientNames = selectedClientValues(dashboardAssignmentUsesClientUrlPairs
+      const clientNames = selectedClientValues(dashboardAssignmentUsesClientOptions
         ? document.querySelector('#dashboard-client-options')
         : document.querySelector('#dashboard-client-select'));
       const sourceSetup = currentUser?.isMasterAdmin && username === currentUser.username && selectedDashboard === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
-      if (dashboardAssignmentUsesClientUrlPairs && !clientNames.length) return showAssignmentError('Check at least one client before saving.');
+      if (dashboardAssignmentUsesClientOptions && !clientNames.length) return showAssignmentError('Select at least one client for this dashboard.');
       if (!clientNames.length && !sourceSetup) return showAssignmentError('Select at least one client to fetch for this dashboard.');
       const values = [...document.querySelectorAll('.dashboard-url-input')].map(input => input.value.trim()).filter(Boolean);
+      if (selectedDashboard === 'ATTRITION' && !values.length) {
+        return showAssignmentError('Enter the ATTRITION spreadsheet URL so client names can be loaded from AU3:AU.');
+      }
       const tabInputs = [...document.querySelectorAll('.dashboard-tab-input')];
       const customDataTab = document.querySelector('#dashboard-custom-data-tab');
       const sheetTab = selectedDashboard === 'DEACTIVATION' && !dashboardAssignmentUsesClientUrlPairs
@@ -6232,7 +6281,7 @@
           if (currentUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
-            dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
+            dashboardClientSheetUrls[selectedDashboard] = normalizeDashboardClientUrls(clientNames, sources, clientSheetUrls);
             dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
             dashboardClientBufferDetailTabs[selectedDashboard] = clientBufferDetailTabs;
             dashboardSheetTabs[selectedDashboard] = sheetTab;
@@ -6240,7 +6289,7 @@
           if (previewedUser?.username === username) {
             dashboardAssignments[selectedDashboard] = sources;
             dashboardClientAssignments[selectedDashboard] = clientNames;
-            dashboardClientSheetUrls[selectedDashboard] = clientSheetUrls;
+            dashboardClientSheetUrls[selectedDashboard] = normalizeDashboardClientUrls(clientNames, sources, clientSheetUrls);
             dashboardClientSheetTabs[selectedDashboard] = clientSheetTabs;
             dashboardClientBufferDetailTabs[selectedDashboard] = clientBufferDetailTabs;
             dashboardSheetTabs[selectedDashboard] = sheetTab;
