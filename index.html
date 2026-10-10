@@ -273,13 +273,14 @@
     .duplicate-check-actions .primary-button { width:auto; min-width:110px; min-height:42px; }
     .inactive-setup-input { margin-bottom:15px; }
     #users-dialog { width:min(1040px,calc(100vw - 28px)); }
+    #edit-user-dialog { width:min(760px,calc(100vw - 28px)); overflow-y:auto; }
     .user-panel { padding:38px; }
     .user-dialog-copy { max-width:760px; margin-bottom:26px; font-size:13px; }
     .user-dialog-panel { padding:8px 4px 4px; }
     .user-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px 24px; padding:8px 2px; }
     .user-form > label { margin-top:18px; }
     .user-form > input, .user-form > select, .user-form > .password-field { min-width:0; }
-    .user-form > label[for="new-photo-url"], .user-form #new-photo-url, .user-form #new-photo-file, .user-form > label[for="new-sheet-url"], .user-form #new-sheet-url, .user-form > label[for="new-default-password"], .user-form #new-default-password, .user-form > label[for="new-user-client"], .user-form #new-user-client, .user-form > label[for="new-user-role"], .user-form #new-user-role, .user-form #new-user-admin-client-label, .user-form #new-user-admin-client, .user-form #new-user-client-options, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form #new-admin-managed-users-help, .user-form > label[for="new-user-status"], .user-form #new-user-status { grid-column:1 / -1; }
+    .user-form > label[for="new-photo-url"], .user-form #new-photo-url, .user-form #new-photo-file, .user-form > label[for="new-sheet-url"], .user-form #new-sheet-url, .user-form > label[for="new-default-password"], .user-form #new-default-password, .user-form > label[for="new-user-client"], .user-form #new-user-client, .user-form > label[for="new-user-role"], .user-form #new-user-role, .user-form #new-user-admin-client-label, .user-form #new-user-admin-client, .user-form #new-user-client-options, .user-form #new-admin-managed-users-label, .user-form #new-admin-managed-users, .user-form #new-admin-managed-users-help, .user-form > label[for="new-user-status"], .user-form #new-user-status, .user-form #edit-user-google-email, .user-form #edit-user-photo-file, .user-form #edit-user-photo-url, .user-form #edit-user-sheet-url, .user-form #edit-user-password, .user-form #edit-user-role, .user-form #edit-user-client, .user-form #edit-user-admin-client-label, .user-form #edit-user-admin-clients, .user-form #edit-user-managed-label, .user-form #edit-user-managed, .user-form #edit-user-managed-help, .user-form #edit-user-status, .user-form #edit-user-feedback { grid-column:1 / -1; }
     .client-checklist { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:9px; max-height:220px; overflow:auto; padding:13px; border:1px solid rgba(53,139,143,.16); border-radius:14px; background:rgba(255,255,255,.55); }
     .client-check-option { display:flex; align-items:center; gap:10px; min-height:44px; padding:9px 12px; border:1px solid rgba(53,139,143,.12); border-radius:11px; color:#365e68; background:rgba(255,255,255,.78); font-size:11px; cursor:pointer; }
     .client-check-option:has(input:checked) { border-color:rgba(22,141,145,.45); background:rgba(225,247,241,.9); box-shadow:0 3px 10px rgba(25,98,105,.07); }
@@ -309,7 +310,7 @@
     .roster-photo { width:28px; height:28px; display:grid; place-items:center; overflow:hidden; border-radius:50%; color:white; background:#61a9a4; font-size:9px; font-weight:700; }
     .roster-photo img { width:100%; height:100%; object-fit:cover; }
     .remove-user { border:0; color:#b7685e; background:none; font-size:10px; }
-    .roster-actions { display:flex; align-items:center; gap:9px; }
+    .roster-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
     .roster-table select { min-width:100px; min-height:31px; padding:0 6px; font-size:10px; }
     .edit-user { padding:5px 8px; border:1px solid rgba(53,139,143,.17); border-radius:7px; color:#287176; background:rgba(255,255,255,.7); font-size:9px; }
     @media(max-width:680px) {
@@ -1021,15 +1022,40 @@
         </form>
       </section>
       <section id="current-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="current-users-tab" hidden>
-        <p class="dialog-copy">View existing accounts, reset a password, update account status, or remove an account.</p>
+        <p class="dialog-copy">View existing accounts, edit account details and access, reset a password, update account status, or remove an account.</p>
         <div class="roster-bulk-actions">
           <label><input id="select-all-users" type="checkbox"> Select all</label>
           <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
           <button id="apply-bulk-user-status" class="edit-user" type="button">Apply to selected</button>
         </div>
         <div class="roster-wrap"><table class="roster-table"><thead><tr><th>Select</th><th>Account</th><th>Online</th><th>Google account</th><th>Client</th><th>Role</th><th>Status</th><th>Password</th><th>Photo</th><th>Actions</th></tr></thead><tbody id="user-roster"></tbody></table></div>
-        <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in.</p>
+        <p class="dialog-footnote">Temporary passwords are displayed only after creation or reset. Share them privately; the user must replace them at first sign-in. The Master Admin can edit names, usernames, photos, passwords, roles, client access, and managed User accounts.</p>
       </section>
+    </section>
+  </dialog>
+  <dialog id="edit-user-dialog" class="liquid-dialog" aria-labelledby="edit-user-title">
+    <section class="dialog-panel user-panel">
+      <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
+      <span class="dialog-kicker">MASTER ADMIN · ACCOUNT SETTINGS</span>
+      <h2 id="edit-user-title">Edit account</h2>
+      <p class="dialog-copy">Update the account profile, sign-in details, access scope, and the User accounts this Regular Admin can manage.</p>
+      <form id="edit-user-form" class="user-form">
+        <input name="originalUsername" type="hidden">
+        <label class="dialog-label" for="edit-user-username">Username</label><input id="edit-user-username" name="username" required maxlength="40" autocomplete="off">
+        <label class="dialog-label" for="edit-user-display-name">Display name</label><input id="edit-user-display-name" name="displayName" required maxlength="80">
+        <label class="dialog-label" for="edit-user-google-email">Google account email</label><input id="edit-user-google-email" name="googleEmail" type="email" autocomplete="email">
+        <label class="dialog-label" for="edit-user-photo-url">Profile photo</label><input id="edit-user-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an HTTPS image URL or choose a photo below"><input id="edit-user-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
+        <label class="dialog-label" for="edit-user-sheet-url">Assigned spreadsheet URL</label><input id="edit-user-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
+        <label class="dialog-label" for="edit-user-password">Set a new password (optional)</label><input id="edit-user-password" name="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters, letters and numbers">
+        <label class="dialog-label" for="edit-user-role">Role</label><select id="edit-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
+        <label id="edit-user-client-label" class="dialog-label" for="edit-user-client">Client access</label><select id="edit-user-client" name="clientName" required></select>
+        <label id="edit-user-admin-client-label" class="dialog-label hidden">Clients this Regular Admin can access</label><div id="edit-user-admin-clients" class="client-checklist hidden" role="group" aria-labelledby="edit-user-admin-client-label"></div>
+        <label id="edit-user-managed-label" class="dialog-label hidden">User accounts this Regular Admin can manage</label><div id="edit-user-managed" class="client-checklist managed-user-checklist hidden" role="group" aria-labelledby="edit-user-managed-label"></div>
+        <p id="edit-user-managed-help" class="dialog-scope hidden"></p>
+        <label class="dialog-label" for="edit-user-status">Account status</label><select id="edit-user-status" name="status"><option value="default">Default (require password change)</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+        <p id="edit-user-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
+        <div class="user-form-actions"><button id="edit-user-save" class="primary-button" type="submit">Save account</button><button class="secondary-button" type="button" data-close-dialog>Cancel</button></div>
+      </form>
     </section>
   </dialog>
   <dialog id="pop-modal" class="liquid-dialog pop-modal" aria-labelledby="pop-modal-title" aria-describedby="pop-modal-message">
@@ -2136,6 +2162,98 @@
       managedUsersHelp.classList.toggle('hidden', !isAdminAccount);
       if (isAdminAccount && !clientOptions.childElementCount) fillAdminClientCheckboxes();
       fillManagedUserSelect();
+    }
+    let rosterUsers = [];
+    let editingAccount = null;
+    function selectedEditAdminClients() {
+      return selectedClientValues(document.querySelector('#edit-user-admin-clients'));
+    }
+    function fillEditAdminClients(selectedValues = []) {
+      const container = document.querySelector('#edit-user-admin-clients');
+      const selected = new Set(selectedValues.map(value => String(value).trim().toLocaleLowerCase()));
+      const clients = [...new Set([...availableClientOptions, ...selectedValues])];
+      container.replaceChildren(...clients.map(clientName => {
+        const label = document.createElement('label');
+        label.className = 'client-check-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'editAdminClientNames';
+        checkbox.value = clientName;
+        checkbox.checked = selected.has(clientName.toLocaleLowerCase());
+        checkbox.addEventListener('change', fillEditManagedUsers);
+        label.append(checkbox, document.createTextNode(clientName));
+        return label;
+      }));
+    }
+    function fillEditManagedUsers(selectedIds = []) {
+      const container = document.querySelector('#edit-user-managed');
+      const selected = new Set(selectedIds);
+      const account = editingAccount;
+      const allowedClients = new Set(selectedEditAdminClients().map(client => client.toLocaleLowerCase()));
+      const eligibleUsers = assignableUserProfiles.filter(user => {
+        if (user.id === account?.id) return false;
+        const userClients = (user.client_names?.length ? user.client_names : [user.client_name])
+          .filter(client => client && client !== 'My spreadsheets')
+          .map(client => client.toLocaleLowerCase());
+        return user.role === 'user' && userClients.length > 0 && userClients.every(client => allowedClients.has(client));
+      });
+      const existingSelected = new Set([...container.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value));
+      container.replaceChildren(...eligibleUsers.map(user => {
+        const label = document.createElement('label');
+        label.className = 'client-check-option';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'editManagedUserIds';
+        checkbox.value = user.id;
+        checkbox.checked = selected.has(user.id) || existingSelected.has(user.id);
+        label.append(checkbox, document.createTextNode(`${user.display_name} (@${user.username}) · ${user.client_name}`));
+        return label;
+      }));
+      const help = document.querySelector('#edit-user-managed-help');
+      help.textContent = eligibleUsers.length
+        ? 'Select the existing User accounts this Regular Admin can administer. Leaving this empty means they will not manage any accounts.'
+        : 'No existing User accounts match the selected client scope.';
+    }
+    function updateEditAccountControls(selectedManagedIds = []) {
+      const isAdminAccount = document.querySelector('#edit-user-role').value === 'admin';
+      const singleClient = document.querySelector('#edit-user-client');
+      const singleClientLabel = document.querySelector('#edit-user-client-label');
+      const adminClientsLabel = document.querySelector('#edit-user-admin-client-label');
+      const adminClients = document.querySelector('#edit-user-admin-clients');
+      const managedLabel = document.querySelector('#edit-user-managed-label');
+      const managed = document.querySelector('#edit-user-managed');
+      const managedHelp = document.querySelector('#edit-user-managed-help');
+      singleClient.classList.toggle('hidden', isAdminAccount);
+      singleClient.required = !isAdminAccount;
+      singleClientLabel.classList.toggle('hidden', isAdminAccount);
+      adminClientsLabel.classList.toggle('hidden', !isAdminAccount);
+      adminClients.classList.toggle('hidden', !isAdminAccount);
+      managedLabel.classList.toggle('hidden', !isAdminAccount);
+      managed.classList.toggle('hidden', !isAdminAccount);
+      managedHelp.classList.toggle('hidden', !isAdminAccount);
+      if (isAdminAccount) fillEditManagedUsers(selectedManagedIds);
+    }
+    function openEditAccount(user) {
+      if (!currentUser?.isMasterAdmin || !user || user.is_master_admin) return;
+      editingAccount = user;
+      const dialog = document.querySelector('#edit-user-dialog');
+      const form = document.querySelector('#edit-user-form');
+      const userClients = user.client_names?.length ? user.client_names : [user.client_name].filter(Boolean);
+      form.elements.originalUsername.value = user.username;
+      form.elements.username.value = user.username;
+      form.elements.displayName.value = user.display_name || '';
+      form.elements.googleEmail.value = user.google_email || '';
+      form.elements.photoUrl.value = user.photo_url || '';
+      form.elements.sheetUrl.value = user.sheet_url || '';
+      form.elements.newPassword.value = '';
+      form.elements.role.value = user.role === 'admin' ? 'admin' : 'user';
+      form.elements.status.value = user.status || 'default';
+      fillClientSelect(form.elements.clientName, userClients);
+      fillEditAdminClients(user.role === 'admin' ? userClients : []);
+      document.querySelector('#edit-user-managed').replaceChildren();
+      updateEditAccountControls(user.role === 'admin' ? (user.managed_user_ids || []) : []);
+      document.querySelector('#edit-user-feedback').textContent = '';
+      dialog.showModal();
     }
     function showLoginPanel(panelId) {
       ['login-card', 'password-update-panel'].forEach(id => document.querySelector(`#${id}`).classList.toggle('hidden', id !== panelId));
@@ -5504,6 +5622,10 @@
       body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Loading accounts...</td></tr>';
       try {
         const { users } = await callAdminFunction('list');
+        rosterUsers = users;
+        if (currentUser?.isMasterAdmin) {
+          assignableUserProfiles = users.filter(user => user.role === 'user' && !user.is_master_admin);
+        }
         body.innerHTML = users.map(user => {
           const tempPassword = rosterPasswordMap.get(user.username);
           const isVisible = !!rosterPasswordVisible[user.username] && tempPassword;
@@ -5512,7 +5634,7 @@
             ? `<img class="roster-photo" src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} photo" loading="lazy" onerror="this.replaceWith(document.createTextNode('No photo'))">`
             : '<span class="plantilla-empty">No photo</span>';
           const clientDisplay = (user.client_names?.length ? user.client_names : [user.client_name]).filter(Boolean).join(', ');
-          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${renderPresenceIndicator(user)}</td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
+          return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${renderPresenceIndicator(user)}</td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `${currentUser?.isMasterAdmin ? `<button class="edit-user" type="button" data-edit-account="${escapeHtml(user.username)}">Edit account</button>` : ''}<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
         }).join('');
         const selectAll = document.querySelector('#select-all-users');
         selectAll.checked = false;
@@ -5521,6 +5643,10 @@
           const checkboxes = [...body.querySelectorAll('[data-select-user]')];
           selectAll.checked = checkboxes.length > 0 && checkboxes.every(item => item.checked);
           selectAll.indeterminate = checkboxes.some(item => item.checked) && !selectAll.checked;
+        }));
+        body.querySelectorAll('[data-edit-account]').forEach(button => button.addEventListener('click', () => {
+          const account = rosterUsers.find(user => user.username === button.dataset.editAccount);
+          if (account) openEditAccount(account);
         }));
         body.querySelectorAll('[data-reset-password]').forEach(button => button.addEventListener('click', async () => {
           button.disabled = true;
@@ -5828,6 +5954,25 @@
       const reader = new FileReader();
       reader.addEventListener('load', () => {
         document.querySelector('#new-photo-url').value = String(reader.result || '');
+      });
+      reader.readAsDataURL(file);
+    });
+    document.querySelector('#edit-user-photo-file').addEventListener('change', event => {
+      const file = event.currentTarget.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        notify('Choose an image file for the profile photo.');
+        event.currentTarget.value = '';
+        return;
+      }
+      if (file.size > 512 * 1024) {
+        notify('Choose an image smaller than 512 KB.');
+        event.currentTarget.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        document.querySelector('#edit-user-photo-url').value = String(reader.result || '');
       });
       reader.readAsDataURL(file);
     });
@@ -6139,6 +6284,68 @@
         } finally {
           button.disabled = false;
           button.textContent = 'Add User';
+        }
+      })();
+    });
+    document.querySelector('#edit-user-role').addEventListener('change', () => updateEditAccountControls());
+    document.querySelector('#edit-user-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const feedback = document.querySelector('#edit-user-feedback');
+      const role = form.elements.role.value;
+      const clientNames = role === 'admin'
+        ? selectedEditAdminClients()
+        : selectedClientValues(form.elements.clientName);
+      if (role === 'admin' && !clientNames.length) {
+        feedback.textContent = 'Select at least one client this Regular Admin can access.';
+        return;
+      }
+      if (role === 'user' && clientNames.length !== 1) {
+        feedback.textContent = 'Select exactly one client for this User account.';
+        return;
+      }
+      const sheetUrl = form.elements.sheetUrl.value.trim();
+      if (sheetUrl) {
+        try { spreadsheetIdFromUrl(sheetUrl); }
+        catch {
+          feedback.textContent = 'Enter a Google Sheets document link for the assigned spreadsheet, or leave it blank.';
+          return;
+        }
+      }
+      const button = document.querySelector('#edit-user-save');
+      button.disabled = true;
+      button.textContent = 'Saving...';
+      feedback.textContent = '';
+      (async () => {
+        try {
+          const result = await callAdminFunction('update-account', {
+            username: form.elements.originalUsername.value,
+            newUsername: form.elements.username.value,
+            displayName: form.elements.displayName.value,
+            googleEmail: form.elements.googleEmail.value,
+            photoUrl: form.elements.photoUrl.value,
+            sheetUrl,
+            newPassword: form.elements.newPassword.value,
+            role,
+            clientNames,
+            managedUserIds: role === 'admin'
+              ? [...document.querySelectorAll('#edit-user-managed input[type="checkbox"]:checked')].map(input => input.value)
+              : [],
+            status: form.elements.status.value
+          });
+          if (result.username !== form.elements.originalUsername.value) {
+            rosterPasswordMap.delete(form.elements.originalUsername.value);
+            delete rosterPasswordVisible[form.elements.originalUsername.value];
+          }
+          document.querySelector('#admin-account-feedback').textContent =
+            `Updated @${result.username}.${result.passwordUpdated ? ' The password was changed.' : ''}`;
+          document.querySelector('#edit-user-dialog').close();
+          await renderRoster();
+        } catch (error) {
+          feedback.textContent = error.message || 'Could not update account.';
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Save account';
         }
       })();
     });

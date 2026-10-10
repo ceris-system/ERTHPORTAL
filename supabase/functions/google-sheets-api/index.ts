@@ -228,10 +228,21 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
 
   const urls = assignment?.sheet_urls?.length ? assignment.sheet_urls : (dashboardName === 'PLANTILLA' && target.sheet_url ? [target.sheet_url] : []);
   const assignedClientNames = Array.isArray(assignment?.client_names) ? assignment.client_names : [];
-  const profileClientNames = Array.isArray(target.client_names) ? target.client_names : [];
-  const clientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames.length ? profileClientNames : [target.client_name])
+  const profileClientNames = Array.isArray(target.client_names) && target.client_names.length
+    ? target.client_names
+    : [target.client_name];
+  const configuredClientNames = [...new Set((assignedClientNames.length ? assignedClientNames : profileClientNames)
     .map((value: unknown) => String(value || '').trim())
     .filter((value: string) => value && value !== 'My spreadsheets'))];
+  const profileClientSet = new Set(profileClientNames
+    .map((value: unknown) => String(value || '').trim().toLocaleLowerCase())
+    .filter((value: string) => value && value !== 'My spreadsheets'));
+  const clientNames = target.is_master_admin
+    ? configuredClientNames
+    : configuredClientNames.filter(name => profileClientSet.has(name.toLocaleLowerCase()));
+  if (!target.is_master_admin && !clientNames.length) {
+    throw new Error(`No ${dashboardName} client access is currently assigned to this account.`);
+  }
   const requestedClient = String(body.clientName || '').trim();
   const clientSheetUrls = assignment?.client_sheet_urls && typeof assignment.client_sheet_urls === 'object'
     ? assignment.client_sheet_urls
@@ -239,11 +250,17 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const clientSheetTabs = assignment?.client_sheet_tabs && typeof assignment.client_sheet_tabs === 'object'
     ? assignment.client_sheet_tabs
     : {};
-  let clientMappedUrl = requestedClient ? clientSheetUrls[requestedClient] : '';
-  if (!clientMappedUrl && requestedClient && clientNames.length > 1 && urls.length === clientNames.length) {
-    clientMappedUrl = urls[clientNames.indexOf(requestedClient)];
+  const mappedClientUrlName = requestedClient
+    ? Object.keys(clientSheetUrls).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase())
+    : '';
+  let clientMappedUrl = mappedClientUrlName ? clientSheetUrls[mappedClientUrlName] : '';
+  const configuredClientIndex = requestedClient
+    ? configuredClientNames.findIndex(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase())
+    : -1;
+  if (!clientMappedUrl && requestedClient && urls.length === configuredClientNames.length && configuredClientIndex >= 0) {
+    clientMappedUrl = urls[configuredClientIndex];
   }
-  if (!clientMappedUrl && requestedClient && clientNames.length > 1 && urls.length === 1) clientMappedUrl = urls[0];
+  if (!clientMappedUrl && requestedClient && urls.length === 1) clientMappedUrl = urls[0];
   if (target.role === 'admin' && !target.is_master_admin && clientNames.length > 1 && !clientMappedUrl) {
     throw new Error(`No ${dashboardName} spreadsheet is assigned to ${requestedClient || 'the selected client'}. Ask the Master Admin to assign one.`);
   }
@@ -260,7 +277,7 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (parsed.hostname !== 'docs.google.com') throw new Error('The assigned URL must be a Google Sheets document.');
   const match = parsed.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
   if (!match) throw new Error('The assigned URL is not a Google Sheets document link.');
-  if (target.role === 'admin' && !target.is_master_admin && clientNames.length > 1 && clientMappedUrl) {
+  if (target.role === 'admin' && !target.is_master_admin && configuredClientNames.length > 1 && clientMappedUrl) {
     const expectedSpreadsheetId = spreadsheetIdFromAssignedUrl(clientMappedUrl, dashboardName);
     if (expectedSpreadsheetId !== match[1]) {
       throw new Error(`That spreadsheet is not assigned to ${requestedClient} for ${dashboardName}.`);
@@ -378,7 +395,7 @@ async function getAssignedHrEmplocDestination(
   const [assignmentResult, profileResult] = await Promise.all([
     adminClient.from('dashboard_assignments').select('sheet_urls, client_names, client_sheet_urls, sheet_tab, client_sheet_tabs')
       .eq('user_id', targetUserId).eq('dashboard_name', 'HR EMPLOC MONITORING').maybeSingle(),
-    adminClient.from('profiles').select('client_name, client_names').eq('id', targetUserId).single()
+    adminClient.from('profiles').select('client_name, client_names, is_master_admin').eq('id', targetUserId).single()
   ]);
   if (assignmentResult.error) throw new Error('Could not load the assigned HR EMPLOC spreadsheet.');
   if (profileResult.error || !profileResult.data) throw new Error('Could not load the account client scope for HR EMPLOC.');
@@ -389,7 +406,15 @@ async function getAssignedHrEmplocDestination(
     : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
       ? profileResult.data.client_names
       : [profileResult.data.client_name];
-  const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
+  const configuredClientNames = assignedClients.map((name: unknown) => String(name || '').trim()).filter(Boolean);
+  const profileClients = Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
+    ? profileResult.data.client_names
+    : [profileResult.data.client_name];
+  const profileClientSet = new Set(profileClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean));
+  const clientNames = (profileResult.data.is_master_admin
+    ? configuredClientNames
+    : configuredClientNames.filter(name => profileClientSet.has(name.toLocaleLowerCase())))
+    .map(name => name.toLocaleLowerCase());
   if (!clientNames.length) throw new Error('No clients are assigned to the HR EMPLOC spreadsheet.');
   const normalizedClient = clientName.trim().toLocaleLowerCase();
   if (normalizedClient && !clientNames.includes(normalizedClient)) {
@@ -400,8 +425,11 @@ async function getAssignedHrEmplocDestination(
     : {};
   const mappedClient = normalizedClient && Object.keys(mappings).find(name => name.toLocaleLowerCase() === normalizedClient);
   let selectedUrl = mappedClient ? mappings[mappedClient] : '';
-  if (!selectedUrl && normalizedClient && urls.length === clientNames.length) {
-    selectedUrl = urls[clientNames.indexOf(normalizedClient)];
+  const configuredClientIndex = normalizedClient
+    ? configuredClientNames.findIndex(name => name.toLocaleLowerCase() === normalizedClient)
+    : -1;
+  if (!selectedUrl && normalizedClient && urls.length === configuredClientNames.length && configuredClientIndex >= 0) {
+    selectedUrl = urls[configuredClientIndex];
   }
   if (!selectedUrl && urls.length === 1) selectedUrl = urls[0];
   if (!selectedUrl) throw new Error(`No HR EMPLOC spreadsheet is assigned${clientName ? ` to ${clientName}` : ''}.`);
@@ -443,7 +471,15 @@ async function getAssignedVacancyDestination(
       : Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
         ? profileResult.data.client_names
         : [profileResult.data.client_name];
-  const clientNames = assignedClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean);
+  const configuredClientNames = assignedClients.map((name: unknown) => String(name || '').trim()).filter(Boolean);
+  const profileClients = Array.isArray(profileResult.data.client_names) && profileResult.data.client_names.length
+    ? profileResult.data.client_names
+    : [profileResult.data.client_name];
+  const profileClientSet = new Set(profileClients.map((name: unknown) => String(name || '').trim().toLocaleLowerCase()).filter(Boolean));
+  const clientNames = (profileResult.data.is_master_admin
+    ? configuredClientNames
+    : configuredClientNames.filter(name => profileClientSet.has(name.toLocaleLowerCase())))
+    .map(name => name.toLocaleLowerCase());
   if (!clientNames.length) throw new Error('No clients are assigned to the VACANCY spreadsheet.');
   const normalizedClient = clientName.trim().toLocaleLowerCase();
   if (!clientNames.includes(normalizedClient)) {
@@ -456,8 +492,9 @@ async function getAssignedVacancyDestination(
   const mappedClient = Object.keys(mappings).find(name => name.toLocaleLowerCase() === normalizedClient);
   const mappedUrl = mappedClient ? mappings[mappedClient] : '';
   let selectedUrl = typeof mappedUrl === 'string' && mappedUrl.trim() ? mappedUrl : '';
-  if (!selectedUrl && urls.length === clientNames.length) {
-    selectedUrl = urls[clientNames.indexOf(normalizedClient)];
+  const configuredClientIndex = configuredClientNames.findIndex(name => name.toLocaleLowerCase() === normalizedClient);
+  if (!selectedUrl && urls.length === configuredClientNames.length && configuredClientIndex >= 0) {
+    selectedUrl = urls[configuredClientIndex];
   }
   if (!selectedUrl && urls.length === 1) selectedUrl = urls[0];
   if (!selectedUrl && profileResult.data.is_master_admin && typeof masterFallbackUrl === 'string') {

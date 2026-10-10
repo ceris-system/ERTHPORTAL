@@ -60,11 +60,14 @@ async function protectLastAdmin(adminClient: ReturnType<typeof createClient>, pr
 function canManageUserProfile(actor: any, target: any) {
   if (actor.is_master_admin || target.id === actor.id) return true;
   if (target.role !== 'user') return false;
-  if (Array.isArray(actor.managed_user_ids)) return actor.managed_user_ids.includes(target.id);
   const actorClients = new Set((actor.client_names?.length ? actor.client_names : [actor.client_name])
     .map((client: string) => String(client || '').toLocaleLowerCase()));
   const targetClients = target.client_names?.length ? target.client_names : [target.client_name];
-  return targetClients.some((client: string) => client && client !== 'My spreadsheets' && actorClients.has(String(client).toLocaleLowerCase()));
+  const hasClientAccess = targetClients.some((client: string) =>
+    client && client !== 'My spreadsheets' && actorClients.has(String(client).toLocaleLowerCase()));
+  if (!hasClientAccess) return false;
+  if (Array.isArray(actor.managed_user_ids)) return actor.managed_user_ids.includes(target.id);
+  return true;
 }
 
 Deno.serve(async request => {
@@ -178,7 +181,7 @@ Deno.serve(async request => {
 
     if (body.action === 'list') {
       const { data, error } = await adminClient.from('profiles')
-        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, is_master_admin, role, status, created_at, last_seen_at')
+        .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, managed_user_ids, is_master_admin, role, status, created_at, last_seen_at')
         .order('username');
       if (error) throw new Error('Could not load account list.');
       const users = actor.is_master_admin
@@ -213,11 +216,16 @@ Deno.serve(async request => {
           .eq('dashboard_name', dashboardName)
           .maybeSingle();
         if (error) throw new Error('Could not load this user\'s spreadsheet assignment.');
-        const clientNames = data?.client_names?.length
+        const assignedClientNames = data?.client_names?.length
           ? data.client_names
           : target.client_names?.length
             ? target.client_names
             : [target.client_name].filter(Boolean);
+        const profileClientSet = new Set((target.client_names?.length ? target.client_names : [target.client_name])
+          .map((name: string) => String(name || '').trim().toLocaleLowerCase()));
+        const clientNames = target.is_master_admin
+          ? assignedClientNames
+          : assignedClientNames.filter((name: string) => profileClientSet.has(String(name).trim().toLocaleLowerCase()));
         return respond({
           username,
           dashboardName,
@@ -594,13 +602,142 @@ Deno.serve(async request => {
 
     const targetUsername = String(body.username || '').trim();
     const { data: target, error: targetError } = await adminClient.from('profiles')
-      .select('id, username, display_name, google_email, client_name, client_names, is_master_admin, role, status')
+      .select('id, username, display_name, photo_url, sheet_url, google_email, client_name, client_names, managed_user_ids, is_master_admin, role, status')
       .eq('username', targetUsername)
       .single();
     if (targetError || !target) throw new Error('Username was not found.');
     if (target.is_master_admin) throw new Error('The Master Admin account cannot be modified through user management.');
     if (!canManageUserProfile(actor, target)) {
       throw new Error('This account is not assigned to your administrator account.');
+    }
+
+    if (body.action === 'update-account') {
+      if (!actor.is_master_admin) throw new Error('Only the Master Admin can edit account details and access.');
+      const username = String(body.newUsername || '').trim().toLowerCase();
+      const displayName = String(body.displayName || '').trim();
+      const googleEmail = String(body.googleEmail || '').trim().toLowerCase();
+      const photoUrl = String(body.photoUrl || '').trim();
+      const sheetUrl = String(body.sheetUrl || '').trim();
+      const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+      const role = body.role === 'admin' ? 'admin' : body.role === 'user' ? 'user' : '';
+      const status = String(body.status || '');
+      if (!/^[a-z0-9][a-z0-9._-]{2,39}$/.test(username)) {
+        throw new Error('Username must be 3-40 characters: lowercase letters, numbers, dots, hyphens, or underscores.');
+      }
+      if (!displayName || displayName.length > 80) throw new Error('Enter a display name up to 80 characters.');
+      if (googleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) throw new Error('Enter a valid Google account email or leave it blank.');
+      if (photoUrl.length > 700_000) throw new Error('Profile photo must be smaller than 512 KB.');
+      if (photoUrl) {
+        const isInlineImage = /^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(photoUrl);
+        let isHttpsImageUrl = false;
+        try { isHttpsImageUrl = new URL(photoUrl).protocol === 'https:'; } catch { /* not an absolute image URL */ }
+        if (!isInlineImage && !isHttpsImageUrl) throw new Error('Use an HTTPS profile photo URL or choose an image file.');
+      }
+      if (sheetUrl) {
+        let parsedSheetUrl: URL;
+        try { parsedSheetUrl = new URL(sheetUrl); } catch { throw new Error('Enter a valid Google Sheets document URL or leave it blank.'); }
+        if (!['http:', 'https:'].includes(parsedSheetUrl.protocol) || parsedSheetUrl.hostname !== 'docs.google.com' ||
+          !/^\/spreadsheets\/d\/[A-Za-z0-9_-]+/.test(parsedSheetUrl.pathname)) {
+          throw new Error('Assigned spreadsheet URL must be a Google Sheets document link.');
+        }
+      }
+      if (newPassword && !/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(newPassword)) {
+        throw new Error('New password must be at least 8 characters and include both letters and numbers.');
+      }
+      if (!['active', 'inactive', 'default'].includes(status)) throw new Error('Choose active, inactive, or default account status.');
+      if (!role) throw new Error('Choose a valid account role.');
+      if (!Array.isArray(body.clientNames)) throw new Error('Select the client access for this account.');
+      const clientNames = [...new Set(body.clientNames.map((value: unknown) => {
+        if (typeof value !== 'string' || !value.trim() || value.trim().length > 80) throw new Error('Choose valid client names.');
+        return value.trim();
+      }))];
+      if (role === 'user' && clientNames.length !== 1) throw new Error('Select exactly one client for a User account.');
+      if (role === 'admin' && (clientNames.length < 1 || clientNames.length > 30)) {
+        throw new Error('Select between 1 and 30 clients for a Regular Admin.');
+      }
+      const submittedManagedIds = role === 'admin' ? body.managedUserIds : [];
+      if (!Array.isArray(submittedManagedIds) || submittedManagedIds.length > 200) {
+        throw new Error('Choose a valid list of User accounts for this Regular Admin.');
+      }
+      const managedUserIds = [...new Set(submittedManagedIds.map((value: unknown) => {
+        if (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+          throw new Error('Choose valid User accounts for this administrator.');
+        }
+        return value;
+      }))];
+      if (role === 'admin' && managedUserIds.length) {
+        if (managedUserIds.includes(target.id)) throw new Error('A Regular Admin cannot manage their own account.');
+        const { data: managedUsers, error: managedUsersError } = await adminClient.from('profiles')
+          .select('id, role, is_master_admin, client_name, client_names')
+          .in('id', managedUserIds);
+        if (managedUsersError) throw new Error('Could not validate the selected User accounts.');
+        if (!managedUsers || managedUsers.length !== managedUserIds.length ||
+          managedUsers.some(profile => profile.role !== 'user' || profile.is_master_admin)) {
+          throw new Error('Select only existing User accounts to assign to a Regular Admin.');
+        }
+        const allowedClients = new Set(clientNames.map(name => name.toLocaleLowerCase()));
+        const outsideScope = managedUsers.some(profile => {
+          const profileClients = Array.isArray(profile.client_names) && profile.client_names.length
+            ? profile.client_names
+            : [profile.client_name];
+          const scopedClients = profileClients.filter((name: string) => name && name !== 'My spreadsheets');
+          return !scopedClients.length || scopedClients.some((name: string) => !allowedClients.has(name.toLocaleLowerCase()));
+        });
+        if (outsideScope) throw new Error('Each selected account must belong to a client assigned to this Regular Admin.');
+      }
+      if (target.role === 'admin' && target.status === 'active' && (role !== 'admin' || status !== 'active')) {
+        await protectLastAdmin(adminClient, target);
+      }
+      const { data: profiles, error: profileListError } = await adminClient.from('profiles').select('id, username');
+      if (profileListError) throw new Error('Could not check whether that username is available.');
+      if (profiles?.some(profile => profile.id !== target.id && String(profile.username).toLowerCase() === username)) {
+        throw new Error('That username is already in use.');
+      }
+
+      const changes = {
+        username,
+        display_name: displayName,
+        photo_url: photoUrl,
+        sheet_url: sheetUrl,
+        google_email: googleEmail,
+        client_name: role === 'admin' ? 'ADMIN' : clientNames[0],
+        client_names: clientNames,
+        managed_user_ids: role === 'admin' ? managedUserIds : null,
+        role,
+        status
+      };
+      const { error: profileUpdateError } = await adminClient.from('profiles').update(changes).eq('id', target.id);
+      if (profileUpdateError) throw new Error('Could not save the account profile and access settings.');
+
+      const usernameChanged = username !== target.username;
+      if (usernameChanged || newPassword) {
+        const { data: authResult, error: authLookupError } = await adminClient.auth.admin.getUserById(target.id);
+        if (authLookupError || !authResult.user) {
+          await adminClient.from('profiles').update(target).eq('id', target.id);
+          throw new Error('Could not load the account credentials for updating.');
+        }
+        const authChanges: Record<string, unknown> = {};
+        if (usernameChanged) {
+          authChanges.email = usernameEmail(username);
+          authChanges.email_confirm = true;
+          authChanges.user_metadata = { ...authResult.user.user_metadata, username };
+        }
+        if (newPassword) authChanges.password = newPassword;
+        const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(target.id, authChanges);
+        if (authUpdateError) {
+          const { error: rollbackError } = await adminClient.from('profiles').update(target).eq('id', target.id);
+          if (rollbackError) throw new Error('Credential update failed and the profile could not be restored. Contact support.');
+          throw new Error(authUpdateError.message || 'Could not update account credentials.');
+        }
+      }
+      return respond({
+        username,
+        displayName,
+        role,
+        status,
+        clientNames,
+        passwordUpdated: !!newPassword
+      });
     }
 
     if (body.action === 'reset-password') {
