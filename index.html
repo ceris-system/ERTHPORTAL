@@ -1642,13 +1642,6 @@
       }
       return String(dashboardSheetTabs[name] || fallback).trim();
     }
-    function getApprovalSourceTab(client = getActiveClient()) {
-      const assignedTab = getDashboardSheetTab('FOR APPROVAL', client);
-      const selectedClient = String(client || '').trim().toLocaleLowerCase();
-      return assignedTab.trim().toLocaleLowerCase() === selectedClient
-        ? defaultDashboardSheetTab('FOR APPROVAL')
-        : assignedTab;
-    }
     function sheetA1Range(tabName, range) {
       const safeName = String(tabName || '').trim();
       if (!safeName || safeName.length > 100) throw new Error('Enter a valid spreadsheet tab name (1-100 characters).');
@@ -3213,7 +3206,7 @@
           rawValues = result.rawValues || [];
           displayValues = result.displayValues || [];
         } else {
-          const sheetTab = getApprovalSourceTab(getActiveClient());
+          const sheetTab = getDashboardSheetTab('FOR APPROVAL', getActiveClient());
           const metadata = await sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
           const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === sheetTab);
           if (!vacancySheet) throw new Error(`The assigned spreadsheet needs a tab named ${sheetTab}.`);
