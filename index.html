@@ -1038,15 +1038,16 @@
       <button class="dialog-close" type="button" data-close-dialog aria-label="Close">×</button>
       <span class="dialog-kicker">MASTER ADMIN · ACCOUNT SETTINGS</span>
       <h2 id="edit-user-title">Edit account</h2>
-      <p class="dialog-copy">Update the account profile, sign-in details, access scope, and the User accounts this Regular Admin can manage.</p>
+      <p class="dialog-copy">Update the account profile, sign-in details, access scope, and the User accounts this Regular Admin can manage. Leave the new-password fields blank to keep the current password; setting status to Default will require a password change at next sign-in.</p>
       <form id="edit-user-form" class="user-form">
         <input name="originalUsername" type="hidden">
         <label class="dialog-label" for="edit-user-username">Username</label><input id="edit-user-username" name="username" required maxlength="40" autocomplete="off">
         <label class="dialog-label" for="edit-user-display-name">Display name</label><input id="edit-user-display-name" name="displayName" required maxlength="80">
         <label class="dialog-label" for="edit-user-google-email">Google account email</label><input id="edit-user-google-email" name="googleEmail" type="email" autocomplete="email">
-        <label class="dialog-label" for="edit-user-photo-url">Profile photo</label><input id="edit-user-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an HTTPS image URL or choose a photo below"><input id="edit-user-photo-file" type="file" accept="image/*" aria-label="Choose profile photo">
+        <label class="dialog-label" for="edit-user-photo-url">Profile photo</label><input id="edit-user-photo-url" name="photoUrl" type="text" autocomplete="off" placeholder="Paste an HTTPS image URL or choose a photo below"><input id="edit-user-photo-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" aria-label="Choose profile photo">
         <label class="dialog-label" for="edit-user-sheet-url">Assigned spreadsheet URL</label><input id="edit-user-sheet-url" name="sheetUrl" type="url" inputmode="url" autocomplete="url" placeholder="https://docs.google.com/spreadsheets/d/... (optional)">
         <label class="dialog-label" for="edit-user-password">Set a new password (optional)</label><input id="edit-user-password" name="newPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters, letters and numbers">
+        <label class="dialog-label" for="edit-user-confirm-password">Confirm new password</label><input id="edit-user-confirm-password" name="confirmPassword" type="password" autocomplete="new-password" placeholder="Repeat new password">
         <label class="dialog-label" for="edit-user-role">Role</label><select id="edit-user-role" name="role"><option value="user">User</option><option value="admin">Regular Administrator</option></select>
         <label id="edit-user-client-label" class="dialog-label" for="edit-user-client">Client access</label><select id="edit-user-client" name="clientName" required></select>
         <label id="edit-user-admin-client-label" class="dialog-label hidden">Clients this Regular Admin can access</label><div id="edit-user-admin-clients" class="client-checklist hidden" role="group" aria-labelledby="edit-user-admin-client-label"></div>
@@ -2246,6 +2247,7 @@
       form.elements.photoUrl.value = user.photo_url || '';
       form.elements.sheetUrl.value = user.sheet_url || '';
       form.elements.newPassword.value = '';
+      form.elements.confirmPassword.value = '';
       form.elements.role.value = user.role === 'admin' ? 'admin' : 'user';
       form.elements.status.value = user.status || 'default';
       fillClientSelect(form.elements.clientName, userClients);
@@ -5941,8 +5943,8 @@
     document.querySelector('#new-photo-file').addEventListener('change', event => {
       const file = event.currentTarget.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith('image/')) {
-        notify('Choose an image file for the profile photo.');
+      if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+        notify('Choose a PNG, JPEG, GIF, or WebP image for the profile photo.');
         event.currentTarget.value = '';
         return;
       }
@@ -5960,8 +5962,8 @@
     document.querySelector('#edit-user-photo-file').addEventListener('change', event => {
       const file = event.currentTarget.files?.[0];
       if (!file) return;
-      if (!file.type.startsWith('image/')) {
-        notify('Choose an image file for the profile photo.');
+      if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(file.type)) {
+        notify('Choose a PNG, JPEG, GIF, or WebP image for the profile photo.');
         event.currentTarget.value = '';
         return;
       }
@@ -6293,6 +6295,12 @@
       const form = event.currentTarget;
       const feedback = document.querySelector('#edit-user-feedback');
       const role = form.elements.role.value;
+      const newPassword = form.elements.newPassword.value;
+      const confirmPassword = form.elements.confirmPassword.value;
+      if (newPassword !== confirmPassword) {
+        feedback.textContent = 'The new passwords do not match.';
+        return;
+      }
       const clientNames = role === 'admin'
         ? selectedEditAdminClients()
         : selectedClientValues(form.elements.clientName);
@@ -6325,7 +6333,7 @@
             googleEmail: form.elements.googleEmail.value,
             photoUrl: form.elements.photoUrl.value,
             sheetUrl,
-            newPassword: form.elements.newPassword.value,
+            newPassword,
             role,
             clientNames,
             managedUserIds: role === 'admin'

@@ -226,19 +226,26 @@ Deno.serve(async request => {
         const clientNames = target.is_master_admin
           ? assignedClientNames
           : assignedClientNames.filter((name: string) => profileClientSet.has(String(name).trim().toLocaleLowerCase()));
+        const rawUrls = data?.sheet_urls || [];
+        const urls = rawUrls.length > 1 && rawUrls.length === assignedClientNames.length
+          ? clientNames.map((name: string) => rawUrls[assignedClientNames.findIndex((assigned: string) =>
+            assigned.toLocaleLowerCase() === name.toLocaleLowerCase())]).filter(Boolean)
+          : rawUrls;
+        const filterClientMap = (value: any) => Object.fromEntries(Object.entries(value || {}).filter(([name]) =>
+          clientNames.some((client: string) => client.toLocaleLowerCase() === name.toLocaleLowerCase())));
         return respond({
           username,
           dashboardName,
-          urls: data?.sheet_urls || [],
+          urls,
           clientNames,
-          clientSheetUrls: data?.client_sheet_urls || {},
+          clientSheetUrls: filterClientMap(data?.client_sheet_urls),
           sheetTab: data?.sheet_tab || '',
-          clientSheetTabs: data?.client_sheet_tabs || {},
-          clientBufferDetailTabs: data?.client_buffer_detail_tabs || {},
-          clientVcodeSourceUrls: data?.client_vcode_source_urls || {},
-          clientVcodeSourceTabs: data?.client_vcode_source_tabs || {},
-          clientVcodeDeletedTabs: data?.client_vcode_deleted_tabs || {},
-          clientDeactivationMikaTabs: data?.client_deactivation_mika_tabs || {}
+          clientSheetTabs: filterClientMap(data?.client_sheet_tabs),
+          clientBufferDetailTabs: filterClientMap(data?.client_buffer_detail_tabs),
+          clientVcodeSourceUrls: filterClientMap(data?.client_vcode_source_urls),
+          clientVcodeSourceTabs: filterClientMap(data?.client_vcode_source_tabs),
+          clientVcodeDeletedTabs: filterClientMap(data?.client_vcode_deleted_tabs),
+          clientDeactivationMikaTabs: filterClientMap(data?.client_deactivation_mika_tabs)
         });
       }
 
@@ -713,7 +720,8 @@ Deno.serve(async request => {
       if (usernameChanged || newPassword) {
         const { data: authResult, error: authLookupError } = await adminClient.auth.admin.getUserById(target.id);
         if (authLookupError || !authResult.user) {
-          await adminClient.from('profiles').update(target).eq('id', target.id);
+          const { error: rollbackError } = await adminClient.from('profiles').update(target).eq('id', target.id);
+          if (rollbackError) throw new Error('Credential lookup failed and the profile could not be restored. Contact support.');
           throw new Error('Could not load the account credentials for updating.');
         }
         const authChanges: Record<string, unknown> = {};

@@ -250,17 +250,18 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   const clientSheetTabs = assignment?.client_sheet_tabs && typeof assignment.client_sheet_tabs === 'object'
     ? assignment.client_sheet_tabs
     : {};
-  const mappedClientUrlName = requestedClient
-    ? Object.keys(clientSheetUrls).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase())
+  const selectedClient = requestedClient || (clientNames.length === 1 ? clientNames[0] : '');
+  const mappedClientUrlName = selectedClient
+    ? Object.keys(clientSheetUrls).find(name => name.toLocaleLowerCase() === selectedClient.toLocaleLowerCase())
     : '';
   let clientMappedUrl = mappedClientUrlName ? clientSheetUrls[mappedClientUrlName] : '';
-  const configuredClientIndex = requestedClient
-    ? configuredClientNames.findIndex(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase())
+  const configuredClientIndex = selectedClient
+    ? configuredClientNames.findIndex(name => name.toLocaleLowerCase() === selectedClient.toLocaleLowerCase())
     : -1;
-  if (!clientMappedUrl && requestedClient && urls.length === configuredClientNames.length && configuredClientIndex >= 0) {
+  if (!clientMappedUrl && selectedClient && urls.length === configuredClientNames.length && configuredClientIndex >= 0) {
     clientMappedUrl = urls[configuredClientIndex];
   }
-  if (!clientMappedUrl && requestedClient && urls.length === 1) clientMappedUrl = urls[0];
+  if (!clientMappedUrl && selectedClient && urls.length === 1) clientMappedUrl = urls[0];
   if (target.role === 'admin' && !target.is_master_admin && clientNames.length > 1 && !clientMappedUrl) {
     throw new Error(`No ${dashboardName} spreadsheet is assigned to ${requestedClient || 'the selected client'}. Ask the Master Admin to assign one.`);
   }
@@ -277,10 +278,10 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (parsed.hostname !== 'docs.google.com') throw new Error('The assigned URL must be a Google Sheets document.');
   const match = parsed.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]+)/);
   if (!match) throw new Error('The assigned URL is not a Google Sheets document link.');
-  if (target.role === 'admin' && !target.is_master_admin && configuredClientNames.length > 1 && clientMappedUrl) {
+  if (!target.is_master_admin && selectedClient && clientMappedUrl) {
     const expectedSpreadsheetId = spreadsheetIdFromAssignedUrl(clientMappedUrl, dashboardName);
     if (expectedSpreadsheetId !== match[1]) {
-      throw new Error(`That spreadsheet is not assigned to ${requestedClient} for ${dashboardName}.`);
+      throw new Error(`That spreadsheet is not assigned to ${selectedClient} for ${dashboardName}.`);
     }
   }
   if (!urls.some((value: string) => {
