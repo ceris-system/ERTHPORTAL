@@ -277,6 +277,10 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
     .filter((value: string) => value && value !== 'My spreadsheets'))];
   const matchedClientTab = Object.keys(clientSheetTabs).find(name => name.toLocaleLowerCase() === requestedClient.toLocaleLowerCase());
   let sheetTab = String((matchedClientTab ? clientSheetTabs[matchedClientTab] : '') || assignment?.sheet_tab || defaultSheetTab(dashboardName)).trim();
+  if (dashboardName === 'FOR APPROVAL' &&
+    clientNames.some(name => name.toLocaleLowerCase() === sheetTab.toLocaleLowerCase())) {
+    sheetTab = defaultSheetTab(dashboardName);
+  }
   const deactivationMikaTabs = assignment?.client_deactivation_mika_tabs && typeof assignment.client_deactivation_mika_tabs === 'object'
     ? assignment.client_deactivation_mika_tabs
     : {};
