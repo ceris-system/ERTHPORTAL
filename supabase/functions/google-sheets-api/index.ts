@@ -1804,6 +1804,9 @@ Deno.serve(async request => {
       return respond(await listAttritionClients(body.spreadsheetUrl, body.sheetTab));
     }
     const { spreadsheetId, targetUserId, clientName, clientNames, targetRole, targetUsername, targetIsMasterAdmin, sheetTab, deactivationMikaTab, vcodeSourceSpreadsheetId, vcodeSourceTab, deletedVcodeTab } = await getAssignedSheet(adminClient, actor, body);
+    if (body.action === 'approve-vacancy' && targetRole !== 'admin' && !targetIsMasterAdmin) {
+      return respond({ error: 'Only Master Admins and Regular Admins can approve records.' }, 403);
+    }
     if (body.action === 'approve-vacancy' && targetRole === 'admin' && !targetIsMasterAdmin &&
       targetUsername.toLocaleLowerCase() === 'annie') {
       return respond({ error: 'ANNIE is not allowed to approve records.' }, 403);

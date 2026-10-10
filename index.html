@@ -1670,9 +1670,9 @@
       if (Array.isArray(saved)) return saved.filter(value => typeof value === 'string' && value.trim());
       return typeof saved === 'string' && saved.trim() ? [saved.trim()] : [];
     }
-    function getDashboardClientNames(name) {
+    function getDashboardClientNames(name, includeAll = false) {
       const selectedClient = selectedDashboardClients[name];
-      if (selectedClient) return [selectedClient];
+      if (!includeAll && selectedClient) return [selectedClient];
       const assigned = dashboardClientAssignments[name];
       if (Array.isArray(assigned) && assigned.length) return assigned;
       return (currentUser?.clientNames || [currentUser?.client]).filter(value => value && value !== 'My spreadsheets');
@@ -2627,7 +2627,6 @@
     let vacancySpreadsheetId = '';
     let approvalRecords = [];
     let selectedApprovalRows = new Set();
-    let approvalSpreadsheetId = '';
     let hrEmplocRecords = [];
     let hrEmplocSpreadsheetId = '';
     function showPlantilla() {
@@ -3051,8 +3050,6 @@
     }
     function showForApproval() {
       saveCurrentView('dashboard', 'FOR APPROVAL');
-      const savedSheetUrl = getDashboardSources('FOR APPROVAL')[0] || '';
-      approvalSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       approvalRecords = [];
       selectedApprovalRows = new Set();
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
@@ -3061,10 +3058,8 @@
         ? '<th scope="col"><input id="approval-select-all" type="checkbox" aria-label="Select all visible rows"></th>'
         : '';
       const approvalColumnCount = canApprove ? 9 : 8;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>CLIENT: ${escapeHtml(getDashboardClientLabel('FOR APPROVAL'))} · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button>${canApprove ? '<button id="approval-confirm" class="secondary-button approval-approve-button" type="button" disabled>Approve</button>' : ''}<button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off">${dashboardClientSwitcherMarkup('FOR APPROVAL')}<p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr>${approvalColumn}<th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="${approvalColumnCount}" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Onboard Date (P) · Aging (R)</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>FOR APPROVAL</h1><p>ALL ASSIGNED CLIENTS · Source tab: VACANCY</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="approval-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="approval-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="approval-refresh" class="secondary-button" type="button">Refresh</button>${canApprove ? '<button id="approval-confirm" class="secondary-button approval-approve-button" type="button" disabled>Approve</button>' : ''}<button id="approval-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="approval-search" class="plantilla-search" type="search" aria-label="Search approval records" placeholder="Search client, VCODE, outlet, fullname..." autocomplete="off"><p id="approval-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table approval-table"><thead><tr>${approvalColumn}<th scope="col">CLIENT</th><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">FULLNAME</th><th scope="col">HC</th><th scope="col">DATE VACANT</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th></tr></thead><tbody id="approval-table-body"><tr><td colspan="${approvalColumnCount}" class="plantilla-empty">Loading approval records...</td></tr></tbody></table></div><div class="module-footer"><span>Approval records</span><span>VCODE (B) · Client (C) · Outlet (G) · Fullname (AL) · HC (I) · Date Vacant (O) · Onboard Date (P) · Aging (R)</span></div>`;
       applyDashboardAssignmentPermissions();
-      bindDashboardClientSwitcher('FOR APPROVAL');
-      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('FOR APPROVAL')} · Source tab: VACANCY`;
       document.querySelector('#approval-assign-sheet')?.addEventListener('click', () => openDashboardEditor('FOR APPROVAL'));
       document.querySelector('#approval-authorize-google')?.addEventListener('click', async () => {
         try {
@@ -3118,7 +3113,7 @@
             try {
               const result = await callSheetsFunction('approve-vacancy', {
                 vcodes: [vcode],
-                clientName: getActiveClient(),
+                clientName: selectedRecords[index].client,
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {})
               });
               approvedCount += Number(result.approvedCount || 0);
@@ -3170,7 +3165,7 @@
     function canApproveApprovalRecords() {
       const account = previewedUser || currentUser;
       const username = String(account?.username || '').trim().toLocaleLowerCase();
-      const isAdministrator = !!currentUser && (currentUser.isMasterAdmin || currentUser.role === 'admin');
+      const isAdministrator = !!account && (account.isMasterAdmin || account.role === 'admin');
       const isAnnieRegularAdmin = account?.role === 'admin' && !account.isMasterAdmin && username === 'annie';
       return isAdministrator && !isAnnieRegularAdmin;
     }
@@ -3188,38 +3183,48 @@
       const columnCount = document.querySelector('#approval-select-all') ? 9 : 8;
       selectedApprovalRows = new Set();
       approvalRecords = [];
-      if (!approvalSpreadsheetId) {
-        status.textContent = currentUser?.role === 'admin' ? 'Assign a FOR APPROVAL spreadsheet to a user to begin.' : 'No FOR APPROVAL spreadsheet is assigned to your account. Contact your administrator.';
+      const clients = getDashboardClientNames('FOR APPROVAL', true);
+      if (!clients.length) {
+        status.textContent = currentUser?.role === 'admin' ? 'Assign FOR APPROVAL clients and spreadsheets to begin.' : 'No FOR APPROVAL clients are assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
       }
       status.textContent = 'Loading records...';
       body.innerHTML = `<tr><td colspan="${columnCount}" class="plantilla-empty">Loading approval records...</td></tr>`;
       try {
-        let rawValues;
-        let displayValues;
-        if (usesAssignedSheetAccess()) {
-          const result = await callSheetsFunction('read-for-approval', {
-            clientName: getActiveClient(),
-            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
-          });
-          rawValues = result.rawValues || [];
-          displayValues = result.displayValues || [];
-        } else {
-          const sheetTab = getDashboardSheetTab('FOR APPROVAL', getActiveClient());
-          const metadata = await sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
+        const rawValues = [];
+        const displayValues = [];
+        for (const client of clients) {
+          if (usesAssignedSheetAccess()) {
+            const result = await callSheetsFunction('read-for-approval', {
+              clientName: client,
+              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+            });
+            rawValues.push(...(result.rawValues || []));
+            displayValues.push(...(result.displayValues || []));
+            continue;
+          }
+          const assignedUrls = dashboardAssignments['FOR APPROVAL'];
+          const clientIndex = clients.findIndex(name => name.toLocaleLowerCase() === client.toLocaleLowerCase());
+          const sourceUrl = getDashboardSources('FOR APPROVAL', client)[0] ||
+            (Array.isArray(assignedUrls) && assignedUrls.length === clients.length ? assignedUrls[clientIndex] : '') ||
+            (Array.isArray(assignedUrls) && assignedUrls.length === 1 ? assignedUrls[0] : '');
+          if (!sourceUrl) throw new Error(`No FOR APPROVAL spreadsheet is assigned to ${client}. Ask the Master Admin to assign one.`);
+          const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
+          const sheetTab = getDashboardSheetTab('FOR APPROVAL', client);
+          const metadata = await sheetsApiRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
           const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === sheetTab);
-          if (!vacancySheet) throw new Error(`The assigned spreadsheet needs a tab named ${sheetTab}.`);
+          if (!vacancySheet) throw new Error(`The assigned spreadsheet for ${client} needs a tab named ${sheetTab}.`);
           const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
           const sheetRange = `'${vacancySheet.properties.title.replace(/'/g, "''")}'`;
           const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
           const [rawResult, displayResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-            sheetsApiRequest(`spreadsheets/${approvalSpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
           ]);
-          const filtered = filterRowsByClient(rawResult.values || [], displayResult.values || [], getDashboardClientNames('FOR APPROVAL'), 1);
-          rawValues = filtered.rawValues;
-          displayValues = filtered.displayValues;
+          const filtered = filterRowsByClient(rawResult.values || [], displayResult.values || [], [client], 1);
+          rawValues.push(...filtered.rawValues);
+          displayValues.push(...filtered.displayValues);
         }
         const requiredApprovalColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
         const eligibleIndexes = displayValues.flatMap((displayRow, index) => {
