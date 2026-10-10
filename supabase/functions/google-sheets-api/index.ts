@@ -281,13 +281,6 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   let sheetTab = String(dashboardName === 'DEACTIVATION'
     ? assignedSheetTab || mappedSheetTab || defaultSheetTab(dashboardName)
     : mappedSheetTab || assignedSheetTab || defaultSheetTab(dashboardName)).trim();
-  if (dashboardName === 'DEACTIVATION' &&
-    clientNames.some(name => name.toLocaleLowerCase() === sheetTab.toLocaleLowerCase())) {
-    sheetTab = mappedSheetTab &&
-      !clientNames.some(name => name.toLocaleLowerCase() === mappedSheetTab.toLocaleLowerCase())
-      ? mappedSheetTab
-      : defaultSheetTab(dashboardName);
-  }
   const deactivationMikaTabs = assignment?.client_deactivation_mika_tabs && typeof assignment.client_deactivation_mika_tabs === 'object'
     ? assignment.client_deactivation_mika_tabs
     : {};
