@@ -1701,6 +1701,13 @@
     function getDashboardClientNames(name, includeAll = false) {
       const selectedClient = selectedDashboardClients[name];
       if (!includeAll && selectedClient) return [selectedClient];
+      if (name === 'SIL') return getDashboardClientNames('PLANTILLA', includeAll);
+      if (name === 'PLANTILLA SUMMARY') {
+        const plantillaClients = dashboardClientAssignments.PLANTILLA || [];
+        const vcodeClients = dashboardClientAssignments['VCODE MASTERLIST'] || [];
+        return plantillaClients.filter(client => vcodeClients.some(value =>
+          value.toLocaleLowerCase() === client.toLocaleLowerCase()));
+      }
       const assigned = dashboardClientAssignments[name];
       if (Array.isArray(assigned) && assigned.length) return assigned;
       return (currentUser?.clientNames || [currentUser?.client]).filter(value => value && value !== 'My spreadsheets');
@@ -1712,18 +1719,31 @@
     function dashboardClientSwitcherMarkup(name) {
       const isRegularAdminView = previewedUser?.role === 'admin' ||
         (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin);
-      const clients = (dashboardClientAssignments[name] || [])
-        .filter(client => getDashboardSources(name, client).length > 0);
+      const clients = getDashboardClientNames(name, true).filter(client => {
+        if (name === 'SIL') return getDashboardSources('PLANTILLA', client).length > 0;
+        if (name === 'PLANTILLA SUMMARY') {
+          return getDashboardSources('PLANTILLA', client).length > 0 &&
+            getDashboardSources('VCODE MASTERLIST', client).length > 0;
+        }
+        return getDashboardSources(name, client).length > 0;
+      });
       if (!isRegularAdminView || clients.length < 2) return '';
       const selected = clients.includes(selectedDashboardClients[name]) ? selectedDashboardClients[name] : clients[0];
-      return `<label class="dashboard-client-switcher" for="dashboard-client-switcher"><span>CLIENT</span><select id="dashboard-client-switcher" aria-label="Switch dashboard client">${clients.map(client => `<option value="${escapeHtml(client)}"${client === selected ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')}</select></label>`;
+      return `<label class="dashboard-client-switcher" for="dashboard-client-switcher-${escapeHtml(name.replace(/[^a-z0-9]+/gi, '-').toLowerCase())}"><span>CLIENT</span><select id="dashboard-client-switcher-${escapeHtml(name.replace(/[^a-z0-9]+/gi, '-').toLowerCase())}" aria-label="Switch dashboard client">${clients.map(client => `<option value="${escapeHtml(client)}"${client === selected ? ' selected' : ''}>${escapeHtml(client)}</option>`).join('')}</select></label>`;
     }
     function bindDashboardClientSwitcher(name) {
-      const select = document.querySelector('#dashboard-client-switcher');
+      const selectorId = `#dashboard-client-switcher-${name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+      const select = document.querySelector(selectorId);
       if (!select) return;
       select.addEventListener('change', () => {
         const client = select.value;
-        if (!(dashboardClientAssignments[name] || []).includes(client) || !getDashboardSources(name, client).length) {
+        const allowedClients = getDashboardClientNames(name, true);
+        const hasSource = name === 'SIL'
+          ? getDashboardSources('PLANTILLA', client).length > 0
+          : name === 'PLANTILLA SUMMARY'
+            ? getDashboardSources('PLANTILLA', client).length > 0 && getDashboardSources('VCODE MASTERLIST', client).length > 0
+            : getDashboardSources(name, client).length > 0;
+        if (!allowedClients.some(value => value.toLocaleLowerCase() === client.toLocaleLowerCase()) || !hasSource) {
           return notify('Choose a client assigned to this dashboard.');
         }
         selectedDashboardClients[name] = client;
@@ -2800,7 +2820,7 @@
         let eligibleCount;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('fill-plantilla-newly-hired', {
-            clientName: getActiveClient(),
+            clientName: record.clientName || getActiveClient(),
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           eligibleCount = result.eligibleCount || 0;
@@ -3152,10 +3172,8 @@
       const savedSheetUrl = getDashboardSources('VACANCY MONITORING')[0] || '';
       vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off">${dashboardClientSwitcherMarkup('VACANCY MONITORING')}<p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENTS: ${escapeHtml(getDashboardClientNames('VACANCY MONITORING', true).join(', '))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
-      bindDashboardClientSwitcher('VACANCY MONITORING');
-      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('VACANCY MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
       document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
         try {
@@ -3439,7 +3457,7 @@
       const spreadsheetId = vacancySpreadsheetId;
       const clientName = getActiveClient();
       const clientNames = getDashboardClientNames('VACANCY MONITORING');
-      if (!vacancySpreadsheetId) {
+      if (!usesAssignedSheetAccess() && !vacancySpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign a VACANCY MONITORING spreadsheet to a user to begin.' : 'No VACANCY MONITORING spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="7" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
@@ -3450,14 +3468,32 @@
         let rawValues;
         let displayValues;
         let serverFiltered = false;
+        let recordClients = [];
+        let recordNumbers = [];
         if (usesAssignedSheetAccess()) {
-          const result = await callSheetsFunction('read-vacancy', {
-            clientName,
-            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
-          });
-          rawValues = result.rawValues || [];
-          displayValues = result.displayValues || [];
-          vacancyDeployers = result.deployers || [];
+          rawValues = [];
+          displayValues = [];
+          vacancyDeployers = [];
+          const clients = getDashboardClientNames('VACANCY MONITORING', true);
+          if (!clients.length) throw new Error('No clients are assigned to VACANCY MONITORING.');
+          for (const client of clients) {
+            if (!getDashboardSources('VACANCY MONITORING', client).length) {
+              throw new Error(`No VACANCY MONITORING spreadsheet is assigned for ${client}. Ask the Master Admin to assign one.`);
+            }
+            const result = await callSheetsFunction('read-vacancy', {
+              clientName: client,
+              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+            });
+            const clientRaw = result.rawValues || [];
+            const clientDisplay = result.displayValues || [];
+            const count = Math.max(clientRaw.length, clientDisplay.length);
+            rawValues = rawValues.concat(clientRaw);
+            displayValues = displayValues.concat(clientDisplay);
+            recordClients = recordClients.concat(Array(count).fill(client));
+            recordNumbers = recordNumbers.concat(Array.from({ length: count }, (_, index) => index + 5));
+            vacancyDeployers = vacancyDeployers.concat(result.deployers || []);
+          }
+          vacancyDeployers = [...new Set(vacancyDeployers)];
           serverFiltered = true;
         } else {
           const range = quoteSheetTab(getDashboardSheetTab('VACANCY MONITORING', clientName), 'B5:AF');
@@ -3484,7 +3520,8 @@
           const value = column => String(display[column] ?? '').trim();
           const rawValue = column => raw[column] ?? display[column] ?? '';
           return {
-            rowNumber: index + 5,
+            rowNumber: recordNumbers[index] || index + 5,
+            clientName: recordClients[index] || clientName,
             vcode: value(0),
             outlet: value(5),
             position: value(6),
@@ -3534,11 +3571,13 @@
         body.innerHTML = '<tr><td colspan="7" class="plantilla-empty">No records match your search.</td></tr>';
         return;
       }
-      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td><button class="view-row-button" type="button" data-view-vacancy="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
-      body.querySelectorAll('[data-view-vacancy]').forEach(button => button.addEventListener('click', () => openVacancyDrawer(button.dataset.viewVacancy)));
+      body.innerHTML = filteredRecords.map((record, index) => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td>${escapeHtml(record.vacantDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td><button class="view-row-button" type="button" data-view-vacancy="${escapeHtml(record.vcode)}" data-view-vacancy-client="${escapeHtml(record.clientName || '')}" data-view-vacancy-row="${record.rowNumber}">View</button></td></tr>`).join('');
+      body.querySelectorAll('[data-view-vacancy]').forEach(button => button.addEventListener('click', () => openVacancyDrawer(button.dataset.viewVacancy, button.dataset.viewVacancyClient, Number(button.dataset.viewVacancyRow))));
     }
-    function openVacancyDrawer(vcode) {
-      const record = vacancyRecords.find(item => item.vcode === vcode);
+    function openVacancyDrawer(vcode, clientName, rowNumber) {
+      const record = vacancyRecords.find(item => item.vcode === vcode &&
+        (!clientName || item.clientName === clientName) &&
+        (!rowNumber || item.rowNumber === rowNumber));
       if (!record) return notify(`No loaded vacancy record matches VCODE ${vcode}.`);
       const field = (label, value) => `<div class="drawer-field"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value || '-')}</strong></div>`;
       const optionList = (values, selected) => `<option value="">Choose...</option>${[...new Set([...values, selected].filter(Boolean))].map(value => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(value)}</option>`).join('')}`;
@@ -3598,7 +3637,7 @@
           });
         } else {
           if (!googleAccessToken) throw new Error('Authorize Google Sheets before updating this record.');
-          const vacancyTab = getDashboardSheetTab('VACANCY MONITORING', getActiveClient());
+          const vacancyTab = getDashboardSheetTab('VACANCY MONITORING', record.clientName || getActiveClient());
           const range = quoteSheetTab(vacancyTab, 'B5:C');
           const result = await sheetsApiRequest(`spreadsheets/${vacancySpreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
           const matches = (result.values || []).map((rowValues, index) => String(rowValues[0] ?? '').trim() === vcode ? index + 5 : 0).filter(Boolean);
@@ -3660,9 +3699,9 @@
           }
         }
         renderVacancyTable();
-        openVacancyDrawer(vcode);
+        openVacancyDrawer(vcode, record.clientName, record.rowNumber);
         loadVacancyRecords().then(refreshed => {
-          if (refreshed && vacancyRecords.some(item => item.vcode === vcode)) openVacancyDrawer(vcode);
+          if (refreshed && vacancyRecords.some(item => item.vcode === vcode && item.clientName === record.clientName)) openVacancyDrawer(vcode, record.clientName, record.rowNumber);
         });
       } catch (error) {
         button.disabled = false;
@@ -3676,10 +3715,8 @@
       const savedSheetUrl = getDashboardSources('HR EMPLOC MONITORING')[0] || '';
       hrEmplocSpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENT: ${escapeHtml(getActiveClient())} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off">${dashboardClientSwitcherMarkup('HR EMPLOC MONITORING')}<p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>HR EMPLOC MONITORING</h1><p>CLIENTS: ${escapeHtml(getDashboardClientNames('HR EMPLOC MONITORING', true).join(', '))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="hr-emploc-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="hr-emploc-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="hr-emploc-refresh" class="secondary-button" type="button">Refresh</button><button id="hr-emploc-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="hr-emploc-search" class="plantilla-search" type="search" aria-label="Search HR EMPLOC records" placeholder="Search VCODE, name, position, outlet..." autocomplete="off"><p id="hr-emploc-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">FULLNAME</th><th scope="col">POSITION</th><th scope="col">ONBOARD DATE</th><th scope="col">AGING</th><th scope="col">OUTLET</th><th scope="col">HC</th><th scope="col">VIEW</th></tr></thead><tbody id="hr-emploc-table-body"><tr><td colspan="8" class="plantilla-empty">Loading HR EMPLOC records...</td></tr></tbody></table></div><div class="module-footer"><span>HR EMPLOC records</span><span>Source tab: G1N · Unique key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
-      bindDashboardClientSwitcher('HR EMPLOC MONITORING');
-      content.querySelector('.plantilla-toolbar p').textContent = `CLIENT: ${getDashboardClientLabel('HR EMPLOC MONITORING')} · Records are matched by VCODE`;
       document.querySelector('#hr-emploc-assign-sheet')?.addEventListener('click', () => openDashboardEditor('HR EMPLOC MONITORING'));
       document.querySelector('#hr-emploc-authorize-google')?.addEventListener('click', async () => {
         try {
@@ -3701,7 +3738,7 @@
       const spreadsheetId = hrEmplocSpreadsheetId;
       const clientName = getActiveClient();
       const clientNames = getDashboardClientNames('HR EMPLOC MONITORING');
-      if (!hrEmplocSpreadsheetId) {
+      if (!usesAssignedSheetAccess() && !hrEmplocSpreadsheetId) {
         status.textContent = currentUser?.role === 'admin' ? 'Assign an HR EMPLOC MONITORING spreadsheet to a user to begin.' : 'No HR EMPLOC MONITORING spreadsheet is assigned to your account. Contact your administrator.';
         body.innerHTML = `<tr><td colspan="8" class="plantilla-empty">${escapeHtml(status.textContent)}</td></tr>`;
         return false;
@@ -3712,13 +3749,29 @@
         let rawValues;
         let displayValues;
         let serverFiltered = false;
+        let recordClients = [];
+        let recordNumbers = [];
         if (usesAssignedSheetAccess()) {
-          const result = await callSheetsFunction('read-hr-emploc', {
-            clientName,
-            ...(previewedUser ? { targetUsername: previewedUser.username } : {})
-          });
-          rawValues = result.rawValues || [];
-          displayValues = result.displayValues || [];
+          rawValues = [];
+          displayValues = [];
+          const clients = getDashboardClientNames('HR EMPLOC MONITORING', true);
+          if (!clients.length) throw new Error('No clients are assigned to HR EMPLOC MONITORING.');
+          for (const client of clients) {
+            if (!getDashboardSources('HR EMPLOC MONITORING', client).length) {
+              throw new Error(`No HR EMPLOC MONITORING spreadsheet is assigned for ${client}. Ask the Master Admin to assign one.`);
+            }
+            const result = await callSheetsFunction('read-hr-emploc', {
+              clientName: client,
+              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+            });
+            const clientRaw = result.rawValues || [];
+            const clientDisplay = result.displayValues || [];
+            const count = Math.max(clientRaw.length, clientDisplay.length);
+            rawValues = rawValues.concat(clientRaw);
+            displayValues = displayValues.concat(clientDisplay);
+            recordClients = recordClients.concat(Array(count).fill(client));
+            recordNumbers = recordNumbers.concat(Array.from({ length: count }, (_, index) => index + 9));
+          }
           serverFiltered = true;
         } else {
           const hrTab = getDashboardSheetTab('HR EMPLOC MONITORING', clientName);
@@ -3733,6 +3786,7 @@
         if (!serverFiltered) {
           const activeClients = new Set(clientNames
             .map(client => client.trim().toLocaleLowerCase()));
+          const hrTab = getDashboardSheetTab('HR EMPLOC MONITORING', clientName);
           const clientRange = quoteSheetTab(hrTab, 'B9:B');
           const clientResult = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${clientRange}?valueRenderOption=FORMATTED_VALUE`);
           const clientValues = (clientResult.values || []).flat().map(value => String(value || '').trim());
@@ -3759,7 +3813,8 @@
           const value = column => String(display[column] ?? '').trim();
           const onboardDate = raw[15] ?? display[15] ?? '';
           return {
-            rowNumber: index + 9,
+            rowNumber: recordNumbers[index] || index + 9,
+            clientName: recordClients[index] || clientName,
             vcode: value(0),
             fullName: value(4),
             hrcoRemarks: value(3),
@@ -3800,11 +3855,13 @@
         body.innerHTML = '<tr><td colspan="8" class="plantilla-empty">No records match your search.</td></tr>';
         return;
       }
-      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.onboardDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-hr-emploc="${escapeHtml(record.vcode)}">View</button></td></tr>`).join('');
-      body.querySelectorAll('[data-view-hr-emploc]').forEach(button => button.addEventListener('click', () => openHrEmplocDrawer(button.dataset.viewHrEmploc)));
+      body.innerHTML = filteredRecords.map(record => `<tr><td>${escapeHtml(record.vcode)}</td><td>${escapeHtml(record.fullName || '-')}</td><td>${escapeHtml(record.position || '-')}</td><td>${escapeHtml(record.onboardDate || '-')}</td><td>${escapeHtml(record.aging || '-')}</td><td>${escapeHtml(record.outlet || '-')}</td><td>${escapeHtml(record.hc || '-')}</td><td><button class="view-row-button" type="button" data-view-hr-emploc="${escapeHtml(record.vcode)}" data-view-hr-emploc-client="${escapeHtml(record.clientName || '')}" data-view-hr-emploc-row="${record.rowNumber}">View</button></td></tr>`).join('');
+      body.querySelectorAll('[data-view-hr-emploc]').forEach(button => button.addEventListener('click', () => openHrEmplocDrawer(button.dataset.viewHrEmploc, button.dataset.viewHrEmplocClient, Number(button.dataset.viewHrEmplocRow))));
     }
-    function openHrEmplocDrawer(vcode) {
-      const record = hrEmplocRecords.find(item => item.vcode === vcode);
+    function openHrEmplocDrawer(vcode, clientName, rowNumber) {
+      const record = hrEmplocRecords.find(item => item.vcode === vcode &&
+        (!clientName || item.clientName === clientName) &&
+        (!rowNumber || item.rowNumber === rowNumber));
       if (!record) return notify(`No loaded HR EMPLOC record matches VCODE ${vcode}.`);
       document.querySelector('#record-drawer-kicker').textContent = 'HR EMPLOC RECORD';
       document.querySelector('#record-drawer-title').classList.add('single-line-title');
@@ -3815,10 +3872,11 @@
       document.querySelector('#drawer-backdrop').classList.add('open');
       document.querySelector('#hr-emploc-update-form').addEventListener('submit', event => {
         event.preventDefault();
-        submitHrEmplocUpdate(event.currentTarget, record.vcode);
+        submitHrEmplocUpdate(event.currentTarget, record);
       });
     }
-    async function submitHrEmplocUpdate(form, vcode) {
+    async function submitHrEmplocUpdate(form, record) {
+      const { vcode } = record;
       const button = form.querySelector('button[type="submit"]');
       const values = { vcode, hrcoRemarks: String(new FormData(form).get('hrcoRemarks') || '').trim().toLocaleUpperCase() };
       button.disabled = true;
@@ -3827,9 +3885,9 @@
       try {
         const result = await callSheetsFunction('update-hr-emploc', {
           ...values,
-          spreadsheetUrl: getDashboardSources('HR EMPLOC MONITORING')[0],
-          vacancySpreadsheetUrl: getDashboardSources('VACANCY MONITORING')[0],
-          clientName: getActiveClient(),
+          spreadsheetUrl: getDashboardSources('HR EMPLOC MONITORING', record.clientName)[0],
+          vacancySpreadsheetUrl: getDashboardSources('VACANCY MONITORING', record.clientName)[0],
+          clientName: record.clientName || getActiveClient(),
           ...(previewedUser ? { targetUsername: previewedUser.username } : {})
         });
         notify(result.backoutTransfer?.transferred
@@ -3839,7 +3897,7 @@
           : `HRCO remarks for VCODE ${vcode} updated.`);
         const refreshed = await loadHrEmplocRecords();
         if (result.backoutTransfer?.transferred) closeRecordDrawer();
-        else if (refreshed && hrEmplocRecords.some(record => record.vcode === vcode)) openHrEmplocDrawer(vcode);
+        else if (refreshed && hrEmplocRecords.some(item => item.vcode === vcode && item.clientName === record.clientName)) openHrEmplocDrawer(vcode, record.clientName, record.rowNumber);
         else notify('HRCO remarks were saved, but the table did not refresh. Use Refresh to reload it.');
       } catch (error) {
         button.disabled = false;
@@ -4787,12 +4845,28 @@
       activeDashboardForData = name;
       const isRegularAdminView = previewedUser?.role === 'admin' ||
         (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin);
-      const assignedClients = dashboardClientAssignments[name] || [];
-      if (isRegularAdminView && assignedClients.length > 1) {
+      const assignedClients = getDashboardClientNames(name, true);
+      const dashboardHasInlineClientSelector = [
+        'PLANTILLA SUMMARY', 'SIL', '+-5% BUFFER', 'VCODE VARIANCE',
+        'DEACTIVATION', 'ATTRITION'
+      ].includes(name);
+      const selectorClients = getDashboardClientNames(name, true);
+      const validSelectorClients = dashboardHasInlineClientSelector
+        ? selectorClients.filter(client => {
+          if (name === 'SIL') return getDashboardSources('PLANTILLA', client).length > 0;
+          if (name === 'PLANTILLA SUMMARY') {
+            return getDashboardSources('PLANTILLA', client).length > 0 &&
+              getDashboardSources('VCODE MASTERLIST', client).length > 0;
+          }
+          return getDashboardSources(name, client).length > 0;
+        })
+        : assignedClients;
+      const allClientDashboard = ['VACANCY MONITORING', 'HR EMPLOC MONITORING', 'FOR APPROVAL'].includes(name);
+      if (isRegularAdminView && validSelectorClients.length > 1 && !dashboardHasInlineClientSelector && !allClientDashboard) {
         showDashboardClientPicker(name, assignedClients);
         return;
       }
-      selectedDashboardClients[name] = assignedClients[0] || '';
+      selectedDashboardClients[name] = validSelectorClients[0] || assignedClients[0] || '';
       showSelectedDashboard(name);
     }
     function showDashboardClientPicker(name, clientNames) {
@@ -4854,6 +4928,7 @@
         </header>
         <section class="attrition-controls" aria-label="Attrition report filters">
           <label class="field" for="attrition-search"><span>SEARCH RECORDS</span><input id="attrition-search" type="search" placeholder="Search records..." autocomplete="off"></label>
+          ${dashboardClientSwitcherMarkup('ATTRITION')}
           <div id="attrition-month-controls" class="field"><label for="attrition-month">MONTH · ${attritionCurrentYear}</label><select id="attrition-month">${attritionMonths.map((month, index) => `<option value="${index}"${index === currentMonth ? ' selected' : ''}>${month}</option>`).join('')}</select></div>
           <div id="attrition-week-controls" class="field hidden"><span>SEPARATION DATE RANGE</span><div class="attrition-date-range"><label class="field" for="attrition-from"><span>FROM</span><input id="attrition-from" type="date"></label><label class="field" for="attrition-to"><span>TO</span><input id="attrition-to" type="date"></label></div></div>
           <div class="attrition-toolbar-actions"><button id="attrition-mode-toggle" class="secondary-button" type="button">Change to weekly report</button><button id="attrition-download" class="secondary-button" type="button">Download Excel</button></div>
@@ -4871,6 +4946,7 @@
         <div class="module-footer"><span>ATTRITION · ${attritionCurrentYear}</span><span>Source: assigned ATTRITION sheet · Client: AU · Separation date: AG · Status: AH</span></div>
       </section>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('ATTRITION');
       document.querySelector('#attrition-assign-sheet')?.addEventListener('click', () => openDashboardEditor('ATTRITION'));
       document.querySelector('#attrition-home').addEventListener('click', showHome);
       document.querySelector('#attrition-refresh').addEventListener('click', () => loadAttritionData(attritionClientScope));
@@ -5041,6 +5117,7 @@
           <label class="deactivation-search-field" for="deactivation-search">SEARCH RECORDS
             <input id="deactivation-search" class="plantilla-search" type="search" placeholder="EMPLOC, full name, status, or date" aria-label="Search deactivation records" autocomplete="off">
           </label>
+          ${dashboardClientSwitcherMarkup('DEACTIVATION')}
           <section class="deactivation-stats" aria-label="Deactivation dashboard summary">
             <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v13H5z"/><path d="M8 9h8M8 12h8M8 15h5"/></svg></span><div class="deactivation-stat-copy"><span>Total records</span><strong id="deactivation-total-stat">—</strong></div></article>
             <article class="deactivation-stat"><span class="deactivation-stat-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.2 2.2 4.8-4.8"/></svg></span><div class="deactivation-stat-copy"><span>Showing</span><strong id="deactivation-shown-stat">—</strong></div></article>
@@ -5064,6 +5141,7 @@
         </section>
       </section>`;
       applyDashboardAssignmentPermissions();
+      bindDashboardClientSwitcher('DEACTIVATION');
       document.querySelector('#deactivation-assign-sheet')?.addEventListener('click', () => openDashboardEditor('DEACTIVATION'));
       document.querySelector('#deactivation-home').addEventListener('click', showHome);
       document.querySelector('#deactivation-refresh').addEventListener('click', refreshDeactivationData);
