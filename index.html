@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#eaf8f8">
+  <meta name="theme-color" content="#071329">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ERTH PORTAL">
   <title>ERTH PORTAL | Operations Dashboard</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/erth-portal.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/erth-portal-192.png">
   <script>
     window.ERTHPORTAL_SUPABASE_URL = window.ERTHPORTAL_SUPABASE_URL || 'https://myjsiiltqnsgzrwdjwki.supabase.co';
     window.ERTHPORTAL_SUPABASE_ANON_KEY = window.ERTHPORTAL_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15anNpaWx0cW5zZ3pyd2Rqd2tpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA5NzM3NTksImV4cCI6MjEwNjU0OTc1OX0._mmFSlMD_1UmiUfetTXGKLY9LxQdthzoV22vczsiHp8';
@@ -894,7 +900,7 @@
       <section class="main">
         <header class="topbar">
           <div class="topbar-left"><a class="brand topbar-brand" id="home-link" href="#" aria-label="ERTH PORTAL home"><span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2.8C9.4 6.5 5.5 10.1 5.5 14.1a6.5 6.5 0 0 0 13 0c0-4-3.9-7.6-6.5-11.3Z" stroke="currentColor" stroke-width="1.8"/><path d="M8.8 14.8c.2 1.7 1.3 2.7 2.8 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>ERTH PORTAL</a></div>
-          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="dashboard-refresh" class="utility-button" type="button" aria-label="Refresh dashboard" title="Reload dashboard">Refresh</button><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+          <div class="topbar-right"><span class="client-label">CLIENT</span><span id="assigned-client" class="client-badge">My spreadsheets</span><button id="install-app" class="utility-button" type="button" aria-label="Install ERTH PORTAL app" title="Install ERTH PORTAL app">Install app</button><button id="dashboard-refresh" class="utility-button" type="button" aria-label="Refresh dashboard" title="Reload dashboard">Refresh</button><button id="manage-account" class="utility-button hidden" type="button">My Account</button><button id="preview-user-portal" class="utility-button hidden" type="button">Preview User Portal</button><button id="manage-users" class="utility-button hidden" type="button">Add User</button><button id="return-to-admin" class="utility-button hidden" type="button">Return to Admin</button><div class="header-welcome"><strong id="welcome-greeting">Welcome</strong><div class="header-welcome-meta"><span id="welcome-name"></span><span id="topbar-date"></span><span id="topbar-clock">00:00:00 AM</span></div></div><div id="topbar-avatar" class="topbar-avatar" aria-label="Profile photo">ER</div><button id="logout-button" class="topbar-logout" type="button" aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3m9-9h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2-2h-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
         </header>
         <div id="content" class="content" aria-live="polite"></div>
       </section>
@@ -1535,6 +1541,7 @@
     const dashboardEmojis = ['🗂️', '📊', '📄', '🔢', '🏢', '👥', '⚖️', '⚠️', '⛔', '✅', '📉'];
     const dashboardLinksPrefix = 'aquahr:preview-links:';
     let notificationQueue = Promise.resolve();
+    let deferredInstallPrompt = null;
     let currentUser = null;
     let previewedUser = null;
     let dashboardOpeningFrame = 0;
@@ -6705,6 +6712,39 @@
     [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close();
     }));
+    const installAppButton = document.querySelector('#install-app');
+    const isInstalledApp = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    const updateInstallAppButton = () => {
+      installAppButton.classList.toggle('hidden', isInstalledApp());
+    };
+    window.addEventListener('beforeinstallprompt', event => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      updateInstallAppButton();
+    });
+    window.addEventListener('appinstalled', () => {
+      deferredInstallPrompt = null;
+      updateInstallAppButton();
+      notify('ERTH PORTAL was installed successfully.');
+    });
+    installAppButton.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        updateInstallAppButton();
+        return;
+      }
+      notify(/iPhone|iPad|iPod/i.test(navigator.userAgent)
+        ? 'To install, tap Share in Safari, then choose Add to Home Screen.'
+        : 'To install, open your browser menu and choose Install ERTH PORTAL or Add to Home screen.');
+    });
+    updateInstallAppButton();
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+      navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+        .then(registration => registration.update())
+        .catch(error => console.error('ERTH PORTAL app updates could not be enabled.', error));
+    }
     restorePortalSession();
   </script>
 </body>

@@ -1,0 +1,32 @@
+{
+  "id": "./",
+  "name": "ERTH PORTAL",
+  "short_name": "ERTH PORTAL",
+  "description": "ERTH PORTAL operations dashboards",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071329",
+  "theme_color": "#071329",
+  "icons": [
+    {
+      "src": "./icons/erth-portal-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/erth-portal-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/erth-portal.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

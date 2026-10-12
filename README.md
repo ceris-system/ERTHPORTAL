@@ -4,6 +4,8 @@
 
 GitHub Pages hosts the frontend. Supabase Free provides username/password authentication, account profiles/status, and protected Edge Functions. Google Sheets remains the employee-data source. Users access assigned PLANTILLA sheets through the `google-sheets-api` Edge Function, which authenticates to Google as a server-side service account; users do not need to authorize Google individually.
 
+ERTHPORTAL is installable as a Progressive Web App (PWA) when served over HTTPS. Publish `manifest.webmanifest`, `service-worker.js`, and the `icons` folder with `index.html`. Users can select **Install app** in the portal header, or use their browser's install/Add to Home Screen command. The service worker checks for a fresh app page when opened and uses its cached shell only when offline; dashboards still require an internet connection for Supabase and Google Sheets data.
+
 Account passwords are managed by Supabase Auth and are never stored in the profiles table or GitHub. Default accounts use a one-time numeric password of at least 8 digits and must choose a username and a new password before continuing. New passwords must be at least 8 alphanumeric characters and include both letters and numbers. `inactive` accounts cannot sign in; the login page directs locked users to the administrator.
 
 ## Supabase Setup
