@@ -858,6 +858,7 @@
         <h1>Start where you are. Use what you have. Do what you can.<span>The secret of getting ahead is getting started.</span></h1>
         <p class="intro-copy">Your HR operations, organized in one place. Sign in to review vacancies, plantilla records, approvals, and workforce movement.</p>
         <div class="intro-foot"><div class="avatar-stack" aria-hidden="true"><span>HR</span><span>01</span><span>+</span></div><span>One client portal for your HR team</span></div>
+        <button id="install-app-login" class="utility-button" type="button" aria-label="Install ERTH PORTAL app" title="Install ERTH PORTAL app" style="width:fit-content;margin-top:22px">Install ERTH PORTAL app</button>
       </section>
       <section id="login-card" class="login-card" aria-labelledby="login-title">
         <h2 id="login-title">Welcome back</h2>
@@ -6712,10 +6713,10 @@
     [dashboardDialog, usersDialog].forEach(dialog => dialog.addEventListener('click', event => {
       if (event.target === dialog) dialog.close();
     }));
-    const installAppButton = document.querySelector('#install-app');
+    const installAppButtons = [...document.querySelectorAll('#install-app, #install-app-login')];
     const isInstalledApp = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
     const updateInstallAppButton = () => {
-      installAppButton.classList.toggle('hidden', isInstalledApp());
+      installAppButtons.forEach(button => button.classList.toggle('hidden', isInstalledApp()));
     };
     window.addEventListener('beforeinstallprompt', event => {
       event.preventDefault();
@@ -6727,18 +6728,34 @@
       updateInstallAppButton();
       notify('ERTH PORTAL was installed successfully.');
     });
-    installAppButton.addEventListener('click', async () => {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
-        deferredInstallPrompt = null;
-        updateInstallAppButton();
+    const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const showInstallInstructions = () => {
+      if (isAppleMobile) {
+        notify(/CriOS|FxiOS|EdgiOS/i.test(navigator.userAgent)
+          ? 'For iPhone or iPad, open this page in Safari, tap Share, then choose Add to Home Screen.'
+          : 'In Safari, tap Share, then choose Add to Home Screen.');
+      } else {
+        notify('If no install window opened, use your browser menu and choose Install ERTH PORTAL or Install page as app. In Chrome or Edge, the install icon may also appear at the right of the address bar.');
+      }
+    };
+    installAppButtons.forEach(button => button.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) {
+        showInstallInstructions();
         return;
       }
-      notify(/iPhone|iPad|iPod/i.test(navigator.userAgent)
-        ? 'To install, tap Share in Safari, then choose Add to Home Screen.'
-        : 'To install, open your browser menu and choose Install ERTH PORTAL or Add to Home screen.');
-    });
+      const installPrompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      try {
+        await installPrompt.prompt();
+        const choice = await installPrompt.userChoice;
+        if (choice.outcome === 'accepted') updateInstallAppButton();
+        else showInstallInstructions();
+      } catch (error) {
+        console.error('ERTH PORTAL installation prompt could not be opened.', error);
+        showInstallInstructions();
+      }
+    }));
     updateInstallAppButton();
     if ('serviceWorker' in navigator && window.isSecureContext) {
       navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
