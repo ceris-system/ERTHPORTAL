@@ -1646,18 +1646,25 @@ async function readVacancy(spreadsheetId: string, clientNames: string[] = [], in
 }
 
 async function readForApproval(spreadsheetId: string, clientNames: string[] = [], tabName = 'VACANCY') {
-  const result = await readVacancy(spreadsheetId, clientNames, false, tabName);
+  const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
+  if (!activeClients.size) throw new Error('Select at least one client before loading approval records.');
+  const range = sheetRange(tabName, 'B5:AL');
+  const result = await googleRequest(
+    `spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`
+  );
+  const rows: unknown[][] = result.values || [];
   const requiredColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
-  const eligibleIndexes = result.displayValues.flatMap((displayRow, index) => {
-    const rawRow = result.rawValues[index] || [];
+  const eligibleRows = rows.filter(row => {
+    const client = String(row[1] ?? '').trim().toLocaleLowerCase();
+    if (!activeClients.has(client)) return false;
     const hasRequiredFields = requiredColumns.every(column =>
-      String(displayRow[column] ?? rawRow[column] ?? '').trim() !== ''
+      String(row[column] ?? '').trim() !== ''
     );
-    return hasRequiredFields ? [index] : [];
+    return hasRequiredFields;
   });
   return {
-    rawValues: eligibleIndexes.map(index => result.rawValues[index] || []),
-    displayValues: eligibleIndexes.map(index => result.displayValues[index] || [])
+    rawValues: [],
+    displayValues: eligibleRows
   };
 }
 
