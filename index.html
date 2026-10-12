@@ -507,6 +507,9 @@
     .plantilla-search { width:min(380px,100%); min-height:40px; padding:0 12px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
     .dashboard-client-switcher { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
     .dashboard-client-switcher select { width:auto; min-width:150px; max-width:min(240px,38vw); min-height:40px; padding:0 30px 0 11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
+    .vacancy-position-filter { display:flex; align-items:center; gap:8px; flex:0 0 auto; color:#4b737a; font-size:9px; font-weight:800; }
+    .vacancy-position-filter select { width:auto; min-width:170px; max-width:min(260px,42vw); min-height:40px; padding:0 30px 0 11px; border:1px solid rgba(53,139,143,.2); border-radius:10px; color:var(--ink); background:rgba(255,255,255,.82); font-size:11px; }
+    .vacancy-position-filter select:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.12); outline:0; }
     .plantilla-search:focus { border-color:#168d91; box-shadow:0 0 0 3px rgba(27,164,164,.12); outline:0; }
     .plantilla-status { min-height:17px; margin:0; color:#66828c; font-size:11px; }
     .sil-filters { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
@@ -694,6 +697,8 @@
       .plantilla-search { width:100%; }
       .dashboard-client-switcher { width:100%; }
       .dashboard-client-switcher select { width:100%; max-width:none; }
+      .vacancy-position-filter { width:100%; }
+      .vacancy-position-filter select { width:100%; max-width:none; }
       .plantilla-status { margin-bottom:0; }
       .plantilla-connect-dialog .dialog-panel { padding:25px 20px; }
       .step h3, .step p { font-size:9px; }
@@ -3211,7 +3216,13 @@
       const savedSheetUrl = getDashboardSources('VACANCY MONITORING')[0] || '';
       vacancySpreadsheetId = savedSheetUrl ? spreadsheetIdFromUrl(savedSheetUrl) : '';
       const isDirectAdmin = currentUser?.isMasterAdmin && !previewedUser;
-      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENTS: ${escapeHtml(getDashboardClientNames('VACANCY MONITORING', true).join(', '))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off"><p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
+      const account = previewedUser || currentUser;
+      const accountUsername = String(account?.username || '').trim().toLocaleLowerCase();
+      const showPositionFilter = account?.role === 'admin' && !account.isMasterAdmin && accountUsername !== 'annie';
+      const positionFilterMarkup = showPositionFilter
+        ? '<label class="vacancy-position-filter" for="vacancy-position-filter"><span>POSITION</span><select id="vacancy-position-filter" aria-label="Filter vacancy records by position"><option value="">ALL POSITIONS</option></select></label>'
+        : '';
+      content.innerHTML = `<header class="plantilla-toolbar"><div><h1>VACANCY MONITORING</h1><p>CLIENTS: ${escapeHtml(getDashboardClientNames('VACANCY MONITORING', true).join(', '))} · Records are matched by VCODE</p></div><div class="plantilla-actions">${currentUser?.role === 'admin' ? '<button id="vacancy-assign-sheet" class="secondary-button" type="button">Assign URL to user</button>' : ''}${isDirectAdmin ? '<button id="vacancy-authorize-google" class="secondary-button" type="button">Authorize Google</button>' : ''}<button id="vacancy-refresh" class="secondary-button" type="button">Refresh</button><button id="vacancy-home" class="secondary-button" type="button">Home</button></div></header><div class="plantilla-table-tools"><input id="vacancy-search" class="plantilla-search" type="search" aria-label="Search vacancy records" placeholder="Search VCODE, outlet, position, name..." autocomplete="off">${positionFilterMarkup}<p id="vacancy-status" class="plantilla-status" role="status" aria-live="polite"></p></div><div class="plantilla-table-wrap"><table class="plantilla-table"><thead><tr><th scope="col">VCODE</th><th scope="col">OUTLET</th><th scope="col">POSITION</th><th scope="col">HC</th><th scope="col">DATE OF VACANT</th><th scope="col">AGING</th><th scope="col">VIEW</th></tr></thead><tbody id="vacancy-table-body"><tr><td colspan="7" class="plantilla-empty">Loading vacancy records...</td></tr></tbody></table></div><div class="module-footer"><span>Vacancy records</span><span>Source tab: VACANCY · Unique key: VCODE</span></div>`;
       applyDashboardAssignmentPermissions();
       document.querySelector('#vacancy-assign-sheet')?.addEventListener('click', () => openDashboardEditor('VACANCY MONITORING'));
       document.querySelector('#vacancy-authorize-google')?.addEventListener('click', async () => {
@@ -3224,6 +3235,7 @@
       document.querySelector('#vacancy-refresh').addEventListener('click', loadVacancyRecords);
       document.querySelector('#vacancy-home').addEventListener('click', showHome);
       document.querySelector('#vacancy-search').addEventListener('input', renderVacancyTable);
+      document.querySelector('#vacancy-position-filter')?.addEventListener('change', renderVacancyTable);
       loadVacancyRecords();
     }
     function showForApproval() {
@@ -3597,10 +3609,31 @@
       const status = document.querySelector('#vacancy-status');
       const body = document.querySelector('#vacancy-table-body');
       if (!status || !body) return;
+      const positionFilter = document.querySelector('#vacancy-position-filter');
+      const selectedPosition = positionFilter?.value || '';
+      if (positionFilter) {
+        const uniquePositions = [...new Map(vacancyRecords
+          .map(record => String(record.position || '').trim())
+          .filter(Boolean)
+          .map(position => [position.toLocaleLowerCase(), position])).values()]
+          .sort((left, right) => left.localeCompare(right));
+        positionFilter.replaceChildren(
+          new Option('ALL POSITIONS', ''),
+          ...uniquePositions.map(position => new Option(position, position))
+        );
+        positionFilter.value = uniquePositions.find(position =>
+          position.toLocaleLowerCase() === selectedPosition.toLocaleLowerCase()
+        ) || '';
+      }
+      const activePosition = positionFilter?.value.toLocaleLowerCase() || '';
       const search = document.querySelector('#vacancy-search')?.value.trim().toLocaleLowerCase() || '';
-      const filteredRecords = search
-        ? vacancyRecords.filter(record => Object.entries(record).some(([key, value]) => key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)))
-        : vacancyRecords;
+      const filteredRecords = vacancyRecords.filter(record => {
+        const matchesPosition = !activePosition || String(record.position || '').trim().toLocaleLowerCase() === activePosition;
+        const matchesSearch = !search || Object.entries(record).some(([key, value]) =>
+          key !== 'rowNumber' && String(value).toLocaleLowerCase().includes(search)
+        );
+        return matchesPosition && matchesSearch;
+      });
       const totalHc = filteredRecords.reduce((total, record) => {
         const hc = Number(String(record.hc).replace(/,/g, '').trim());
         return total + (Number.isFinite(hc) ? hc : 0);
