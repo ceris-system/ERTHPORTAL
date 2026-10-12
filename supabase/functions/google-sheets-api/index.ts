@@ -307,16 +307,23 @@ async function getAssignedSheet(adminClient: ReturnType<typeof createClient>, ac
   if (
     dashboardName === 'DEACTIVATION' &&
     requestedClient &&
-    !mappedSheetTab &&
-    (!assignedSheetTab || assignedSheetTab === defaultSheetTab(dashboardName))
+    sheetTab.toLocaleLowerCase() === defaultSheetTab(dashboardName).toLocaleLowerCase()
   ) {
     const metadata = await googleRequest(
       `spreadsheets/${match[1]}?fields=sheets.properties.title`
     );
-    const clientNamedTab = (metadata.sheets || []).find((item: any) =>
-      String(item.properties?.title || '').trim().toLocaleLowerCase() === requestedClient.toLocaleLowerCase()
+    const sheets = metadata.sheets || [];
+    const defaultTab = sheets.find((item: any) =>
+      String(item.properties?.title || '').trim().toLocaleLowerCase() === defaultSheetTab(dashboardName).toLocaleLowerCase()
     );
-    if (clientNamedTab?.properties?.title) sheetTab = String(clientNamedTab.properties.title);
+    if (defaultTab?.properties?.title) {
+      sheetTab = String(defaultTab.properties.title);
+    } else {
+      const clientNamedTab = sheets.find((item: any) =>
+        String(item.properties?.title || '').trim().toLocaleLowerCase() === requestedClient.toLocaleLowerCase()
+      );
+      if (clientNamedTab?.properties?.title) sheetTab = String(clientNamedTab.properties.title);
+    }
   }
   const deactivationMikaTabs = assignment?.client_deactivation_mika_tabs && typeof assignment.client_deactivation_mika_tabs === 'object'
     ? assignment.client_deactivation_mika_tabs
