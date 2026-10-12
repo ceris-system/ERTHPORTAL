@@ -193,12 +193,11 @@
     .picker-heading h2 { flex:0 0 auto; margin:0; font:800 15px/1.25 'Roboto Mono',monospace; }
     .picker-heading p { margin:4px 0 0; color:#718b92; font-size:12px; }
     .bubble-grid { min-width:0; flex:1; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:9px 14px; }
-    .bubble-button { position:relative; isolation:isolate; width:60px; height:60px; flex:0 0 60px; display:grid; place-items:center; overflow:visible; padding:0; border:1px solid rgba(255,255,255,.96); border-radius:50%; color:#087e84; background:radial-gradient(ellipse at 28% 19%,rgba(255,255,255,.99) 0 4%,rgba(255,255,255,.82) 6%,rgba(255,255,255,.16) 13%,transparent 24%),radial-gradient(ellipse at 70% 77%,rgba(96,229,235,.22),transparent 42%),radial-gradient(ellipse at center,rgba(207,251,255,.08) 44%,rgba(220,255,255,.16) 67%,rgba(255,255,255,.5) 88%,rgba(255,255,255,.95) 96%,rgba(131,213,219,.45) 100%); box-shadow:inset 0 0 0 2px rgba(255,255,255,.2),inset 0 2px 5px rgba(255,255,255,.98),inset 3px 0 8px rgba(255,255,255,.48),inset -5px -7px 13px rgba(31,115,142,.22),0 1px 2px rgba(255,255,255,.9),0 7px 13px rgba(24,83,96,.2); cursor:pointer; translate:0 0; animation:bubble-float 3.4s ease-in-out infinite; animation-delay:var(--bubble-delay,0s); transition:transform .2s cubic-bezier(.2,.75,.25,1),box-shadow .2s,filter .2s; }
+    .bubble-button { position:relative; isolation:isolate; width:60px; height:60px; flex:0 0 60px; display:grid; place-items:center; overflow:visible; padding:0; border:1px solid rgba(255,255,255,.96); border-radius:50%; color:#087e84; background:radial-gradient(ellipse at 28% 19%,rgba(255,255,255,.99) 0 4%,rgba(255,255,255,.82) 6%,rgba(255,255,255,.16) 13%,transparent 24%),radial-gradient(ellipse at 70% 77%,rgba(96,229,235,.22),transparent 42%),radial-gradient(ellipse at center,rgba(207,251,255,.08) 44%,rgba(220,255,255,.16) 67%,rgba(255,255,255,.5) 88%,rgba(255,255,255,.95) 96%,rgba(131,213,219,.45) 100%); box-shadow:inset 0 0 0 2px rgba(255,255,255,.2),inset 0 2px 5px rgba(255,255,255,.98),inset 3px 0 8px rgba(255,255,255,.48),inset -5px -7px 13px rgba(31,115,142,.22),0 1px 2px rgba(255,255,255,.9),0 7px 13px rgba(24,83,96,.2); cursor:pointer; translate:0 0; transition:transform .2s cubic-bezier(.2,.75,.25,1),box-shadow .2s,filter .2s; }
     .bubble-button::before { content:''; position:absolute; z-index:1; top:7px; left:12px; width:20px; height:7px; border-radius:50%; background:rgba(255,255,255,.98); filter:blur(1px); transform:rotate(-25deg); box-shadow:0 0 7px 3px rgba(255,255,255,.48); }
     .bubble-button .bubble-emoji { z-index:2; text-shadow:0 0 7px rgba(255,255,255,.98); }
     .bubble-button .bubble-pop-fill { position:absolute; z-index:0; inset:5px; border:1px solid rgba(255,255,255,.72); border-radius:50%; background:radial-gradient(circle at 36% 28%,rgba(255,255,255,.9),rgba(189,249,255,.68) 38%,rgba(88,199,219,.38) 72%,rgba(255,255,255,.86)); opacity:0; scale:.05; pointer-events:none; }
     .bubble-button .bubble-pop-ring { position:absolute; z-index:3; inset:3px; border:2px solid rgba(255,255,255,.96); border-radius:50%; opacity:0; pointer-events:none; }
-    @keyframes bubble-float { 0%,100% { translate:0 0; } 50% { translate:0 -7px; } }
     @keyframes bubble-pop-refill { 0%,100% { transform:scale(1); filter:brightness(1); } 16% { transform:scale(1.18); filter:brightness(1.45); } 38% { transform:scale(.16); filter:brightness(1.9); } 56% { transform:scale(.16); filter:brightness(1.9); } 78% { transform:scale(1.2); filter:brightness(1.4); } 90% { transform:scale(.94); filter:brightness(1.1); } }
     @keyframes bubble-refill { 0%,42% { opacity:0; scale:.05; } 58% { opacity:.95; scale:.05; } 82% { opacity:.82; scale:1.08; } 100% { opacity:0; scale:1.45; } }
     @keyframes bubble-ring-burst { 0% { transform:scale(.35); opacity:0; } 15% { opacity:1; } 68% { transform:scale(1.75); opacity:.55; } 100% { transform:scale(2.25); opacity:0; } }
@@ -319,6 +318,21 @@
     .roster-actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; }
     .roster-table select { min-width:100px; min-height:31px; padding:0 6px; font-size:10px; }
     .edit-user { padding:5px 8px; border:1px solid rgba(53,139,143,.17); border-radius:7px; color:#287176; background:rgba(255,255,255,.7); font-size:9px; }
+    #users-dialog .roster-toolbar { display:flex; align-items:center; gap:12px; margin-top:16px; }
+    #users-dialog .roster-toolbar label { flex:0 0 auto; color:#55757b; font-size:11px; font-weight:700; }
+    #users-dialog .roster-toolbar input[type="search"] { width:min(100%,360px); min-height:40px; padding:0 13px; border:1px solid rgba(53,139,143,.2); border-radius:11px; color:var(--ink); background:rgba(255,255,255,.86); font-size:12px; }
+    #users-dialog .roster-toolbar input[type="search"]:focus { border-color:#14a39f; box-shadow:0 0 0 4px rgba(20,163,159,.16); outline:0; }
+    .user-panel .edit-user, .user-panel .remove-user { min-height:34px; padding:0 10px; border:1px solid rgba(38,111,120,.2); border-radius:9px; color:#245c65; background:linear-gradient(180deg,#fff,#f0f6f6); box-shadow:0 2px 4px rgba(17,52,61,.07),inset 0 1px 0 rgba(255,255,255,.95); font:600 10px/1.3 'Roboto Mono',monospace; cursor:pointer; transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease,color .16s ease; }
+    .user-panel .edit-user:hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(20,143,145,.48); color:#126d73; background:#fff; box-shadow:0 5px 12px rgba(17,52,61,.12); }
+    .user-panel .remove-user { border-color:rgba(194,103,96,.28); color:#a44740; background:linear-gradient(180deg,#fff,#fff1ef); }
+    .user-panel .remove-user:hover:not(:disabled) { transform:translateY(-1px); border-color:rgba(194,103,96,.55); color:#8e342e; background:#fff; box-shadow:0 5px 12px rgba(132,57,50,.12); }
+    .user-panel button:focus-visible { outline:3px solid rgba(20,143,145,.3); outline-offset:2px; }
+    .user-panel button:disabled { cursor:not-allowed; opacity:.55; box-shadow:none; transform:none; }
+    .dashboard:not(.hidden) .client-badge { padding:5px 0; border:0; border-radius:0; color:#b5f5ee; background:transparent; font-size:10px; letter-spacing:.06em; text-shadow:none; }
+    @media(max-width:520px) {
+      #users-dialog .roster-toolbar { align-items:stretch; flex-direction:column; gap:6px; }
+      #users-dialog .roster-toolbar input[type="search"] { width:100%; }
+    }
     @media(max-width:680px) {
       .user-panel { padding:28px 20px; }
       .user-form { grid-template-columns:minmax(0,1fr); }
@@ -728,7 +742,7 @@
     .topbar-brand .brand-mark { width: 32px; height: 32px; border-radius: 11px 11px 13px 6px; }
     .topbar-brand .brand-mark svg { width: 18px; height: 18px; }
     .dashboard:not(.hidden) .client-label { font-size: 10px; letter-spacing: .1em; opacity: .85; }
-    .dashboard:not(.hidden) .client-badge { padding: 5px 11px; border: 1px solid rgba(120,235,225,.35); border-radius: 999px; color: #b5f5ee; background: rgba(40,200,190,.12); font-size: 10px; letter-spacing: .06em; text-shadow: none; }
+    .dashboard:not(.hidden) .client-badge { padding: 5px 0; border: 0; border-radius: 0; color: #b5f5ee; background: transparent; font-size: 10px; letter-spacing: .06em; text-shadow: none; }
     .utility-button, .secondary-button { min-height: 38px; border: 1px solid rgba(255,255,255,.7); border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #e9f6f5 100%); box-shadow: 0 6px 16px rgba(0,20,40,.2), inset 0 1px 0 #fff; letter-spacing: .01em; }
     .utility-button:hover, .secondary-button:hover { background: #fff; box-shadow: 0 10px 22px rgba(0,20,40,.26), 0 0 0 3px rgba(80,225,215,.18), inset 0 1px 0 #fff; }
     .topbar-logout { border: 1px solid rgba(255,255,255,.14); color: #cfe0f5; background: rgba(255,255,255,.08); }
@@ -1030,6 +1044,10 @@
       </section>
       <section id="current-users-panel" class="user-dialog-panel" role="tabpanel" aria-labelledby="current-users-tab" hidden>
         <p class="dialog-copy">View existing accounts, edit account details and access, reset a password, update account status, or remove an account.</p>
+        <div class="roster-toolbar">
+          <label for="user-search">Search users</label>
+          <input id="user-search" type="search" autocomplete="off" placeholder="Name, username, email, client, role, or status">
+        </div>
         <div class="roster-bulk-actions">
           <label><input id="select-all-users" type="checkbox"> Select all</label>
           <select id="bulk-user-status" aria-label="Status to apply to selected users"><option value="active">Active</option><option value="inactive">Inactive</option><option value="default">Default (require password change)</option></select>
@@ -2710,7 +2728,6 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'bubble-button';
-        button.style.setProperty('--bubble-delay', `${(index % 6) * -0.37}s`);
         const adminCanEdit = currentUser?.role === 'admin' && !previewedUser;
         button.setAttribute('aria-label', `${name}: ${adminCanEdit ? `${sourceCount} source URLs saved; edit URLs` : 'open dashboard'}`);
         button.dataset.tooltip = name;
@@ -2723,7 +2740,6 @@
         const inactiveButton = document.createElement('button');
         inactiveButton.type = 'button';
         inactiveButton.className = 'bubble-button';
-        inactiveButton.style.setProperty('--bubble-delay', '-0.9s');
         inactiveButton.setAttribute('aria-label', 'INACTIVE archive spreadsheet setup');
         inactiveButton.dataset.tooltip = 'INACTIVE · Master Admin setup';
         inactiveButton.title = 'INACTIVE';
@@ -5714,6 +5730,24 @@
       if (!usersDialog.open || !document.querySelector('#current-users-tab').matches('[aria-selected="true"]')) return;
       rosterPresenceTimer = window.setInterval(refreshRosterPresence, 20_000);
     }
+    function filterRoster() {
+      const body = document.querySelector('#user-roster');
+      const query = document.querySelector('#user-search').value.trim().toLocaleLowerCase();
+      const rows = [...body.querySelectorAll('tr[data-user-search]')];
+      let visibleCount = 0;
+      rows.forEach(row => {
+        const matches = row.dataset.userSearch.toLocaleLowerCase().includes(query);
+        row.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
+      const emptyRow = body.querySelector('[data-user-search-empty]');
+      if (emptyRow) {
+        emptyRow.hidden = visibleCount > 0;
+        emptyRow.querySelector('td').textContent = rows.length
+          ? 'No users match your search.'
+          : 'No user accounts found.';
+      }
+    }
     async function renderRoster() {
       const body = document.querySelector('#user-roster');
       body.innerHTML = '<tr><td colspan="10" class="plantilla-empty">Loading accounts...</td></tr>';
@@ -5733,6 +5767,19 @@
           const clientDisplay = (user.client_names?.length ? user.client_names : [user.client_name]).filter(Boolean).join(', ');
           return `<tr><td><input type="checkbox" data-select-user="${escapeHtml(user.username)}" aria-label="Select ${escapeHtml(user.username)}"></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="roster-photo">${user.photo_url ? `<img src="${escapeHtml(user.photo_url)}" alt="${escapeHtml(user.display_name)} profile photo" onerror="this.style.display='none'; this.parentElement.textContent='${escapeHtml(user.display_name.slice(0,2).toUpperCase())}';">` : escapeHtml(user.display_name.slice(0, 2).toUpperCase())}</div><div>${escapeHtml(user.display_name)}<br><span style="color:#81999e">${escapeHtml(user.username)}</span></div></div></td><td>${renderPresenceIndicator(user)}</td><td>${escapeHtml(user.google_email || '-')}</td><td>${escapeHtml(clientDisplay)}</td><td>${user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User'}</td><td><select data-user-status="${escapeHtml(user.username)}" aria-label="Status for ${escapeHtml(user.username)}"${user.is_master_admin ? ' disabled' : ''}><option value="active" ${user.status === 'active' ? 'selected' : ''}>Active</option><option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>Inactive</option><option value="default" ${user.status === 'default' ? 'selected' : ''}>Default</option></select></td><td>${passwordCell}</td><td>${photoCell}</td><td><div class="roster-actions">${user.is_master_admin ? '' : `${currentUser?.isMasterAdmin ? `<button class="edit-user" type="button" data-edit-account="${escapeHtml(user.username)}">Edit account</button>` : ''}<button class="edit-user" type="button" data-reset-password="${escapeHtml(user.username)}">Reset password</button><button class="edit-user" type="button" data-set-status="${escapeHtml(user.username)}">Save status</button><button class="remove-user" type="button" data-delete-user="${escapeHtml(user.username)}">Remove</button>`}</div></td></tr>`;
         }).join('');
+        users.forEach(user => {
+          const checkbox = [...body.querySelectorAll('[data-select-user]')]
+            .find(item => item.dataset.selectUser === user.username);
+          const row = checkbox?.closest('tr');
+          if (!row) return;
+          const clientNames = user.client_names?.length ? user.client_names : [user.client_name];
+          const role = user.is_master_admin ? 'Master Admin' : user.role === 'admin' ? 'Regular Admin' : 'User';
+          row.dataset.userSearch = [user.display_name, user.username, user.google_email, clientNames.join(' '), role, user.status]
+            .filter(Boolean)
+            .join(' ');
+        });
+        body.insertAdjacentHTML('beforeend', '<tr data-user-search-empty hidden><td colspan="10" class="plantilla-empty"></td></tr>');
+        filterRoster();
         const selectAll = document.querySelector('#select-all-users');
         selectAll.checked = false;
         selectAll.indeterminate = false;
@@ -6217,6 +6264,7 @@
       startRosterPresencePolling();
     });
     document.querySelector('#new-user-role').addEventListener('change', updateAccountClientControls);
+    document.querySelector('#user-search').addEventListener('input', filterRoster);
     document.querySelector('#select-all-users').addEventListener('change', event => {
       const checked = event.currentTarget.checked;
       document.querySelectorAll('#user-roster [data-select-user]').forEach(checkbox => { checkbox.checked = checked; });
