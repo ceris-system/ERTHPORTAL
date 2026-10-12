@@ -2825,7 +2825,7 @@
         let eligibleCount;
         if (usesAssignedSheetAccess()) {
           const result = await callSheetsFunction('fill-plantilla-newly-hired', {
-            clientName: record.clientName || getActiveClient(),
+            clientName: getActiveClient(),
             ...(previewedUser ? { targetUsername: previewedUser.username } : {})
           });
           eligibleCount = result.eligibleCount || 0;
