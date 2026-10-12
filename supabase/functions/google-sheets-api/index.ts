@@ -503,7 +503,14 @@ async function getAssignedVacancyDestination(
     : configuredClientNames.filter(name => profileClientSet.has(name.toLocaleLowerCase())))
     .map(name => name.toLocaleLowerCase());
   if (!clientNames.length) throw new Error('No clients are assigned to the VACANCY spreadsheet.');
-  const normalizedClient = clientName.trim().toLocaleLowerCase();
+  const requestedNormalizedClient = clientName.trim().toLocaleLowerCase();
+  let normalizedClient = requestedNormalizedClient;
+  if (!clientNames.includes(normalizedClient)) {
+    const uniqueProfileClients = [...new Set(profileClients
+      .map((name: unknown) => String(name || '').trim().toLocaleLowerCase())
+      .filter((name: string) => name && name !== 'my spreadsheets' && clientNames.includes(name)))];
+    if (uniqueProfileClients.length === 1) normalizedClient = uniqueProfileClients[0];
+  }
   if (!clientNames.includes(normalizedClient)) {
     throw new Error(`Client ${clientName} is not assigned to the VACANCY spreadsheet.`);
   }
