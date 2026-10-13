@@ -4692,6 +4692,21 @@
               });
               return;
             }
+            if (maySkipRateForTransfer && updateResult?.inactiveTransfer && !updateResult.inactiveTransfer.transferred) {
+              setProgress(75, 'Record saved; transfer was not completed');
+              const refreshed = await loadPlantillaRecords();
+              if (refreshed && plantillaRecords.some(record => record.vcode === vcode)) openRecordDrawer(vcode);
+              const transferReason = updateResult.inactiveTransfer.reason === 'not-eligible'
+                ? 'The server did not find both an eligible transfer status and a valid separation date on the PLANTILLA row.'
+                : 'The server did not attempt the transfer. The deployed transfer function may need updating.';
+              await popModal({
+                title: 'Transfer not completed',
+                message: `Record ${vcode} was saved, but it remains in PLANTILLA. ${transferReason} Confirm the status and separation date, then ask the administrator to deploy the latest google-sheets-api function if it still does not transfer.`,
+                confirmLabel: 'Okay',
+                cancelLabel: ''
+              });
+              return;
+            }
             setProgress(75, 'Record saved; refreshing table');
             notify(`Record ${vcode} updated successfully.`);
             setProgress(90, 'Loading latest spreadsheet data');
