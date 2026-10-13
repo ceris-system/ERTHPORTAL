@@ -2128,11 +2128,19 @@ Deno.serve(async request => {
     }
 
     const vcode = String(body.vcode || '').trim();
-    const rate = Number(body.rate);
+    const rateValue = String(body.rate ?? '').trim();
     const status = String(body.status || '').trim().toLocaleUpperCase();
     if (!vcode) throw new Error('VCODE is required.');
-    if (!Number.isFinite(rate)) throw new Error('Rate must be a number.');
     if (!statuses.has(status)) throw new Error('Choose a valid status.');
+    const separationDate = dateSerial(body.separationDate);
+    const maySkipRateForTransfer = targetRole === 'user' &&
+      inactiveTransferStatuses.has(status) &&
+      separationDate !== '';
+    const rate = rateValue === '' ? null : Number(rateValue);
+    if (rate === null && !maySkipRateForTransfer) {
+      throw new Error('Rate is required unless this record is being transferred to VACANCY.');
+    }
+    if (rate !== null && !Number.isFinite(rate)) throw new Error('Rate must be a number.');
     const vcodeRange = sheetRange(sheetTab, 'B9:B');
     const values = await googleRequest(`spreadsheets/${spreadsheetId}/values/${vcodeRange}?valueRenderOption=FORMATTED_VALUE`);
     const matches = (values.values || []).flat().map((value: unknown, index: number) => String(value).trim() === vcode ? index + 9 : 0).filter(Boolean);
@@ -2140,13 +2148,12 @@ Deno.serve(async request => {
     if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once; no changes were made.`);
 
     const rowNumber = matches[0];
-    const separationDate = dateSerial(body.separationDate);
     await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
         valueInputOption: 'RAW',
         data: [
-          { range: `'${sheetTab.replace(/'/g, "''")}'!H${rowNumber}`, values: [[rate]] },
+          ...(rate === null ? [] : [{ range: `'${sheetTab.replace(/'/g, "''")}'!H${rowNumber}`, values: [[rate]] }]),
           { range: `'${sheetTab.replace(/'/g, "''")}'!AG${rowNumber}`, values: [[separationDate]] },
           { range: `'${sheetTab.replace(/'/g, "''")}'!AH${rowNumber}`, values: [[status]] }
         ]

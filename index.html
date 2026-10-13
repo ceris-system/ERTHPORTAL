@@ -2801,6 +2801,7 @@
     }
     const plantillaHeaders = ['VCODE', 'EMPLOC', "MEMBER'S NAME", 'POSITION', 'OUTLET', 'HC', 'SEPARATION DATE', 'STATUS', 'VIEW'];
     const plantillaStatuses = ['ACTIVE', 'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'MATERNITY LEAVE', 'NEWLY HIRED', 'PATERNITY LEAVE', 'QUARANTINE', 'RE-HIRED', 'RELIEVER', 'RESIGNED', 'SEASONAL', 'SICK LEAVE', 'VACATION LEAVE', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'NAME DIFFER', 'PREVENTIVE SUSPENSION', 'DOUBLE ENTRY', 'HC ISSUE', 'LATE DTR', 'RESHUFFLE', 'MOVEMENT'];
+    const plantillaVacancyTransferStatuses = new Set(['AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED', 'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT']);
     let plantillaRecords = [];
     let plantillaDuplicateVcodes = [];
     let vcodeRecords = [];
@@ -4599,7 +4600,19 @@
       document.querySelector('#record-drawer').classList.add('open');
       document.querySelector('#record-drawer').setAttribute('aria-hidden', 'false');
       document.querySelector('#drawer-backdrop').classList.add('open');
-      document.querySelector('#update-record-form').addEventListener('submit', event => {
+      const updateForm = document.querySelector('#update-record-form');
+      const rateInput = updateForm.elements.rate;
+      const separationDateInput = updateForm.elements.separationDate;
+      const statusInput = updateForm.elements.status;
+      const updateRateRequirement = () => {
+        const accountRole = previewedUser?.role || currentUser?.role;
+        const statusCanTransfer = plantillaVacancyTransferStatuses.has(statusInput.value.trim().toLocaleUpperCase());
+        rateInput.required = !(accountRole === 'user' && statusCanTransfer && !!separationDateInput.value);
+      };
+      updateRateRequirement();
+      statusInput.addEventListener('change', updateRateRequirement);
+      separationDateInput.addEventListener('input', updateRateRequirement);
+      updateForm.addEventListener('submit', event => {
         event.preventDefault();
         const form = event.currentTarget;
         const button = form.querySelector('button[type="submit"]');
@@ -4619,10 +4632,15 @@
         (async () => {
           try {
             const vcode = form.elements.vcode.value.trim();
-            const numericRate = Number(form.elements.rate.value);
+            const rateValue = form.elements.rate.value.trim();
+            const numericRate = rateValue === '' ? null : Number(rateValue);
             const status = form.elements.status.value;
-            if (!Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
+            const maySkipRateForTransfer = (previewedUser?.role || currentUser?.role) === 'user' &&
+              plantillaVacancyTransferStatuses.has(status.trim().toLocaleUpperCase()) &&
+              !!form.elements.separationDate.value;
+            if (numericRate === null && !maySkipRateForTransfer) throw new Error('Rate is required unless this record is being transferred to VACANCY.');
+            if (numericRate !== null && !Number.isFinite(numericRate)) throw new Error('Rate must be a number.');
             setProgress(25, usesAssignedSheetAccess() ? 'Saving and checking transfer conditions' : 'Saving record');
             let updateResult = null;
             if (usesAssignedSheetAccess()) {
@@ -4630,7 +4648,7 @@
                 ...(previewedUser ? { targetUsername: previewedUser.username } : {}),
                 clientName: getActiveClient(),
                 vcode,
-                rate: numericRate,
+                rate: rateValue,
                 separationDate: form.elements.separationDate.value,
                 status
               });
@@ -4647,7 +4665,7 @@
                 body: JSON.stringify({
                   valueInputOption: 'RAW',
                   data: [
-                    { range: sheetA1Range(plantillaTab, `H${rowNumber}`), values: [[numericRate]] },
+                    ...(numericRate === null ? [] : [{ range: sheetA1Range(plantillaTab, `H${rowNumber}`), values: [[numericRate]] }]),
                     { range: sheetA1Range(plantillaTab, `AG${rowNumber}`), values: [[sheetDateSerial(form.elements.separationDate.value)]] },
                     { range: sheetA1Range(plantillaTab, `AH${rowNumber}`), values: [[status]] }
                   ]
