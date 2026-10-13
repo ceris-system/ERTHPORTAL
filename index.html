@@ -4606,8 +4606,10 @@
       const statusInput = updateForm.elements.status;
       const updateRateRequirement = () => {
         const accountRole = previewedUser?.role || currentUser?.role;
+        const isMasterAdmin = previewedUser?.isMasterAdmin ?? currentUser?.isMasterAdmin;
+        const canTransferPlantilla = accountRole === 'user' || (accountRole === 'admin' && !isMasterAdmin);
         const statusCanTransfer = plantillaVacancyTransferStatuses.has(statusInput.value.trim().toLocaleUpperCase());
-        rateInput.required = !(accountRole === 'user' && statusCanTransfer && !!separationDateInput.value);
+        rateInput.required = !(canTransferPlantilla && statusCanTransfer && !!separationDateInput.value);
       };
       updateRateRequirement();
       statusInput.addEventListener('change', updateRateRequirement);
@@ -4636,7 +4638,10 @@
             const numericRate = rateValue === '' ? null : Number(rateValue);
             const status = form.elements.status.value;
             if (!plantillaStatuses.includes(status)) throw new Error('Choose a valid status.');
-            const maySkipRateForTransfer = (previewedUser?.role || currentUser?.role) === 'user' &&
+            const accountRole = previewedUser?.role || currentUser?.role;
+            const isMasterAdmin = previewedUser?.isMasterAdmin ?? currentUser?.isMasterAdmin;
+            const canTransferPlantilla = accountRole === 'user' || (accountRole === 'admin' && !isMasterAdmin);
+            const maySkipRateForTransfer = canTransferPlantilla &&
               plantillaVacancyTransferStatuses.has(status.trim().toLocaleUpperCase()) &&
               !!form.elements.separationDate.value;
             if (numericRate === null && !maySkipRateForTransfer) throw new Error('Rate is required unless this record is being transferred to VACANCY.');

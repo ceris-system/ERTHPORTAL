@@ -2133,7 +2133,8 @@ Deno.serve(async request => {
     if (!vcode) throw new Error('VCODE is required.');
     if (!statuses.has(status)) throw new Error('Choose a valid status.');
     const separationDate = dateSerial(body.separationDate);
-    const maySkipRateForTransfer = targetRole === 'user' &&
+    const canTransferPlantilla = targetRole === 'user' || (targetRole === 'admin' && !targetIsMasterAdmin);
+    const maySkipRateForTransfer = canTransferPlantilla &&
       inactiveTransferStatuses.has(status) &&
       separationDate !== '';
     const rate = rateValue === '' ? null : Number(rateValue);
@@ -2159,8 +2160,8 @@ Deno.serve(async request => {
         ]
       })
     });
-    let inactiveTransfer = { transferred: false, reason: 'not-a-user-account' };
-    if (targetRole === 'user') {
+    let inactiveTransfer = { transferred: false, reason: 'not-a-transfer-eligible-account' };
+    if (canTransferPlantilla) {
       try {
         inactiveTransfer = await transferPlantillaRowToInactive(adminClient, targetUserId, spreadsheetId, vcode, sheetTab);
       } catch (error) {
