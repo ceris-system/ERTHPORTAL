@@ -1014,6 +1014,7 @@ async function transferPlantillaRowToInactive(
   targetUserId: string,
   plantillaSpreadsheetId: string,
   vcode: string,
+  clientName: string,
   sourceTabName = 'PLANTILLA'
 ) {
   let inactiveWritten = false;
@@ -1036,8 +1037,6 @@ async function transferPlantillaRowToInactive(
       googleRequest(`spreadsheets/${plantillaSpreadsheetId}/values/${sheetRange(sourceTabName, `AG${sourceRowNumber}:AH${sourceRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`)
     ]);
     const sourceValues = sourceData.values?.[0] || [];
-    const sourceClientName = String(sourceValues[34] ?? '').trim();
-    if (!sourceClientName) throw new Error(`PLANTILLA row ${sourceRowNumber} has no client value in column AI.`);
     const separationDate = sourceState.values?.[0]?.[0];
     const status = String(sourceState.values?.[0]?.[1] ?? '').trim().toLocaleUpperCase();
     const hasSeparationDate = typeof separationDate === 'number'
@@ -1059,7 +1058,7 @@ async function transferPlantillaRowToInactive(
     if (masterAdminError || !masterAdmin) throw new Error('The active Master Admin profile could not be found.');
     const [inactiveAssignment, vacancyDestination] = await Promise.all([
       adminClient.from('dashboard_assignments').select('sheet_urls, sheet_tab').eq('user_id', masterAdmin.id).eq('dashboard_name', 'INACTIVE').maybeSingle(),
-      getAssignedVacancyDestination(adminClient, targetUserId, sourceClientName)
+      getAssignedVacancyDestination(adminClient, targetUserId, clientName)
     ]);
     if (inactiveAssignment.error) throw new Error('Could not load the Master Admin INACTIVE archive assignment.');
     const inactiveSpreadsheetId = spreadsheetIdFromAssignedUrl(inactiveAssignment.data?.sheet_urls?.[0], 'INACTIVE archive');
@@ -2163,7 +2162,7 @@ Deno.serve(async request => {
     let inactiveTransfer = { transferred: false, reason: 'not-a-transfer-eligible-account' };
     if (canTransferPlantilla) {
       try {
-        inactiveTransfer = await transferPlantillaRowToInactive(adminClient, targetUserId, spreadsheetId, vcode, sheetTab);
+        inactiveTransfer = await transferPlantillaRowToInactive(adminClient, targetUserId, spreadsheetId, vcode, clientName, sheetTab);
       } catch (error) {
         const details = error instanceof Error ? error.message : 'Unexpected transfer error.';
         throw new Error(`PLANTILLA was updated, but the INACTIVE transfer did not complete: ${details}`);
