@@ -1622,6 +1622,7 @@
     let presenceHeartbeatTimer = null;
     let presenceHeartbeatInFlight = false;
     let presenceHeartbeatWarningShown = false;
+    let auditUnavailableWarningShown = false;
     let rosterPresenceTimer = null;
     let lastActivityAt = 0;
     let lastActivityPersistedAt = 0;
@@ -1893,6 +1894,7 @@
       auditSessionId = '';
       lastActivityAt = 0;
       lastActivityPersistedAt = 0;
+      auditUnavailableWarningShown = false;
     }
     function saveCurrentView(view, dashboard = '') {
       if (!supabaseAccessToken || !authUserId) return;
@@ -1917,6 +1919,34 @@
       });
       auditSessionId = result.auditSessionId;
       savePortalSession();
+    }
+    async function establishAuditSession() {
+      let resumeError = null;
+      if (auditSessionId) {
+        try {
+          await callAdminFunction('resume-audit-session');
+          return;
+        } catch (error) {
+          resumeError = error;
+          console.warn('Could not resume the existing activity history session; starting a new one.', error);
+          auditSessionId = '';
+          savePortalSession();
+        }
+      }
+      try {
+        await startAuditSession();
+      } catch (error) {
+        auditSessionId = '';
+        savePortalSession();
+        console.error('Authentication succeeded, but activity history could not be started.', {
+          resumeError,
+          startError: error
+        });
+        if (!auditUnavailableWarningShown) {
+          auditUnavailableWarningShown = true;
+          notify('You are signed in, but login history is temporarily unavailable. Ask the administrator to apply the login activity migration and deploy the admin-users function; your portal access will continue, but this session will not be recorded.');
+        }
+      }
     }
     function recordAuditEvent(eventType, eventAction, dashboardName = '', details = {}, target = '') {
       if (!auditSessionId || !supabaseAccessToken) return;
@@ -2049,11 +2079,7 @@
           role: portalProfile.role,
           photo: portalProfile.photo_url || ''
         };
-        if (auditSessionId) {
-          await callAdminFunction('resume-audit-session');
-        } else {
-          await startAuditSession();
-        }
+        await establishAuditSession();
         lastActivityPersistedAt = lastActivityAt;
         startIdleLogoutTimer();
         startPresenceHeartbeat();
@@ -6243,7 +6269,7 @@
             role: portalProfile.role,
             photo: portalProfile.photo_url || ''
           };
-          await startAuditSession();
+          await establishAuditSession();
           startIdleLogoutTimer();
           startPresenceHeartbeat();
           if (portalProfile.status === 'default') {
