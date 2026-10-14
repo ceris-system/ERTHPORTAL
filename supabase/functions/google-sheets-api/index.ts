@@ -27,6 +27,54 @@ function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+async function writeAuditEvent(
+  adminClient: ReturnType<typeof createClient>,
+  actor: any,
+  auditSessionId: unknown,
+  event: {
+    eventType: string;
+    dashboardName: string;
+    action: string;
+    target?: string;
+    details?: unknown;
+  }
+) {
+  if (!auditSessionId) {
+    throw new Error('The spreadsheet change completed, but it has no activity history session. Verify the sheet before retrying.');
+  }
+  const sessionId = String(auditSessionId);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+    throw new Error('The spreadsheet change completed, but its activity history session is invalid. Verify the sheet before retrying.');
+  }
+  const { data: session, error: sessionError } = await adminClient.from('audit_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', actor.id)
+    .is('ended_at', null)
+    .maybeSingle();
+  if (sessionError || !session) {
+    throw new Error('The spreadsheet change completed, but its activity history session could not be verified. Verify the sheet before retrying.');
+  }
+  const details = event.details ?? {};
+  if (JSON.stringify(details).length > 250_000) {
+    throw new Error('The spreadsheet change completed, but its activity details are too large to store. Verify the sheet before retrying.');
+  }
+  const { error } = await adminClient.from('audit_events').insert({
+    session_id: sessionId,
+    actor_user_id: actor.id,
+    actor_username: actor.username,
+    event_type: event.eventType,
+    dashboard_name: event.dashboardName,
+    action: event.action,
+    target: event.target || '',
+    details
+  });
+  if (error) {
+    console.error('Could not store spreadsheet activity history.', error);
+    throw new Error('The spreadsheet change completed, but its activity history could not be saved. Verify the sheet before retrying.');
+  }
+}
+
 async function readDeactivationMikaFile(spreadsheetId: string, mikaFileTab: string) {
   const result = await readSheetGridRanges(spreadsheetId, mikaFileTab, [{
     startColumnIndex: 0,
@@ -1018,7 +1066,24 @@ async function approveVacancyRecord(
   if (!sourceRowDeleted) {
     throw new Error(`Both destination copies are verified, but VCODE ${vcode} is still present in VACANCY after retrying row deletion.`);
   }
-  return { vcode, approved: true, sourceRowDeleted: true };
+  const copiedSourceValues = Object.fromEntries(sourceRow.flatMap((value, index) =>
+    [14, 26].includes(index) ? [] : [[columnLetter(index + 1), value]]
+  ));
+  return {
+    vcode,
+    approved: true,
+    sourceRowDeleted: true,
+    auditDetails: {
+      client: clientName,
+      source: { spreadsheetId: sourceSpreadsheetId, tab: sourceSheetTab, row: originalRowNumber },
+      destinations: {
+        onBoardDatabase: { spreadsheetId: sourceSpreadsheetId, tab: 'On Board Database', rows: boardMatches.length ? boardMatches : [boardRowNumber] },
+        hrEmplocG1n: { spreadsheetId: hrEmplocSpreadsheetId, tab: hrSheetTab, rows: emplocMatches.length ? emplocMatches : [emplocRowNumber] }
+      },
+      copiedSourceValues,
+      hrEmplocValues: Object.fromEntries(emplocRow.map((value, index) => [columnLetter(index + 1), value]))
+    }
+  };
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     const copiedDestinations = [
@@ -1926,21 +1991,37 @@ Deno.serve(async request => {
       return respond(await readDeactivationMikaFile(spreadsheetId, deactivationMikaTab));
     }
     if (body.action === 'save-deactivation') {
-      return respond(await saveDeactivationRecord(spreadsheetId, sheetTab, deactivationMikaTab, body.emploc, body.status, body.inactiveDate));
+      const result = await saveDeactivationRecord(spreadsheetId, sheetTab, deactivationMikaTab, body.emploc, body.status, body.inactiveDate);
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'DEACTIVATION',
+        action: 'added deactivation record',
+        target: result.emploc,
+        details: { row: result.rowNumber, changes: result }
+      });
+      return respond(result);
     }
     if (body.action === 'read-attrition') {
       return respond(await readAttritionRecords(spreadsheetId, sheetTab, clientNames, actor.is_master_admin));
     }
     if (body.action === 'transfer-vcodes') {
       const vacancyDestination = await getAssignedSheet(adminClient, actor, { ...body, action: 'read-vacancy' });
-      return respond(await appendVcodesToVacancy(
+      const result = await appendVcodesToVacancy(
         spreadsheetId,
         sheetTab,
         vacancyDestination.spreadsheetId,
         vacancyDestination.sheetTab,
         clientName,
         body.rows
-      ));
+      );
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'VCODE VARIANCE',
+        action: 'transferred VCODEs to VACANCY',
+        target: clientName,
+        details: { client: clientName, sourceTab: sheetTab, destinationTab: vacancyDestination.sheetTab, ...result }
+      });
+      return respond(result);
     }
     if (body.action === 'delete-vcodes') {
       const normalizedArchiveTab = deletedVcodeTab.toLocaleLowerCase();
@@ -1948,7 +2029,7 @@ Deno.serve(async request => {
         (vcodeSourceSpreadsheetId === spreadsheetId && normalizedArchiveTab === sheetTab.toLocaleLowerCase())) {
         throw new Error('The deleted VCODE archive tab must be different from the VCODE source tab and, when both URLs are the same workbook, the fetch tab.');
       }
-      return respond(await archiveAndDeleteVcodes(
+      const result = await archiveAndDeleteVcodes(
         spreadsheetId,
         vcodeSourceSpreadsheetId,
         sheetTab,
@@ -1956,7 +2037,15 @@ Deno.serve(async request => {
         deletedVcodeTab,
         clientName,
         body.rows
-      ));
+      );
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'VCODE VARIANCE',
+        action: 'archived and deleted VCODEs',
+        target: clientName,
+        details: { client: clientName, archiveTab: deletedVcodeTab, ...result }
+      });
+      return respond(result);
     }
 
     if (body.action === 'approve-vacancy') {
@@ -1971,7 +2060,7 @@ Deno.serve(async request => {
       const failures = [];
       for (const vcode of vcodes) {
         try {
-          results.push(await approveVacancyRecord(
+          const result = await approveVacancyRecord(
             spreadsheetId,
             hrDestination.spreadsheetId,
             clientNames,
@@ -1979,7 +2068,15 @@ Deno.serve(async request => {
             vcode,
             sheetTab,
             hrDestination.sheetTab
-          ));
+          );
+          await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+            eventType: 'edit',
+            dashboardName: 'FOR APPROVAL',
+            action: 'transferred approval record and deleted VACANCY row',
+            target: vcode,
+            details: result.auditDetails
+          });
+          results.push({ vcode: result.vcode, approved: result.approved, sourceRowDeleted: result.sourceRowDeleted });
         } catch (error) {
           failures.push({
             vcode,
@@ -2030,10 +2127,27 @@ Deno.serve(async request => {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'RAW', data: updates })
       });
+      const updatedCount = writeResult.totalUpdatedCells ?? pendingRows.length;
+      const updatedRows = pendingRows.slice(0, updatedCount);
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'PLANTILLA',
+        action: 'filled blank statuses as newly hired',
+        target: clientName,
+        details: {
+          client: clientName,
+          updatedCount,
+          changes: updatedRows.map(row => ({
+            row,
+            vcode: String(vcodeRows[row - 9]?.[0] ?? '').trim(),
+            status: { column: 'AH', oldValue: '', newValue: 'NEWLY HIRED' }
+          }))
+        }
+      });
       return respond({
         eligibleCount: pendingRows.length,
-        updatedCount: writeResult.totalUpdatedCells ?? pendingRows.length,
-        updatedRows: pendingRows.slice(0, writeResult.totalUpdatedCells ?? pendingRows.length)
+        updatedCount,
+        updatedRows
       });
     }
     if (body.action === 'read-plantilla') return respond(await readPlantilla(spreadsheetId, sheetTab));
@@ -2112,6 +2226,24 @@ Deno.serve(async request => {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'RAW', data })
       });
+      const savedValues = await googleRequest(
+        `spreadsheets/${spreadsheetId}/values:batchGet?${formulaQuery}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      const changes = Object.entries(updates).reduce((result: Record<string, unknown>, [field, value], index) => {
+        result[field] = {
+          column: fieldColumns[field].column,
+          oldValue: formulaResult.valueRanges?.[index]?.values?.[0]?.[0] ?? '',
+          newValue: savedValues.valueRanges?.[index]?.values?.[0]?.[0] ?? value
+        };
+        return result;
+      }, {});
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'VACANCY MONITORING',
+        action: 'updated vacancy record',
+        target: vcode,
+        details: { client: rowClient, row, changes }
+      });
       return respond({ vcode, updated: true });
     }
 
@@ -2131,6 +2263,10 @@ Deno.serve(async request => {
       if (!clientNames.some(name => name.toLocaleLowerCase() === rowClient)) {
         throw new Error(`VCODE ${vcode} is not assigned to your selected client(s).`);
       }
+      const previousRemarksResult = await googleRequest(
+        `spreadsheets/${spreadsheetId}/values/${sheetRange(sheetTab, `J${row}`)}?valueRenderOption=UNFORMATTED_VALUE`
+      );
+      const previousRemarks = previousRemarksResult.values?.[0]?.[0] ?? '';
       await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
         method: 'POST',
         body: JSON.stringify({ valueInputOption: 'RAW', data: [{ range: `'${sheetTab.replace(/'/g, "''")}'!J${row}`, values: [[hrcoRemarks]] }] })
@@ -2146,6 +2282,18 @@ Deno.serve(async request => {
         actor.is_master_admin && targetUserId === actor.id ? body.vacancySpreadsheetUrl : undefined,
         sheetTab
       );
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName: 'HR EMPLOC MONITORING',
+        action: backoutTransfer.transferred ? 'updated remarks and transferred back-out record' : 'updated HRCO remarks',
+        target: vcode,
+        details: {
+          client: rowClient,
+          row,
+          changes: { hrcoRemarks: { column: 'J', oldValue: previousRemarks, newValue: hrcoRemarks } },
+          backoutTransfer
+        }
+      });
       return respond({ vcode, updated: true, backoutTransfer });
     }
 
@@ -2171,6 +2319,9 @@ Deno.serve(async request => {
     if (matches.length > 1) throw new Error(`VCODE ${vcode} appears more than once; no changes were made.`);
 
     const rowNumber = matches[0];
+    const beforeResult = await googleRequest(
+      `spreadsheets/${spreadsheetId}/values:batchGet?ranges=${encodeURIComponent(`'${sheetTab.replace(/'/g, "''")}'!H${rowNumber}`)}&ranges=${encodeURIComponent(`'${sheetTab.replace(/'/g, "''")}'!AG${rowNumber}:AH${rowNumber}`)}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
     await googleRequest(`spreadsheets/${spreadsheetId}/values:batchUpdate`, {
       method: 'POST',
       body: JSON.stringify({
@@ -2182,6 +2333,23 @@ Deno.serve(async request => {
         ]
       })
     });
+    const updatedResult = await googleRequest(
+      `spreadsheets/${spreadsheetId}/values:batchGet?ranges=${encodeURIComponent(`'${sheetTab.replace(/'/g, "''")}'!H${rowNumber}`)}&ranges=${encodeURIComponent(`'${sheetTab.replace(/'/g, "''")}'!AG${rowNumber}:AH${rowNumber}`)}&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+    );
+    const changes: Record<string, unknown> = {};
+    if (rate !== null) {
+      changes.rate = { column: 'H', oldValue: beforeResult.valueRanges?.[0]?.values?.[0]?.[0] ?? '', newValue: updatedResult.valueRanges?.[0]?.values?.[0]?.[0] ?? rate };
+    }
+    changes.separationDate = {
+      column: 'AG',
+      oldValue: beforeResult.valueRanges?.[1]?.values?.[0]?.[0] ?? '',
+      newValue: updatedResult.valueRanges?.[1]?.values?.[0]?.[0] ?? separationDate
+    };
+    changes.status = {
+      column: 'AH',
+      oldValue: beforeResult.valueRanges?.[1]?.values?.[0]?.[1] ?? '',
+      newValue: updatedResult.valueRanges?.[1]?.values?.[0]?.[1] ?? status
+    };
     let inactiveTransfer = { transferred: false, reason: 'not-a-transfer-eligible-account' };
     if (canTransferPlantilla) {
       try {
@@ -2191,6 +2359,13 @@ Deno.serve(async request => {
         throw new Error(`PLANTILLA was updated, but the INACTIVE transfer did not complete: ${details}`);
       }
     }
+    await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+      eventType: 'edit',
+      dashboardName: 'PLANTILLA',
+      action: inactiveTransfer.transferred ? 'updated plantilla record and transferred it to INACTIVE' : 'updated plantilla record',
+      target: vcode,
+      details: { client: clientName, row: rowNumber, changes, inactiveTransfer }
+    });
     return respond({ vcode, updated: true, inactiveTransfer });
   } catch (error) {
     return respond({ error: error instanceof Error ? error.message : 'Unexpected spreadsheet service error.' }, 400);

@@ -20,6 +20,45 @@ function respond(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+async function writeAuditEvent(
+  adminClient: ReturnType<typeof createClient>,
+  actor: any,
+  auditSessionId: unknown,
+  event: {
+    eventType: string;
+    dashboardName?: string;
+    action: string;
+    target?: string;
+    details?: unknown;
+  }
+) {
+  if (!auditSessionId) return;
+  const sessionId = String(auditSessionId);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+    throw new Error('The audit session is invalid. Sign out and sign in again.');
+  }
+  const { data: session, error: sessionError } = await adminClient.from('audit_sessions')
+    .select('id')
+    .eq('id', sessionId)
+    .eq('user_id', actor.id)
+    .is('ended_at', null)
+    .maybeSingle();
+  if (sessionError || !session) throw new Error('The audit session could not be verified. Sign out and sign in again.');
+  const details = event.details ?? {};
+  if (JSON.stringify(details).length > 50_000) throw new Error('Audit event details are too large to store.');
+  const { error } = await adminClient.from('audit_events').insert({
+    session_id: sessionId,
+    actor_user_id: actor.id,
+    actor_username: actor.username,
+    event_type: event.eventType,
+    dashboard_name: event.dashboardName || '',
+    action: event.action,
+    target: event.target || '',
+    details
+  });
+  if (error) throw new Error('Could not save the activity history event.');
+}
+
 function usernameEmail(username: string) {
   return `${username.toLowerCase()}@${authEmailDomain}`;
 }
@@ -91,7 +130,98 @@ Deno.serve(async request => {
         .update({ last_seen_at: lastSeenAt })
         .eq('id', user.id);
       if (error) throw new Error('Could not update online presence.');
+      if (body.auditSessionId) {
+        const { error: auditError } = await adminClient.from('audit_sessions')
+          .update({ last_activity_at: lastSeenAt })
+          .eq('id', body.auditSessionId)
+          .eq('user_id', user.id)
+          .is('ended_at', null);
+        if (auditError) throw new Error('Could not update activity history heartbeat.');
+      }
       return respond({ lastSeenAt });
+    }
+    if (body.action === 'start-audit-session') {
+      if (actor.status === 'inactive') return respond({ error: 'This account is inactive.' }, 403);
+      const clientNames = Array.isArray(actor.client_names) && actor.client_names.length
+        ? actor.client_names
+        : [actor.client_name].filter(Boolean);
+      const { data: session, error } = await adminClient.from('audit_sessions')
+        .insert({
+          user_id: actor.id,
+          username: actor.username,
+          display_name: actor.display_name,
+          role: actor.is_master_admin ? 'master_admin' : actor.role,
+          client_names: clientNames,
+          user_agent: String(body.userAgent || '').slice(0, 500)
+        })
+        .select('id, started_at')
+        .single();
+      if (error || !session) throw new Error('Could not start the login activity history session.');
+      await writeAuditEvent(adminClient, actor, session.id, {
+        eventType: 'session',
+        action: 'login',
+        details: { role: actor.is_master_admin ? 'master_admin' : actor.role }
+      });
+      return respond({ auditSessionId: session.id, startedAt: session.started_at });
+    }
+    if (body.action === 'resume-audit-session') {
+      if (actor.status === 'inactive') return respond({ error: 'This account is inactive.' }, 403);
+      const sessionId = String(body.auditSessionId || '');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+        throw new Error('The audit session is invalid. Sign out and sign in again.');
+      }
+      const { data: session, error } = await adminClient.from('audit_sessions')
+        .update({ last_activity_at: new Date().toISOString() })
+        .eq('id', sessionId)
+        .eq('user_id', actor.id)
+        .is('ended_at', null)
+        .select('id')
+        .maybeSingle();
+      if (error || !session) throw new Error('Could not resume activity history for this session. Sign out and sign in again.');
+      return respond({ auditSessionId: session.id });
+    }
+    if (body.action === 'record-audit-event') {
+      const eventType = String(body.eventType || '');
+      const action = String(body.eventAction || '').trim();
+      const dashboardName = String(body.dashboardName || '').trim();
+      if (!['navigation', 'action', 'edit', 'session'].includes(eventType) ||
+        !action || action.length > 120 || dashboardName.length > 100) {
+        throw new Error('The activity history event is invalid.');
+      }
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType,
+        action,
+        dashboardName,
+        target: String(body.target || '').slice(0, 200),
+        details: body.details && typeof body.details === 'object' ? body.details : {}
+      });
+      return respond({ recorded: true });
+    }
+    if (body.action === 'end-audit-session') {
+      const sessionId = String(body.auditSessionId || '');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+        throw new Error('The audit session is invalid.');
+      }
+      const endedAt = new Date().toISOString();
+      const { data: session, error: sessionError } = await adminClient.from('audit_sessions')
+        .update({ ended_at: endedAt, last_activity_at: endedAt, end_reason: String(body.reason || 'logout').slice(0, 80) })
+        .eq('id', sessionId)
+        .eq('user_id', actor.id)
+        .is('ended_at', null)
+        .select('id')
+        .maybeSingle();
+      if (sessionError || !session) throw new Error('Could not close the login activity history session.');
+      const { error } = await adminClient.from('audit_events').insert({
+        session_id: sessionId,
+        actor_user_id: actor.id,
+        actor_username: actor.username,
+        event_type: 'session',
+        action: 'logout',
+        target: '',
+        details: { reason: String(body.reason || 'logout').slice(0, 80) }
+      });
+      if (error) throw new Error('Session closed, but the logout event could not be saved.');
+      return respond({ endedAt });
     }
     if (body.action === 'activate-default') {
       if (actor.status !== 'default') return respond({ error: 'This account is not awaiting a password change.' }, 403);
@@ -171,12 +301,50 @@ Deno.serve(async request => {
         const { error: photoError } = await adminClient.from('profiles').update({ photo_url: photoUrl }).eq('id', user.id);
         if (photoError) throw new Error('Account credentials were updated, but the profile photo could not be saved.');
       }
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'action',
+        action: 'updated own account',
+        target: username,
+        details: {
+          username: { before: actor.username, after: username },
+          passwordChanged: !!newPassword,
+          profilePhotoChanged: photoUrl !== undefined,
+          status: completingDefaultAccount ? { before: actor.status, after: 'active' } : undefined
+        }
+      });
       return respond({ username, photoUrl: photoUrl ?? actor.photo_url, passwordUpdated: !!newPassword, status: completingDefaultAccount ? 'active' : actor.status });
     }
 
     if (actor.role !== 'admin' || actor.status !== 'active') return respond({ error: 'Administrator access is required.' }, 403);
     if (!actor.is_master_admin && !['list', 'get-dashboard-assignment', 'set-dashboard-assignment'].includes(body.action)) {
       return respond({ error: 'Master Admin access is required for account management.' }, 403);
+    }
+
+    if (body.action === 'audit-history') {
+      if (!actor.is_master_admin) return respond({ error: 'Only the Master Admin can view login activity history.' }, 403);
+      const limit = Math.max(1, Math.min(500, Number(body.limit) || 200));
+      let sessionsQuery = adminClient.from('audit_sessions')
+        .select('id, user_id, username, display_name, role, client_names, started_at, last_activity_at, ended_at, end_reason, user_agent')
+        .order('started_at', { ascending: false })
+        .limit(limit);
+      if (body.username) sessionsQuery = sessionsQuery.eq('username', String(body.username).slice(0, 40));
+      const { data: sessions, error } = await sessionsQuery;
+      if (error) throw new Error('Could not load login activity history.');
+      return respond({ sessions: sessions || [] });
+    }
+    if (body.action === 'audit-session-events') {
+      if (!actor.is_master_admin) return respond({ error: 'Only the Master Admin can view login activity history.' }, 403);
+      const sessionId = String(body.sessionId || '');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+        throw new Error('Choose a valid login history session.');
+      }
+      const { data: events, error } = await adminClient.from('audit_events')
+        .select('id, occurred_at, actor_username, event_type, dashboard_name, action, target, details')
+        .eq('session_id', sessionId)
+        .order('occurred_at', { ascending: true })
+        .limit(1000);
+      if (error) throw new Error('Could not load the selected login activity history.');
+      return respond({ events: events || [] });
     }
 
     if (body.action === 'list') {
@@ -468,6 +636,24 @@ Deno.serve(async request => {
           .eq('id', target.id);
         if (profileError) throw new Error('Dashboard assignment was saved, but the administrator client access list could not be updated.');
       }
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        dashboardName,
+        action: 'updated dashboard assignment',
+        target: username,
+        details: {
+          clients: clientNames,
+          spreadsheetUrls: urls,
+          clientSpreadsheetUrls: clientSheetUrls,
+          sheetTab,
+          clientSheetTabs,
+          bufferDetailTabs: clientBufferDetailTabs,
+          vcodeSourceUrls: clientVcodeSourceUrls,
+          vcodeSourceTabs: clientVcodeSourceTabs,
+          deletedVcodeTabs: clientVcodeDeletedTabs,
+          deactivationMikaTabs: clientDeactivationMikaTabs
+        }
+      });
       return respond({ username, dashboardName, urls, clientNames, sheetTab, clientSheetTabs, clientBufferDetailTabs, clientVcodeSourceUrls, clientVcodeSourceTabs, clientVcodeDeletedTabs });
     }
 
@@ -561,6 +747,20 @@ Deno.serve(async request => {
         await adminClient.auth.admin.deleteUser(created.user.id);
         throw new Error(profileError?.message || 'Could not create account profile.');
       }
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'action',
+        action: 'created account',
+        target: username,
+        details: {
+          displayName,
+          role,
+          status,
+          clientNames,
+          googleEmail,
+          assignedSheetUrl: sheetUrl || '',
+          managedUserIds
+        }
+      });
       return respond({ user: profile, temporaryPassword: defaultPassword ? defaultPassword : temporaryPassword });
     }
 
@@ -604,6 +804,15 @@ Deno.serve(async request => {
 
       const { error: updateError } = await adminClient.from('profiles').update({ status }).in('username', usernames);
       if (updateError) throw new Error('Could not update the selected account statuses.');
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        action: 'bulk-updated account statuses',
+        target: usernames.join(', '),
+        details: {
+          status,
+          accounts: targets.map(target => ({ username: target.username, previousStatus: target.status, status }))
+        }
+      });
       return respond({ status, usernames });
     }
 
@@ -738,6 +947,33 @@ Deno.serve(async request => {
           throw new Error(authUpdateError.message || 'Could not update account credentials.');
         }
       }
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        action: 'updated account and access settings',
+        target: username,
+        details: {
+          before: {
+            username: target.username,
+            displayName: target.display_name,
+            googleEmail: target.google_email,
+            clientNames: target.client_names,
+            role: target.role,
+            status: target.status
+          },
+          after: {
+            username,
+            displayName,
+            googleEmail,
+            clientNames,
+            role,
+            status
+          },
+          profilePhotoChanged: photoUrl !== target.photo_url,
+          assignedSheetUrlChanged: sheetUrl !== target.sheet_url,
+          managedUserIds: role === 'admin' ? managedUserIds : [],
+          passwordChanged: !!newPassword
+        }
+      });
       return respond({
         username,
         displayName,
@@ -754,6 +990,12 @@ Deno.serve(async request => {
       if (error) throw new Error('Could not reset the account password.');
       const { error: statusError } = await adminClient.from('profiles').update({ status: 'default' }).eq('id', target.id);
       if (statusError) throw new Error('Password reset, but account status could not be updated.');
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'action',
+        action: 'reset account password',
+        target: target.username,
+        details: { passwordReset: true, previousStatus: target.status, status: 'default' }
+      });
       return respond({ username: target.username, temporaryPassword });
     }
 
@@ -763,6 +1005,12 @@ Deno.serve(async request => {
       if (status !== 'active') await protectLastAdmin(adminClient, target);
       const { error } = await adminClient.from('profiles').update({ status }).eq('id', target.id);
       if (error) throw new Error('Could not update account status.');
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        action: 'updated account status',
+        target: target.username,
+        details: { status: { before: target.status, after: status } }
+      });
       return respond({ username: target.username, status });
     }
 
@@ -770,6 +1018,16 @@ Deno.serve(async request => {
       await protectLastAdmin(adminClient, target);
       const { error } = await adminClient.auth.admin.deleteUser(target.id);
       if (error) throw new Error('Could not delete account.');
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'action',
+        action: 'deleted account',
+        target: target.username,
+        details: {
+          role: target.role,
+          status: target.status,
+          clientNames: target.client_names
+        }
+      });
       return respond({ username: target.username, deleted: true });
     }
 
