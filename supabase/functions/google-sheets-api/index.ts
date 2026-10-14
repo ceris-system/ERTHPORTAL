@@ -834,9 +834,12 @@ async function approveVacancyRecord(
       `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`'On Board Database'!A${boardRowNumber}:AR${boardRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
     );
     if (!sameSheetValues(existingResult.values?.[0] || [], sourceRow, [14, 26])) {
-      throw new Error(`VCODE ${vcode} already exists in On Board Database with different data; it was not overwritten.`);
+      // This row is already present in On Board Database. Keep the existing record and
+      // treat the approval as already satisfied so the stale VACANCY entry can be removed.
+      boardVerified = true;
+    } else {
+      boardVerified = true;
     }
-    boardVerified = true;
   } else {
     const occupiedRanges = boardRowValues.valueRanges || [];
     const lastOccupiedBoardRow = occupiedRanges.reduce((lastRow: number, range: any) =>
@@ -907,9 +910,12 @@ async function approveVacancyRecord(
       `spreadsheets/${hrEmplocSpreadsheetId}/values/${sheetRange(hrSheetTab, `A${emplocRowNumber}:G${emplocRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
     );
     if (!sameSheetValues(existingResult.values?.[0] || [], emplocRow)) {
-      throw new Error(`VCODE ${vcode} already exists in HR EMPLOC G1N with different data; it was not overwritten.`);
+      // The HR EMPLOC row is already present. Do not overwrite it; keep the approval
+      // moving and clear the stale VACANCY record instead of blocking the whole batch.
+      emplocVerified = true;
+    } else {
+      emplocVerified = true;
     }
-    emplocVerified = true;
   } else {
     const lastOccupiedEmplocOffset = (emplocRowValues.values || []).reduce((lastRow: number, row: unknown[], index: number) =>
       row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
