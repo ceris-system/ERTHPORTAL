@@ -331,14 +331,16 @@ Deno.serve(async request => {
     if (body.action === 'audit-history') {
       if (!actor.is_master_admin) return respond({ error: 'Only the Master Admin can view login activity history.' }, 403);
       const limit = Math.max(1, Math.min(500, Number(body.limit) || 200));
+      const offset = Math.max(0, Math.min(1_000_000, Math.floor(Number(body.offset) || 0)));
       let sessionsQuery = adminClient.from('audit_sessions')
         .select('id, user_id, username, display_name, role, client_names, started_at, last_activity_at, ended_at, end_reason, user_agent')
         .order('started_at', { ascending: false })
-        .limit(limit);
+        .range(offset, offset + limit);
       if (body.username) sessionsQuery = sessionsQuery.eq('username', String(body.username).slice(0, 40));
       const { data: sessions, error } = await sessionsQuery;
       if (error) throw new Error('Could not load login activity history.');
-      return respond({ sessions: sessions || [] });
+      const page = sessions || [];
+      return respond({ sessions: page.slice(0, limit), hasMore: page.length > limit });
     }
     if (body.action === 'audit-session-events') {
       if (!actor.is_master_admin) return respond({ error: 'Only the Master Admin can view login activity history.' }, 403);
