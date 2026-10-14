@@ -826,20 +826,28 @@ async function approveVacancyRecord(
   const boardMatches = boardKeys.flatMap((row: unknown[], index: number) =>
     String(row[0] ?? '').trim() === vcode ? [index + 1] : []
   );
-  if (boardMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in On Board Database.`);
   let boardRowNumber: number;
   if (boardMatches.length) {
     boardRowNumber = boardMatches[0];
-    const existingResult = await googleRequest(
-      `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`'On Board Database'!A${boardRowNumber}:AR${boardRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
-    );
-    if (!sameSheetValues(existingResult.values?.[0] || [], sourceRow, [14, 26])) {
-      // This row is already present in On Board Database. Keep the existing record and
-      // treat the approval as already satisfied so the stale VACANCY entry can be removed.
-      boardVerified = true;
-    } else {
-      boardVerified = true;
+    await ensureDestinationRow(sourceSpreadsheetId, boardTab, Math.max(...boardMatches), 44);
+    const boardData = boardMatches.flatMap(rowNumber => [
+      { range: `'On Board Database'!A${rowNumber}:N${rowNumber}`, values: [sourceRow.slice(0, 14)] },
+      { range: `'On Board Database'!P${rowNumber}:Z${rowNumber}`, values: [sourceRow.slice(15, 26)] },
+      { range: `'On Board Database'!AB${rowNumber}:AR${rowNumber}`, values: [sourceRow.slice(27, 44)] }
+    ]);
+    await googleRequest(`spreadsheets/${sourceSpreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({ valueInputOption: 'RAW', data: boardData })
+    });
+    for (const rowNumber of boardMatches) {
+      const writtenBoardRow = await googleRequest(
+        `spreadsheets/${sourceSpreadsheetId}/values/${encodeURIComponent(`'On Board Database'!A${rowNumber}:AR${rowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(writtenBoardRow.values?.[0] || [], sourceRow, [14, 26])) {
+        throw new Error(`The On Board Database copy for VCODE ${vcode} could not be verified.`);
+      }
     }
+    boardVerified = true;
   } else {
     const occupiedRanges = boardRowValues.valueRanges || [];
     const lastOccupiedBoardRow = occupiedRanges.reduce((lastRow: number, range: any) =>
@@ -902,20 +910,29 @@ async function approveVacancyRecord(
   const emplocMatches = emplocKeys.flatMap((row: unknown[], index: number) =>
     String(row[0] ?? '').trim() === vcode ? [index + 9] : []
   );
-  if (emplocMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in HR EMPLOC G1N.`);
   let emplocRowNumber: number;
   if (emplocMatches.length) {
     emplocRowNumber = emplocMatches[0];
-    const existingResult = await googleRequest(
-      `spreadsheets/${hrEmplocSpreadsheetId}/values/${sheetRange(hrSheetTab, `A${emplocRowNumber}:G${emplocRowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
-    );
-    if (!sameSheetValues(existingResult.values?.[0] || [], emplocRow)) {
-      // The HR EMPLOC row is already present. Do not overwrite it; keep the approval
-      // moving and clear the stale VACANCY record instead of blocking the whole batch.
-      emplocVerified = true;
-    } else {
-      emplocVerified = true;
+    await ensureDestinationRow(hrEmplocSpreadsheetId, hrTab, Math.max(...emplocMatches), 7);
+    await googleRequest(`spreadsheets/${hrEmplocSpreadsheetId}/values:batchUpdate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        valueInputOption: 'RAW',
+        data: emplocMatches.map(rowNumber => ({
+          range: sheetA1(hrSheetTab, `A${rowNumber}:G${rowNumber}`),
+          values: [emplocRow]
+        }))
+      })
+    });
+    for (const rowNumber of emplocMatches) {
+      const writtenEmplocRow = await googleRequest(
+        `spreadsheets/${hrEmplocSpreadsheetId}/values/${sheetRange(hrSheetTab, `A${rowNumber}:G${rowNumber}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
+      );
+      if (!sameSheetValues(writtenEmplocRow.values?.[0] || [], emplocRow)) {
+        throw new Error(`The HR EMPLOC G1N copy for VCODE ${vcode} could not be verified.`);
+      }
     }
+    emplocVerified = true;
   } else {
     const lastOccupiedEmplocOffset = (emplocRowValues.values || []).reduce((lastRow: number, row: unknown[], index: number) =>
       row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
