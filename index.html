@@ -2121,10 +2121,36 @@
     async function callSheetsFunction(action, payload = {}) {
       if (!supabaseAccessToken) throw new Error('Sign in to the portal to access assigned spreadsheets.');
       try {
-        return await supabaseRequest('/functions/v1/google-sheets-api', {
+        const result = await supabaseRequest('/functions/v1/google-sheets-api', {
           method: 'POST',
           body: JSON.stringify({ action, ...payload, ...(auditSessionId ? { auditSessionId } : {}) })
         }, supabaseAccessToken);
+        const readDashboards = {
+          'read-plantilla': 'PLANTILLA',
+          'read-vcode': 'VCODE MASTERLIST',
+          'read-vcode-variance': 'VCODE VARIANCE',
+          'read-vacancy': 'VACANCY MONITORING',
+          'read-for-approval': 'FOR APPROVAL',
+          'read-hr-emploc': 'HR EMPLOC MONITORING',
+          'read-attrition': 'ATTRITION',
+          'list-attrition-clients': 'ATTRITION',
+          'read-buffer': '+-5% BUFFER',
+          'read-buffer-detail': '+-5% BUFFER',
+          'read-deactivation': 'DEACTIVATION',
+          'read-deactivation-mika-file': 'DEACTIVATION',
+          'lookup-deactivation-emploc': 'DEACTIVATION',
+          'list-client-options': 'HR EMPLOC MONITORING'
+        };
+        if (readDashboards[action]) {
+          recordAuditEvent(
+            'action',
+            'fetched dashboard data',
+            readDashboards[action],
+            { request: action, client: payload.clientName || getActiveClient() },
+            payload.targetUsername || ''
+          );
+        }
+        return result;
       } catch (error) {
         if (/Could not reach Supabase/i.test(error.message || '')) {
           throw new Error('The google-sheets-api service is not deployed or reachable in Supabase. Contact the portal administrator.');

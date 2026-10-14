@@ -30,12 +30,19 @@ async function writeAuditEvent(
     action: string;
     target?: string;
     details?: unknown;
+    changeCompleted?: boolean;
   }
 ) {
-  if (!auditSessionId) return;
+  if (!auditSessionId) {
+    if (!event.changeCompleted) return;
+    throw new Error('The account change was saved, but it could not be linked to an activity history session.');
+  }
+  const historyError = (message: string) => new Error(event.changeCompleted
+    ? `The account change was saved, but ${message}`
+    : message);
   const sessionId = String(auditSessionId);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
-    throw new Error('The audit session is invalid. Sign out and sign in again.');
+    throw historyError('the activity history session is invalid. Sign out and sign in again.');
   }
   const { data: session, error: sessionError } = await adminClient.from('audit_sessions')
     .select('id')
@@ -43,9 +50,9 @@ async function writeAuditEvent(
     .eq('user_id', actor.id)
     .is('ended_at', null)
     .maybeSingle();
-  if (sessionError || !session) throw new Error('The audit session could not be verified. Sign out and sign in again.');
+  if (sessionError || !session) throw historyError('the activity history session could not be verified. Sign out and sign in again.');
   const details = event.details ?? {};
-  if (JSON.stringify(details).length > 50_000) throw new Error('Audit event details are too large to store.');
+  if (JSON.stringify(details).length > 250_000) throw historyError('the activity history details are too large to store.');
   const { error } = await adminClient.from('audit_events').insert({
     session_id: sessionId,
     actor_user_id: actor.id,
@@ -56,7 +63,7 @@ async function writeAuditEvent(
     target: event.target || '',
     details
   });
-  if (error) throw new Error('Could not save the activity history event.');
+  if (error) throw historyError('the activity history could not be saved.');
 }
 
 function usernameEmail(username: string) {
@@ -305,6 +312,7 @@ Deno.serve(async request => {
         eventType: 'action',
         action: 'updated own account',
         target: username,
+        changeCompleted: true,
         details: {
           username: { before: actor.username, after: username },
           passwordChanged: !!newPassword,
@@ -641,6 +649,7 @@ Deno.serve(async request => {
         dashboardName,
         action: 'updated dashboard assignment',
         target: username,
+        changeCompleted: true,
         details: {
           clients: clientNames,
           spreadsheetUrls: urls,
@@ -751,6 +760,7 @@ Deno.serve(async request => {
         eventType: 'action',
         action: 'created account',
         target: username,
+        changeCompleted: true,
         details: {
           displayName,
           role,
@@ -808,6 +818,7 @@ Deno.serve(async request => {
         eventType: 'edit',
         action: 'bulk-updated account statuses',
         target: usernames.join(', '),
+        changeCompleted: true,
         details: {
           status,
           accounts: targets.map(target => ({ username: target.username, previousStatus: target.status, status }))
@@ -951,6 +962,7 @@ Deno.serve(async request => {
         eventType: 'edit',
         action: 'updated account and access settings',
         target: username,
+        changeCompleted: true,
         details: {
           before: {
             username: target.username,
@@ -994,6 +1006,7 @@ Deno.serve(async request => {
         eventType: 'action',
         action: 'reset account password',
         target: target.username,
+        changeCompleted: true,
         details: { passwordReset: true, previousStatus: target.status, status: 'default' }
       });
       return respond({ username: target.username, temporaryPassword });
@@ -1009,6 +1022,7 @@ Deno.serve(async request => {
         eventType: 'edit',
         action: 'updated account status',
         target: target.username,
+        changeCompleted: true,
         details: { status: { before: target.status, after: status } }
       });
       return respond({ username: target.username, status });
@@ -1022,6 +1036,7 @@ Deno.serve(async request => {
         eventType: 'action',
         action: 'deleted account',
         target: target.username,
+        changeCompleted: true,
         details: {
           role: target.role,
           status: target.status,
