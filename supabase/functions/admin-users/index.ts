@@ -354,6 +354,27 @@ Deno.serve(async request => {
       if (error) throw new Error('Could not load the selected login activity history.');
       return respond({ events: events || [] });
     }
+    if (body.action === 'rename-client') {
+      if (!actor.is_master_admin) return respond({ error: 'Only the Master Admin can rename a client.' }, 403);
+      const oldClient = String(body.oldClient || '').trim();
+      const newClient = String(body.newClient || '').trim();
+      if (!oldClient || !newClient || oldClient.length > 80 || newClient.length > 80) {
+        throw new Error('Client names must contain 1 to 80 characters.');
+      }
+      const { data: renameResult, error } = await adminClient.rpc('rename_client_globally', {
+        old_client: oldClient,
+        new_client: newClient
+      });
+      if (error) throw new Error(error.message || 'Could not rename this client.');
+      await writeAuditEvent(adminClient, actor, body.auditSessionId, {
+        eventType: 'edit',
+        action: 'renamed client across portal assignments',
+        target: `${oldClient} → ${newClient}`,
+        changeCompleted: true,
+        details: renameResult || { oldClient, newClient }
+      });
+      return respond(renameResult || { oldClient, newClient });
+    }
 
     if (body.action === 'list') {
       const { data, error } = await adminClient.from('profiles')

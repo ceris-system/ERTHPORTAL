@@ -1001,6 +1001,17 @@
         <div id="dashboard-url-list" class="url-list"></div>
         <button id="add-dashboard-url" class="add-source-button" type="button">+ Add another spreadsheet</button>
         <div id="dashboard-tab-hint" class="dialog-scope">Enter the exact tab name shown at the bottom of the spreadsheet. The suggested tab name keeps the current setup unchanged.</div>
+        <section id="client-rename-tools" class="hidden">
+          <button id="show-client-rename" class="secondary-button" type="button">Rename client across portal</button>
+          <div id="client-rename-fields" class="hidden">
+            <p class="dialog-scope">This renames saved account scopes and every dashboard assignment key. It does not edit client names inside any Google Sheet; those sheet rows must use the new client name too.</p>
+            <label class="dialog-label" for="client-rename-old">Current client name</label>
+            <select id="client-rename-old"></select>
+            <label class="dialog-label" for="client-rename-new">New client name</label>
+            <input id="client-rename-new" type="text" maxlength="80" autocomplete="off" placeholder="Enter the new client name">
+            <button id="apply-client-rename" class="secondary-button" type="button">Update saved assignments</button>
+          </div>
+        </section>
         <p id="dashboard-assignment-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
         <div class="dialog-actions"><button id="save-dashboard-urls" class="primary-button" type="button">Save Assignment</button><button id="open-dashboard-url" class="secondary-button" type="button" disabled>Open first URL</button><button id="open-plantilla-preview" class="secondary-button hidden" type="button">Open Plantilla</button></div>
       </form>
@@ -5710,6 +5721,8 @@
     async function openDashboardEditor(name) {
       if (!currentUser?.isMasterAdmin) return notify('Only the Master Admin can assign dashboard spreadsheet URLs.');
       selectedDashboard = name;
+      document.querySelector('#client-rename-tools').classList.toggle('hidden', !!previewedUser);
+      document.querySelector('#client-rename-fields').classList.add('hidden');
       document.querySelector('#dashboard-dialog-title').textContent = name;
       document.querySelector('#dashboard-url-list-label').textContent = name === 'DEACTIVATION'
         ? 'Spreadsheet URL and MIKA FILE lookup tab'
@@ -5762,12 +5775,12 @@
       let activeClientDeactivationMikaTabMap = {};
       dashboardAssignmentUsesClientUrlPairs = false;
       dashboardAssignmentUsesClientOptions = false;
-      if (name === 'HR EMPLOC MONITORING') {
+      if (name !== 'ATTRITION') {
         try {
           await loadClientOptions();
         } catch (error) {
-          const isClientListSourceSetup = currentUser?.isMasterAdmin;
-          if (!isClientListSourceSetup) return notify(error.message || 'Could not load client options.');
+          const canConfigureClientListSource = currentUser?.isMasterAdmin && name === 'HR EMPLOC MONITORING';
+          if (!canConfigureClientListSource) return notify(error.message || 'Could not load client options from HR EMPLOC MONITORING.');
         }
       } else {
         availableClientOptions = [...new Set([
@@ -5790,6 +5803,19 @@
           (name === 'ATTRITION' && canFetchMultiple);
         const isClientListSourceSetup = selectedUser?.is_master_admin && name === 'HR EMPLOC MONITORING' && !availableClientOptions.length;
         const selectedClients = assignedClients?.length ? assignedClients : selectedUser?.client_names?.length ? selectedUser.client_names : [selectedUser?.client_name].filter(Boolean);
+        const renameOldClient = document.querySelector('#client-rename-old');
+        const renameClients = [...new Set([
+          ...availableClientOptions,
+          ...(selectedUser?.client_names || []),
+          selectedUser?.client_name,
+          ...selectedClients
+        ].filter(Boolean).map(client => String(client).trim()).filter(client => client && client !== 'My spreadsheets'))];
+        renameOldClient.replaceChildren(...renameClients.map(client => {
+          const option = document.createElement('option');
+          option.value = client;
+          option.textContent = client;
+          return option;
+        }));
         clientSelect.multiple = false;
         clientSelect.size = 1;
         clientSelect.required = !dashboardAssignmentUsesClientOptions && !isClientListSourceSetup;
@@ -6980,6 +7006,41 @@
       })();
     });
     document.querySelector('#add-dashboard-url').addEventListener('click', () => addDashboardUrlRow());
+    document.querySelector('#show-client-rename').addEventListener('click', () => {
+      document.querySelector('#client-rename-fields').classList.toggle('hidden');
+    });
+    document.querySelector('#apply-client-rename').addEventListener('click', event => {
+      const button = event.currentTarget;
+      const oldClient = document.querySelector('#client-rename-old').value.trim();
+      const newClient = document.querySelector('#client-rename-new').value.trim();
+      const feedback = document.querySelector('#dashboard-assignment-feedback');
+      if (!currentUser?.isMasterAdmin || previewedUser) {
+        feedback.textContent = 'Only the Master Admin can rename a client, and not while previewing another account.';
+        return;
+      }
+      if (!oldClient || !newClient || oldClient.toLocaleLowerCase() === newClient.toLocaleLowerCase()) {
+        feedback.textContent = 'Choose the current client and enter a different new client name.';
+        return;
+      }
+      if (!window.confirm(`Rename "${oldClient}" to "${newClient}" in every saved account scope and dashboard assignment? This will not edit Google Sheets.`)) return;
+      button.disabled = true;
+      button.textContent = 'Updating...';
+      (async () => {
+        try {
+          const result = await callAdminFunction('rename-client', { oldClient, newClient });
+          const dashboardName = selectedDashboard;
+          await loadDashboardAssignments();
+          dashboardDialog.close();
+          notify(`Renamed ${result.oldClient || oldClient} to ${result.newClient || newClient}. Updated ${result.profilesUpdated || 0} account profile(s) and ${result.assignmentsUpdated || 0} dashboard assignment(s).`);
+          await openDashboardEditor(dashboardName);
+        } catch (error) {
+          feedback.textContent = error?.message || 'Could not rename the client.';
+        } finally {
+          button.disabled = false;
+          button.textContent = 'Update saved assignments';
+        }
+      })();
+    });
     document.querySelector('#inactive-setup-form').addEventListener('submit', event => {
       event.preventDefault();
       const form = event.currentTarget;
