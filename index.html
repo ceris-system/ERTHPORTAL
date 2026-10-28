@@ -74,6 +74,12 @@
     .login-note { margin: 19px 0 0; color: #80999d; text-align: center; font-size: 11px; line-height: 1.55; }
     .demo-note { display: inline-block; margin-top: 14px; padding: 7px 10px; border: 1px solid rgba(20,143,145,.15); border-radius: 8px; color: #397478; background: rgba(228,247,243,.72); font-size: 10px; }
     .hidden { display: none !important; }
+    .approval-notification { position:fixed; z-index:100; top:16px; right:16px; width:min(420px,calc(100vw - 32px)); display:flex; align-items:center; gap:12px; padding:14px; border:1px solid rgba(47,145,132,.35); border-radius:14px; color:#163c49; background:#f4fffc; box-shadow:0 12px 32px rgba(0,20,35,.28); }
+    .approval-notification p { flex:1; margin:0; font-size:12px; line-height:1.5; }
+    .approval-notification button { min-height:34px; padding:0 10px; border:1px solid rgba(20,143,145,.28); border-radius:9px; color:#176c73; background:#fff; font-size:11px; font-weight:700; }
+    .approval-notification button:hover { background:#e6f6f4; }
+    .approval-notification-dismiss { flex:0 0 34px; padding:0 !important; font-size:18px !important; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; } }
 
     .dashboard { display: block; min-height: 100vh; }
     .sidebar { display:none; }
@@ -897,6 +903,11 @@
 </head>
 <body>
   <div class="scene" aria-hidden="true"><canvas id="star-scene"></canvas></div>
+  <aside id="approval-notification" class="approval-notification hidden" role="status" aria-live="polite">
+    <p id="approval-notification-message"></p>
+    <button id="approval-notification-open" type="button">View approvals</button>
+    <button id="approval-notification-dismiss" class="approval-notification-dismiss" type="button" aria-label="Dismiss approval notification">×</button>
+  </aside>
   <div class="app-shell">
     <main id="login-page" class="login-page">
       <section class="intro">
@@ -1181,13 +1192,17 @@
     const starCanvas = document.querySelector('#star-scene');
     const starContext = starCanvas.getContext('2d');
     const reducedStarMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const lowPowerDevice = (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4) ||
+      (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4);
     let starWidth = 0;
     let starHeight = 0;
     let starFrame = 0;
     let previousStarFrame = 0;
     const stars = [];
     function resetStars() {
-      const density = Math.min(420, Math.max(190, Math.round(window.innerWidth * window.innerHeight / 2800)));
+      const density = lowPowerDevice
+        ? Math.min(150, Math.max(80, Math.round(window.innerWidth * window.innerHeight / 7000)))
+        : Math.min(420, Math.max(190, Math.round(window.innerWidth * window.innerHeight / 2800)));
       stars.length = 0;
       for (let index = 0; index < density; index++) {
         stars.push({
@@ -1202,7 +1217,7 @@
       }
     }
     function resizeStarCanvas() {
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, lowPowerDevice ? 1 : 2);
       starWidth = window.innerWidth;
       starHeight = window.innerHeight;
       starCanvas.width = Math.round(starWidth * pixelRatio);
@@ -1255,32 +1270,34 @@
         drawStars(now / 1000);
         previousStarFrame = now;
       }
-      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+      if (!lowPowerDevice && !document.hidden) starFrame = requestAnimationFrame(animateStars);
     }
     resizeStarCanvas();
     window.addEventListener('resize', resizeStarCanvas);
     document.addEventListener('visibilitychange', () => {
       cancelAnimationFrame(starFrame);
       previousStarFrame = 0;
-      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+      if (!lowPowerDevice && !document.hidden) starFrame = requestAnimationFrame(animateStars);
     });
     reducedStarMotion.addEventListener('change', () => {
       cancelAnimationFrame(starFrame);
       previousStarFrame = 0;
-      if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+      if (!lowPowerDevice && !document.hidden) starFrame = requestAnimationFrame(animateStars);
     });
-    if (!document.hidden) starFrame = requestAnimationFrame(animateStars);
+    if (!lowPowerDevice && !document.hidden) starFrame = requestAnimationFrame(animateStars);
   </script>
   <script type="module">
     const canvas = document.querySelector('#water-scene');
     const bubbleContext = canvas?.getContext('2d');
     const reducedBubbleMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const lowPowerDevice = (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4) ||
+      (navigator.deviceMemory > 0 && navigator.deviceMemory <= 4);
     let bubbleWidth = 0;
     let bubbleHeight = 0;
     let bubbleFrame = 0;
     const backgroundBubbles = [];
     const bubbleBursts = [];
-    const maximumBubbles = 56;
+    const maximumBubbles = lowPowerDevice ? 24 : 56;
     let lastFrameTime = 0;
     let nextBubbleTime = 0;
     const randomBubbleHue = () => [194, 201, 207, 214, 222, 278][Math.floor(Math.random() * 6)];
@@ -1561,7 +1578,7 @@
           nextBubbleTime = time + 500 + Math.random() * 800;
         }
         drawBackgroundBubbles(time / 1000);
-        if (!reducedBubbleMotion.matches && !document.hidden) {
+        if (!lowPowerDevice && !reducedBubbleMotion.matches && !document.hidden) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         }
       };
@@ -1571,20 +1588,20 @@
       document.addEventListener('visibilitychange', () => {
         cancelAnimationFrame(bubbleFrame);
         lastFrameTime = 0;
-        if (!document.hidden && !reducedBubbleMotion.matches) {
+        if (!lowPowerDevice && !document.hidden && !reducedBubbleMotion.matches) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         }
       });
       reducedBubbleMotion.addEventListener('change', () => {
         cancelAnimationFrame(bubbleFrame);
         lastFrameTime = 0;
-        if (!reducedBubbleMotion.matches && !document.hidden) {
+        if (!lowPowerDevice && !reducedBubbleMotion.matches && !document.hidden) {
           bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
         } else {
           drawBackgroundBubbles(performance.now() / 1000);
         }
       });
-      if (!reducedBubbleMotion.matches) bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
+      if (!lowPowerDevice && !reducedBubbleMotion.matches) bubbleFrame = requestAnimationFrame(animateBackgroundBubbles);
     }
 
     const dashboards = [
@@ -1641,6 +1658,11 @@
     let presenceHeartbeatWarningShown = false;
     let auditUnavailableWarningShown = false;
     let rosterPresenceTimer = null;
+    let approvalNotificationTimer = null;
+    let approvalNotificationInFlight = false;
+    let approvalNotificationGeneration = 0;
+    let previousApprovalPendingCount = null;
+    let approvalNotificationWarningShown = false;
     let lastActivityAt = 0;
     let lastActivityPersistedAt = 0;
     let sessionStorageWarningShown = false;
@@ -2110,6 +2132,7 @@
         }
         loginPage.classList.add('hidden');
         dashboardPage.classList.remove('hidden');
+        startApprovalNotificationPolling();
         if (saved.view === 'plantilla') {
           if (currentUser?.role === 'admin' && !currentUser?.isMasterAdmin) openUserDashboard('PLANTILLA');
           else showPlantilla();
@@ -2172,7 +2195,7 @@
         throw error;
       }
     }
-    async function callSheetsFunction(action, payload = {}) {
+    async function callSheetsFunction(action, payload = {}, { recordAudit = true } = {}) {
       if (!supabaseAccessToken) throw new Error('Sign in to the portal to access assigned spreadsheets.');
       try {
         const result = await supabaseRequest('/functions/v1/google-sheets-api', {
@@ -2195,7 +2218,7 @@
           'lookup-deactivation-emploc': 'DEACTIVATION',
           'list-client-options': 'HR EMPLOC MONITORING'
         };
-        if (readDashboards[action]) {
+        if (recordAudit && readDashboards[action]) {
           recordAuditEvent(
             'action',
             'fetched dashboard data',
@@ -3096,6 +3119,7 @@
     let vacancySpreadsheetId = '';
     let approvalRecords = [];
     let selectedApprovalRows = new Set();
+    const requiredApprovalColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
     let hrEmplocRecords = [];
     let hrEmplocSpreadsheetId = '';
     function showPlantilla() {
@@ -3642,11 +3666,139 @@
     }
     function canApproveApprovalRecords() {
       const account = previewedUser || currentUser;
+      return canApproveApprovalAccount(account);
+    }
+    function canApproveApprovalAccount(account) {
       const username = String(account?.username || '').trim().toLocaleLowerCase();
       const isAdministrator = !!account && (account.isMasterAdmin || account.role === 'admin');
       const isAnnieRegularAdmin = account?.role === 'admin' && !account.isMasterAdmin && username === 'annie';
       return isAdministrator && !isAnnieRegularAdmin;
     }
+    async function readApprovalRowsForClient(client, clients, { recordAudit = true, countOnly = false } = {}) {
+      if (usesAssignedSheetAccess()) {
+        return callSheetsFunction('read-for-approval', {
+          clientName: client,
+          ...(countOnly ? { countOnly: true } : {}),
+          ...(previewedUser ? { targetUsername: previewedUser.username } : {})
+        }, { recordAudit });
+      }
+      const assignedUrls = dashboardAssignments['FOR APPROVAL'];
+      const clientIndex = clients.findIndex(name => name.toLocaleLowerCase() === client.toLocaleLowerCase());
+      const sourceUrl = getDashboardSources('FOR APPROVAL', client)[0] ||
+        (Array.isArray(assignedUrls) && assignedUrls.length === clients.length ? assignedUrls[clientIndex] : '') ||
+        (Array.isArray(assignedUrls) && assignedUrls.length === 1 ? assignedUrls[0] : '');
+      if (!sourceUrl) throw new Error(`No FOR APPROVAL spreadsheet is assigned to ${client}. Ask the Master Admin to assign one.`);
+      const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
+      const sheetTab = getDashboardSheetTab('FOR APPROVAL', client);
+      if (countOnly) {
+        const sheetRange = `'${sheetTab.replace(/'/g, "''")}'!B5:AL`;
+        const range = encodeURIComponent(sheetRange);
+        const result = await sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+        return filterRowsByClient([], result.values || [], [client], 1);
+      }
+      const metadata = await sheetsApiRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
+      const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === sheetTab);
+      if (!vacancySheet) throw new Error(`The assigned spreadsheet for ${client} needs a tab named ${sheetTab}.`);
+      const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
+      const sheetRange = `'${vacancySheet.properties.title.replace(/'/g, "''")}'`;
+      const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
+      const [rawResult, displayResult] = await Promise.all([
+        sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
+        sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
+      ]);
+      return filterRowsByClient(rawResult.values || [], displayResult.values || [], [client], 1);
+    }
+    function isEligibleApprovalRow(displayRow, rawRow = []) {
+      return String(displayRow[0] ?? rawRow[0] ?? '').trim() !== '' &&
+        requiredApprovalColumns.every(column =>
+          String(displayRow[column] ?? rawRow[column] ?? '').trim() !== ''
+        );
+    }
+    async function countPendingApprovalRecords() {
+      const clients = getDashboardClientNames('FOR APPROVAL', true);
+      let pendingCount = 0;
+      for (const client of clients) {
+        const result = await readApprovalRowsForClient(client, clients, {
+          recordAudit: false,
+          countOnly: true
+        });
+        if (Number.isSafeInteger(result.pendingCount) && result.pendingCount >= 0) {
+          pendingCount += result.pendingCount;
+          continue;
+        }
+        if (!Array.isArray(result.displayValues)) {
+          throw new Error('The approval service returned an invalid pending count.');
+        }
+        const rawValues = result.rawValues || [];
+        const displayValues = result.displayValues || [];
+        const rowCount = Math.max(rawValues.length, displayValues.length);
+        for (let index = 0; index < rowCount; index += 1) {
+          if (isEligibleApprovalRow(displayValues[index] || [], rawValues[index] || [])) pendingCount += 1;
+        }
+      }
+      return pendingCount;
+    }
+    function showApprovalNotification(count) {
+      const notification = document.querySelector('#approval-notification');
+      const message = document.querySelector('#approval-notification-message');
+      if (!notification || !message) return;
+      message.textContent = `There ${count === 1 ? 'is' : 'are'} ${count} pending approval${count === 1 ? '' : 's'}.`;
+      notification.classList.remove('hidden');
+    }
+    async function checkPendingApprovalNotifications(generation) {
+      if (approvalNotificationInFlight || document.hidden || !currentUser || previewedUser ||
+        !canApproveApprovalAccount(currentUser) || !supabaseAccessToken) return;
+      approvalNotificationInFlight = true;
+      try {
+        const pendingCount = await countPendingApprovalRecords();
+        if (generation !== approvalNotificationGeneration) return;
+        if (previousApprovalPendingCount === null || pendingCount > previousApprovalPendingCount) {
+          if (pendingCount > 0) showApprovalNotification(pendingCount);
+        } else if (!document.querySelector('#approval-notification').classList.contains('hidden')) {
+          if (pendingCount > 0) showApprovalNotification(pendingCount);
+          else document.querySelector('#approval-notification').classList.add('hidden');
+        }
+        previousApprovalPendingCount = pendingCount;
+        approvalNotificationWarningShown = false;
+      } catch (error) {
+        if (!approvalNotificationWarningShown) {
+          approvalNotificationWarningShown = true;
+          console.error('Could not check for pending approval notifications.', error);
+        }
+      } finally {
+        approvalNotificationInFlight = false;
+      }
+    }
+    function stopApprovalNotificationPolling() {
+      clearInterval(approvalNotificationTimer);
+      approvalNotificationTimer = null;
+      approvalNotificationGeneration += 1;
+      previousApprovalPendingCount = null;
+      approvalNotificationWarningShown = false;
+      document.querySelector('#approval-notification')?.classList.add('hidden');
+    }
+    function startApprovalNotificationPolling() {
+      stopApprovalNotificationPolling();
+      if (!currentUser || previewedUser || !supabaseAccessToken || !canApproveApprovalAccount(currentUser)) return;
+      const generation = approvalNotificationGeneration;
+      checkPendingApprovalNotifications(generation);
+      approvalNotificationTimer = window.setInterval(
+        () => checkPendingApprovalNotifications(generation),
+        60_000
+      );
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && approvalNotificationTimer !== null) {
+        checkPendingApprovalNotifications(approvalNotificationGeneration);
+      }
+    });
+    document.querySelector('#approval-notification-dismiss').addEventListener('click', () => {
+      document.querySelector('#approval-notification').classList.add('hidden');
+    });
+    document.querySelector('#approval-notification-open').addEventListener('click', () => {
+      document.querySelector('#approval-notification').classList.add('hidden');
+      openUserDashboard('FOR APPROVAL');
+    });
     function updateApprovalButtonState() {
       const button = document.querySelector('#approval-confirm');
       if (!button) return;
@@ -3673,44 +3825,13 @@
         let rawValues = [];
         let displayValues = [];
         for (const client of clients) {
-          if (usesAssignedSheetAccess()) {
-            const result = await callSheetsFunction('read-for-approval', {
-              clientName: client,
-              ...(previewedUser ? { targetUsername: previewedUser.username } : {})
-            });
-            rawValues.push(...(result.rawValues || []));
-            displayValues.push(...(result.displayValues || []));
-            continue;
-          }
-          const assignedUrls = dashboardAssignments['FOR APPROVAL'];
-          const clientIndex = clients.findIndex(name => name.toLocaleLowerCase() === client.toLocaleLowerCase());
-          const sourceUrl = getDashboardSources('FOR APPROVAL', client)[0] ||
-            (Array.isArray(assignedUrls) && assignedUrls.length === clients.length ? assignedUrls[clientIndex] : '') ||
-            (Array.isArray(assignedUrls) && assignedUrls.length === 1 ? assignedUrls[0] : '');
-          if (!sourceUrl) throw new Error(`No FOR APPROVAL spreadsheet is assigned to ${client}. Ask the Master Admin to assign one.`);
-          const spreadsheetId = spreadsheetIdFromUrl(sourceUrl);
-          const sheetTab = getDashboardSheetTab('FOR APPROVAL', client);
-          const metadata = await sheetsApiRequest(`spreadsheets/${spreadsheetId}?fields=sheets.properties.title,sheets.properties.gridProperties.rowCount`);
-          const vacancySheet = metadata.sheets?.find(sheet => sheet.properties?.title === sheetTab);
-          if (!vacancySheet) throw new Error(`The assigned spreadsheet for ${client} needs a tab named ${sheetTab}.`);
-          const lastRow = Math.max(5, Number(vacancySheet.properties.gridProperties?.rowCount || 5));
-          const sheetRange = `'${vacancySheet.properties.title.replace(/'/g, "''")}'`;
-          const range = encodeURIComponent(`${sheetRange}!B5:AL${lastRow}`);
-          const [rawResult, displayResult] = await Promise.all([
-            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`),
-            sheetsApiRequest(`spreadsheets/${spreadsheetId}/values/${range}?valueRenderOption=FORMATTED_VALUE`)
-          ]);
-          const filtered = filterRowsByClient(rawResult.values || [], displayResult.values || [], [client], 1);
-          rawValues.push(...filtered.rawValues);
-          displayValues.push(...filtered.displayValues);
+          const result = await readApprovalRowsForClient(client, clients);
+          rawValues.push(...(result.rawValues || []));
+          displayValues.push(...(result.displayValues || []));
         }
-        const requiredApprovalColumns = [9, 10, 11, 12, 13, 14, 19, 20, 21, 30];
         const eligibleIndexes = displayValues.flatMap((displayRow, index) => {
           const rawRow = rawValues[index] || [];
-          const hasRequiredFields = requiredApprovalColumns.every(column =>
-            String(displayRow[column] ?? rawRow[column] ?? '').trim() !== ''
-          );
-          return hasRequiredFields ? [index] : [];
+          return isEligibleApprovalRow(displayRow, rawRow) ? [index] : [];
         });
         rawValues = eligibleIndexes.map(index => rawValues[index] || []);
         displayValues = eligibleIndexes.map(index => displayValues[index] || []);
@@ -6246,6 +6367,7 @@
       dashboardSheetTabs = Object.fromEntries(assignments.map(([name, result]) => [name, result.sheetTab || '']));
       selectedDashboardClients = {};
       activeDashboardForData = '';
+      stopApprovalNotificationPolling();
       previewedUser = {
         username: user.username,
         displayName: user.display_name,
@@ -6281,6 +6403,7 @@
       plantillaSpreadsheetId = '';
       renderProfile(currentUser);
       showHome();
+      loadDashboardAssignments().then(startApprovalNotificationPolling);
       notify('Returned to administrator mode.');
     }
 
@@ -6355,6 +6478,7 @@
             renderProfile(currentUser);
             loginPage.classList.add('hidden');
             dashboardPage.classList.remove('hidden');
+            startApprovalNotificationPolling();
             showHome();
           }
         } catch (loginError) {
@@ -6400,6 +6524,7 @@
           renderProfile(currentUser);
           loginPage.classList.add('hidden');
           dashboardPage.classList.remove('hidden');
+          startApprovalNotificationPolling();
           showHome();
         } catch (updateError) {
           error.textContent = updateError?.message || 'Could not update password.';
@@ -6539,6 +6664,7 @@
           headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${accessToken}` }
         }).catch(error => console.warn('Could not notify Supabase of sign-out.', error));
       }
+      stopApprovalNotificationPolling();
       clearPortalSession();
       currentUser = null;
       previewedUser = null;

@@ -1746,7 +1746,12 @@ async function readVacancy(spreadsheetId: string, clientNames: string[] = [], in
   };
 }
 
-async function readForApproval(spreadsheetId: string, clientNames: string[] = [], tabName = 'VACANCY') {
+async function readForApproval(
+  spreadsheetId: string,
+  clientNames: string[] = [],
+  tabName = 'VACANCY',
+  countOnly = false
+) {
   const activeClients = new Set(clientNames.map(name => name.trim().toLocaleLowerCase()).filter(Boolean));
   if (!activeClients.size) throw new Error('Select at least one client before loading approval records.');
   const range = sheetRange(tabName, 'B5:AL');
@@ -1763,6 +1768,11 @@ async function readForApproval(spreadsheetId: string, clientNames: string[] = []
     );
     return hasRequiredFields;
   });
+  if (countOnly) {
+    return {
+      pendingCount: eligibleRows.filter(row => String(row[0] ?? '').trim() !== '').length
+    };
+  }
   return {
     rawValues: [],
     displayValues: eligibleRows
@@ -2156,7 +2166,9 @@ Deno.serve(async request => {
     if (body.action === 'read-buffer') return respond(await readBuffer(spreadsheetId, sheetTab));
     if (body.action === 'read-buffer-detail') return respond(await readBufferDetail(spreadsheetId, sheetTab, String(body.detailType || ''), clientName));
     if (body.action === 'read-vacancy') return respond(await readVacancy(spreadsheetId, clientNames, true, sheetTab));
-    if (body.action === 'read-for-approval') return respond(await readForApproval(spreadsheetId, clientNames, sheetTab));
+    if (body.action === 'read-for-approval') {
+      return respond(await readForApproval(spreadsheetId, clientNames, sheetTab, body.countOnly === true));
+    }
     if (body.action === 'read-hr-emploc') {
       return respond(await readHrEmploc(spreadsheetId, clientNames, sheetTab));
     }
