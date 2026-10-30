@@ -20,7 +20,7 @@ const statuses = new Set([
 ]);
 const inactiveTransferStatuses = new Set([
   'AWOL', 'BACK OUT', 'ENDO', 'FLOATING', 'RESIGNED', 'TERMINATED',
-  'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT'
+  'TEMPORARY STORE CLOSED', 'PERMANENTLY STORE CLOSED', 'MOVEMENT', 'RESHUFFLE'
 ]);
 
 function respond(body: unknown, status = 200) {
