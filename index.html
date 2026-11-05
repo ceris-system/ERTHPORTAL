@@ -2566,7 +2566,30 @@
     function sheetDate(value) {
       if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899, 11, 30) + Math.floor(value) * 86400000);
       if (typeof value === 'string' && value.trim()) {
-        const parsed = new Date(value);
+        const text = value.trim();
+        const dateParts = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        const slashDateParts = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        const monthNameParts = text.match(/^([a-z]+)\.?\s+(\d{1,2}),?\s+(\d{4})$/i);
+        let year;
+        let month;
+        let day;
+        if (dateParts) {
+          [, year, month, day] = dateParts;
+        } else if (slashDateParts) {
+          [, month, day, year] = slashDateParts;
+        } else if (monthNameParts) {
+          const monthName = monthNameParts[1].toLocaleLowerCase();
+          const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+          month = monthNames.findIndex(name => name.startsWith(monthName.slice(0, 3))) + 1;
+          [, , day, year] = monthNameParts;
+          if (!month) return null;
+        }
+        if (year !== undefined) {
+          const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+          if (date.getUTCFullYear() === Number(year) && date.getUTCMonth() === Number(month) - 1 && date.getUTCDate() === Number(day)) return date;
+          return null;
+        }
+        const parsed = new Date(text);
         if (!Number.isNaN(parsed.getTime())) return parsed;
       }
       return null;
