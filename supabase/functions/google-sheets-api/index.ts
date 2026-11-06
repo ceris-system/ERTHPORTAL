@@ -1168,16 +1168,12 @@ async function transferPlantillaRowToInactive(
     const archivedMatches = archivedRows.flatMap((row: unknown[], index: number) =>
       String(row[1] ?? '').trim() === vcode ? [index + 1] : []
     );
-    if (archivedMatches.length > 1) throw new Error(`VCODE ${vcode} already appears more than once in the INACTIVE archive.`);
     if (archivedMatches.length) {
-      const archivedRowResult = await googleRequest(
-        `spreadsheets/${inactiveSpreadsheetId}/values/${sheetRange(inactiveTabName, `A${archivedMatches[0]}:AR${archivedMatches[0]}`)}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`
-      );
-      const archivedRow = archivedRowResult.values?.[0] || [];
-      const rowsMatch = Array.from({ length: 44 }, (_, index) =>
-        String(archivedRow[index] ?? '') === String(sourceValues[index] ?? '')
-      ).every(Boolean);
-      if (!rowsMatch) throw new Error(`VCODE ${vcode} already exists in INACTIVE with different data; the existing archive row was not overwritten.`);
+      await googleRequest(`spreadsheets/${inactiveSpreadsheetId}/values/${sheetRange(inactiveTabName, `A${archivedMatches[0]}:AR${archivedMatches[0]}`)}?valueInputOption=RAW`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: [Array.from({ length: 44 }, (_, index) => sourceValues[index] ?? '')] })
+      });
+      inactiveWritten = true;
     } else {
       const lastOccupiedRow = archivedRows.reduce((lastRow: number, row: unknown[], index: number) =>
         row.some(value => String(value ?? '').trim()) ? index + 1 : lastRow, 0);
