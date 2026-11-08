@@ -2778,6 +2778,16 @@
       document.querySelector('.pop-modal-actions').classList.remove('hidden');
       if (dialog.open) dialog.close('complete');
     }
+    function formatSheetOperationError(error, fallbackMessage) {
+      const message = String(error?.message || error || fallbackMessage || 'The sheet operation failed.');
+      if (/quota.*read requests.*per minute.*sheets\.googleapis\.com|Read requests.*per minute per user/i.test(message)) {
+        return 'Google Sheets is temporarily rate-limited. Please wait a moment and retry the transfer; the source rows were not changed.';
+      }
+      if (/protected cell|protected object|cannot edit a protected|trying to edit a protected cell|trying to edit a protected/i.test(message)) {
+        return 'The destination tab is protected and cannot accept new rows or edits. Unprotect the tab or choose a writable archive tab, then retry.';
+      }
+      return message;
+    }
     function escapeHtml(value) {
       return String(value).replace(/[&<>"']/g, character => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[character]);
     }
@@ -3444,7 +3454,7 @@
         }
         await popModal({
           title: deleting ? 'VCODE archive incomplete' : 'VCODE transfer incomplete',
-          message: error.message || `Could not ${deleting ? 'archive and delete' : 'transfer'} selected VCODEs.`,
+          message: formatSheetOperationError(error, `Could not ${deleting ? 'archive and delete' : 'transfer'} selected VCODEs.`),
           confirmLabel: 'Okay',
           cancelLabel: ''
         });
@@ -3655,7 +3665,7 @@
           progressOpen = false;
           await loadForApprovalRecords();
           if (failures.length) {
-            const failureSummary = failures.map(item => `${item.vcode}: ${item.error}`).join('\n');
+            const failureSummary = failures.map(item => `${item.vcode}: ${formatSheetOperationError(item.error, 'The transfer request failed.')}`).join('\n');
             await popModal({
               title: 'Approval transfer incomplete',
               message: `${approvedCount} of ${vcodes.length} transferred. Failed source rows remain in VACANCY.\n\n${failureSummary}`,
@@ -3677,7 +3687,7 @@
           }
           await popModal({
             title: 'Approval transfer incomplete',
-            message: error?.message || 'The selected records could not be transferred. Check the destination sheets before retrying.',
+            message: formatSheetOperationError(error, 'The selected records could not be transferred. Check the destination sheets before retrying.'),
             confirmLabel: 'Okay',
             cancelLabel: ''
           });

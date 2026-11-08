@@ -139,13 +139,32 @@ async function getGoogleAccessToken() {
 
 async function googleRequest(path: string, options: RequestInit = {}) {
   const token = await getGoogleAccessToken();
+  const headers = new Headers(options.headers ?? {});
+  headers.set('Authorization', `Bearer ${token}`);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
   const response = await fetch(`https://sheets.googleapis.com/v4/${path}`, {
     ...options,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers }
+    headers
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error?.message || 'Google Sheets request failed.');
+  const contentType = response.headers.get('content-type') || '';
+  const result = contentType.includes('application/json') ? await response.json() : await response.text();
+  if (!response.ok) {
+    const errorMessage = typeof result === 'object' && result && 'error' in result && result.error && typeof result.error === 'object' && 'message' in result.error
+      ? String((result as any).error.message)
+      : typeof result === 'string' && result.trim()
+        ? result
+        : 'Google Sheets request failed.';
+    throw new Error(errorMessage);
+  }
   return result;
+}
+
+const googleRequestThrottleMs = 1500;
+
+async function throttleGoogleRequests() {
+  await new Promise(resolve => setTimeout(resolve, googleRequestThrottleMs));
 }
 
 function defaultSheetTab(dashboardName: string) {
@@ -614,10 +633,18 @@ async function ensureDestinationRow(spreadsheetId: string, sheet: any, rowNumber
     });
   }
   if (requests.length) {
-    await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      body: JSON.stringify({ requests })
-    });
+    try {
+      await googleRequest(`spreadsheets/${spreadsheetId}:batchUpdate`, {
+        method: 'POST',
+        body: JSON.stringify({ requests })
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/protected cell|protected object|cannot edit a protected/i.test(message)) {
+        throw new Error(`The destination tab "${sheet.properties?.title || 'sheet'}" is protected and cannot accept new rows. Unprotect the tab or choose a writable archive tab.`);
+      }
+      throw error;
+    }
   }
 }
 
@@ -2064,7 +2091,8 @@ Deno.serve(async request => {
       const hrDestination = await getAssignedHrEmplocDestination(adminClient, targetUserId, clientNames[0] || '');
       const results = [];
       const failures = [];
-      for (const vcode of vcodes) {
+      for (let index = 0; index < vcodes.length; index += 1) {
+        const vcode = vcodes[index];
         try {
           const result = await approveVacancyRecord(
             spreadsheetId,
@@ -2088,6 +2116,9 @@ Deno.serve(async request => {
             vcode,
             error: error instanceof Error ? error.message : 'Unexpected transfer error.'
           });
+        }
+        if (index < vcodes.length - 1) {
+          await throttleGoogleRequests();
         }
       }
       return respond({
